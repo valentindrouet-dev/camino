@@ -1,5 +1,5 @@
 import { placedCount } from './board.ts'
-import { applyCard } from './cards.ts'
+import { applyCard, cardTable } from './cards.ts'
 import { Rng } from './rng.ts'
 import { scoreBoard } from './scoring.ts'
 import type { Color, GameState, Player, PlayerKind, ScoreBreakdown } from './types.ts'
@@ -26,10 +26,16 @@ export interface PlayerStats {
 
 export function playerStats(state: GameState): PlayerStats[] {
   const ruleset = state.options.ruleset
+  const table =
+    state.options.useCards && state.cardId ? cardTable(state.players, ruleset) : null
   const raw = state.players.map((player) => {
     const base = scoreBoard(player.board, ruleset)
-    const breakdown = state.options.useCards
-      ? applyCard(base, player.board, ruleset, player.cardId)
+    const breakdown = table
+      ? applyCard(
+          base,
+          { playerId: player.id, board: player.board, ruleset, table },
+          state.cardId,
+        )
       : base
     const scoring = breakdown.zones.filter((z) => z.color !== BLACK && z.points > 0)
     const wasted = breakdown.zones

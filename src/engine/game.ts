@@ -4,6 +4,7 @@ import { Rng } from './rng.ts'
 import { scoreOf } from './scoring.ts'
 import { TILE_COUNT } from './tiles.ts'
 import type {
+  BoardColor,
   GameOptions,
   GameState,
   Player,
@@ -14,23 +15,50 @@ import type {
 } from './types.ts'
 import { DEFAULT_RULESET } from './types.ts'
 
-export const PLAYER_COLORS = [
-  '#F7931D',
-  '#0095D9',
-  '#40AE49',
-  '#D1232A',
-  '#6850A1',
-  '#FFF101',
-]
+/** Couleurs exactes des six plateaux de la boîte. */
+export const BOARD_COLOR_HEX: Record<BoardColor, string> = {
+  O: '#F7931D',
+  R: '#D1232A',
+  P: '#6850A1',
+  G: '#40AE49',
+  Y: '#FFF101',
+  B: '#0095D9',
+}
+
+export const BOARD_COLOR_NAMES: Record<BoardColor, string> = {
+  O: 'Orange',
+  R: 'Rouge',
+  P: 'Violet',
+  G: 'Vert',
+  Y: 'Jaune',
+  B: 'Bleu',
+}
+
+/** Ordre d'attribution par défaut des plateaux. */
+export const DEFAULT_BOARD_ORDER: BoardColor[] = ['O', 'B', 'G', 'R', 'P', 'Y']
 
 export interface PlayerConfig {
   name: string
   kind: PlayerKind
+  boardColor: BoardColor
+}
+
+/** Première couleur de plateau encore libre. */
+export function freeBoardColor(taken: BoardColor[]): BoardColor {
+  return DEFAULT_BOARD_ORDER.find((c) => !taken.includes(c)) ?? DEFAULT_BOARD_ORDER[0]
 }
 
 export interface GameConfig {
   players: PlayerConfig[]
   options: GameOptions
+}
+
+export function defaultPlayers(count: number): PlayerConfig[] {
+  return Array.from({ length: count }, (_, i) => ({
+    name: `Joueur ${i + 1}`,
+    kind: 'human' as PlayerKind,
+    boardColor: DEFAULT_BOARD_ORDER[i % DEFAULT_BOARD_ORDER.length],
+  }))
 }
 
 export function defaultOptions(seed: string): GameOptions {
@@ -60,6 +88,10 @@ export function tilesNeeded(ruleset: Ruleset, playerCount: number): number {
 export function configError(config: GameConfig): string | null {
   const n = config.players.length
   if (n < 1 || n > 6) return 'Il faut entre 1 et 6 joueurs.'
+  const colors = config.players.map((p) => p.boardColor)
+  if (new Set(colors).size !== colors.length) {
+    return 'Deux joueurs ne peuvent pas prendre le même plateau : choisissez des couleurs différentes.'
+  }
   const needed = tilesNeeded(config.options.ruleset, n)
   if (needed > TILE_COUNT) {
     return `Il faudrait ${needed} tuiles pour cette configuration, le sac n'en contient que ${TILE_COUNT}. Réduisez la taille du plateau, le nombre de tuiles par tour ou le nombre de joueurs.`
@@ -70,20 +102,25 @@ export function configError(config: GameConfig): string | null {
 export function createGame(config: GameConfig): GameState {
   const rng = new Rng(config.options.seed)
   const size = config.options.ruleset.boardSize
-  const deck = config.options.useCards ? rng.shuffle(CARDS.map((c) => c.id)) : []
   const players: Player[] = config.players.map((p, i) => ({
     id: i,
     name: p.name.trim() || `Joueur ${i + 1}`,
     kind: p.kind,
-    color: PLAYER_COLORS[i % PLAYER_COLORS.length],
+    boardColor: p.boardColor,
+    color: BOARD_COLOR_HEX[p.boardColor],
     board: createBoard(size),
-    cardId: deck.length ? deck[i % deck.length] : undefined,
   }))
+
+  // Une seule carte mission pour toute la table.
+  const cardId = config.options.useCards
+    ? (config.options.cardId ?? rng.pick(CARDS).id)
+    : undefined
 
   const bag = rng.shuffle(Array.from({ length: TILE_COUNT }, (_, i) => i))
   const state: GameState = {
     phase: 'playing',
     options: config.options,
+    cardId,
     players,
     bag,
     pool: [],

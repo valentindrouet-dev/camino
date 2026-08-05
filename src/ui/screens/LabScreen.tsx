@@ -5,6 +5,7 @@ import {
   COLOR_NAMES,
   configError,
   defaultOptions,
+  defaultPlayers,
   DEFAULT_RULESET,
   histogram,
   PATH_COLORS,
@@ -81,7 +82,8 @@ function SimPanel() {
 
   const config: GameConfig = useMemo(
     () => ({
-      players: Array.from({ length: playerCount }, (_, i) => ({
+      players: defaultPlayers(playerCount).map((p, i) => ({
+        ...p,
         name: `J${i + 1}`,
         kind: kinds[i],
       })),

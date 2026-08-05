@@ -31,15 +31,26 @@ gauche — 16 manches jusqu'à ce que les plateaux 4×4 soient pleins.
 - bots (hasard / glouton / stratège) pour compléter une table ou tester une configuration seul ;
 - indices optionnels : le meilleur coup est entouré en vert.
 
+Chaque joueur choisit son plateau parmi les six de la boîte (orange, rouge, violet, vert, jaune,
+bleu) — deux joueurs ne peuvent pas prendre le même. Le plateau affiché reprend le modèle imprimé :
+contour de couleur, grille grise, emplacements blancs.
+
 **Décompte.** Les zones sont recalculées à chaque pose. Contours blancs sur les chemins qui
 marquent, contours orange sur les zones noires, pastille de points sur chaque zone, et infobulle
-au survol. Le score en direct est activable/désactivable dans la barre du haut.
+au survol. Le score et les points par zone s'affichent ou se masquent depuis la barre du haut.
+
+**Cartes missions.** Les 12 cartes de la boîte sont implémentées. Une seule carte est tirée pour la
+table — tout le monde joue la même mission — et son bonus est calculé en direct, visible pendant la
+partie comme en fin de partie. En setup, on peut imposer une carte précise pour la tester.
 
 **Statistiques.** Pendant la partie : score détaillé par couleur, courbe d'évolution manche par
 manche, journal des coups avec le delta de chaque pose. En fin de partie : podium, comparatif
 couleur par couleur, rendement moyen de chaque couleur, écart entre premier et dernier, gâchis
 (tuiles bloquées dans des chemins trop courts). Chaque partie terminée est archivée localement et
 alimente des statistiques cumulées, exportables en CSV.
+
+**Matériel.** La page d'accueil montre tout le matériel : les 6 plateaux, les 97 tuiles et les
+12 cartes.
 
 **Laboratoire d'équilibrage.** Simulation de 50 à 2 000 parties entre bots, avec barème modifiable
 (points par palier, malus des zones noires, longueur minimale d'un chemin, taille du plateau,
@@ -84,13 +95,23 @@ renvoient des états immuables, et une partie est entièrement rejouable à part
 la liste des coups. C'est ce qui permettra de le faire tourner tel quel dans un serveur Node pour
 le jeu à distance, sans réécrire la logique.
 
+## Lecture des cartes missions
+
+Trois cartes demandaient une interprétation ; elles sont implémentées ainsi (`src/engine/cards.ts`,
+tests dans `tests/cards.test.mjs`) :
+
+- **« +6 points par carré composé d'au moins 2 tuiles »** — un carré est une zone de couleur dont la
+  forme est *exactement* un bloc de 2 × 2 quarts, à cheval sur au moins 2 tuiles. C'est ce
+  qu'illustre la carte : les carrés valides sont entourés, et un bloc vert prolongé par d'autres
+  quarts verts est barré d'une croix.
+- **« chaque chemin qui… »** (orange, angles, bords opposés, encerclement) — « chemin » désigne un
+  chemin qui marque, donc d'au moins 3 tuiles, comme dans la règle de base. Un quart isolé dans un
+  angle ne rapporte rien.
+- **« Les zones noires deviennent positives »** — le malus est annulé puis chaque zone noire
+  rapporte +2 (soit +4 par zone par rapport au décompte normal).
+
 ## Suite prévue
 
-- **Cartes missions.** La mécanique est branchée (`src/engine/cards.ts` : une carte = une fonction
-  pure évaluée en fin de partie, distribuée à la création et affichée dans l'interface), mais les
-  12 cartes présentes sont des **propositions** marquées `draft: true`, écrites pour valider le
-  système. Remplacer le tableau `CARDS` par le texte réel des cartes suffit : ni le moteur ni
-  l'interface n'ont besoin d'être modifiés. L'option est désactivée par défaut.
 - **Jeu en ligne.** Prochaine étape : un petit serveur Node qui importe `src/engine` tel quel,
   garde l'état d'une table, valide les coups reçus et diffuse les états aux clients connectés
   (WebSocket). Le client n'a alors qu'à remplacer l'appel local à `applyMove` par un envoi réseau.

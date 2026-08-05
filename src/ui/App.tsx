@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { createGame } from '../engine/index.ts'
 import type { GameConfig, GameState } from '../engine/index.ts'
+import { archiveGame } from './storage.ts'
 import { SetupScreen } from './screens/SetupScreen.tsx'
 import { GameScreen } from './screens/GameScreen.tsx'
 import { ResultsScreen } from './screens/ResultsScreen.tsx'
@@ -15,11 +16,29 @@ export default function App() {
 
   const state = history[history.length - 1] ?? null
 
+  // Une partie terminée n'est archivée qu'une fois, et le passage à l'écran de
+  // résultats ne doit pas se redéclencher quand on revient voir les plateaux.
+  const settled = useRef(false)
+  // Miroir de l'historique : `finish` ne doit pas dépendre d'une valeur figée.
+  const historyRef = useRef<GameState[]>(history)
+  historyRef.current = history
+
   const start = (cfg: GameConfig) => {
     setConfig(cfg)
     setHistory([createGame(cfg)])
+    settled.current = false
     setScreen('game')
   }
+
+  const finish = useCallback(() => {
+    if (settled.current) return
+    settled.current = true
+    // L'archivage se fait ici, une seule fois par partie — surtout pas dans un
+    // effet d'écran, qui se rejoue à chaque retour sur les résultats.
+    const last = historyRef.current[historyRef.current.length - 1]
+    if (last?.phase === 'finished') archiveGame(last)
+    setScreen('results')
+  }, [])
 
   const onHistory = useCallback(
     (updater: (h: GameState[]) => GameState[]) => setHistory((h) => updater(h)),
@@ -70,7 +89,7 @@ export default function App() {
                 checked={state.options.liveScore}
                 onChange={(e) => patchOption('liveScore', e.target.checked)}
               />
-              Score en direct
+              Score visible
             </label>
             <label className={`toggle ${state.options.showZones ? 'on' : ''}`}>
               <input
@@ -78,7 +97,7 @@ export default function App() {
                 checked={state.options.showZones}
                 onChange={(e) => patchOption('showZones', e.target.checked)}
               />
-              Zones
+              Points par Zone visible
             </label>
             <label className={`toggle ${state.options.showHints ? 'on' : ''}`}>
               <input
@@ -109,7 +128,7 @@ export default function App() {
         <GameScreen
           history={history}
           onHistory={onHistory}
-          onFinish={() => setScreen('results')}
+          onFinish={finish}
           onQuit={() => setScreen('setup')}
         />
       )}

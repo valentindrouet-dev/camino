@@ -1,16 +1,29 @@
 import { useMemo, useState } from 'react'
 import {
+  BOARD_COLOR_HEX,
+  BOARD_COLOR_NAMES,
+  BOARD_COLORS,
+  CARDS,
   configError,
   defaultOptions,
+  defaultPlayers,
   DEFAULT_RULESET,
-  PLAYER_COLORS,
+  freeBoardColor,
   randomSeed,
   TILE_COUNT,
   tilesNeeded,
   tilesPerRound,
 } from '../../engine/index.ts'
-import type { GameConfig, PlayerConfig, PlayerKind, Ruleset } from '../../engine/index.ts'
+import type {
+  BoardColor,
+  GameConfig,
+  PlayerConfig,
+  PlayerKind,
+  Ruleset,
+} from '../../engine/index.ts'
 import { loadLastConfig, saveLastConfig } from '../storage.ts'
+import { MaterialSection } from '../components/MaterialSection.tsx'
+import { MissionCardView } from '../components/MissionCard.tsx'
 
 const KIND_LABELS: Record<PlayerKind, string> = {
   human: 'Humain',
@@ -18,8 +31,6 @@ const KIND_LABELS: Record<PlayerKind, string> = {
   'bot-greedy': 'Bot — glouton',
   'bot-smart': 'Bot — stratège',
 }
-
-const DEFAULT_NAMES = ['Joueur 1', 'Joueur 2', 'Joueur 3', 'Joueur 4', 'Joueur 5', 'Joueur 6']
 
 /** Les six couleurs du jeu, assombries juste ce qu'il faut pour rester lisibles
  *  sur le fond crème. */
@@ -33,13 +44,10 @@ interface Props {
 export function SetupScreen({ onStart, onOpenLab }: Props) {
   const saved = useMemo(() => loadLastConfig<GameConfig>(), [])
   const [players, setPlayers] = useState<PlayerConfig[]>(
-    saved?.players ?? [
-      { name: 'Joueur 1', kind: 'human' },
-      { name: 'Joueur 2', kind: 'human' },
-    ],
+    saved?.players?.every((p) => p.boardColor) ? saved.players : defaultPlayers(2),
   )
   const [options, setOptions] = useState(saved?.options ?? defaultOptions(randomSeed()))
-  const [advanced, setAdvanced] = useState(false)
+  const [showScale, setShowScale] = useState(false)
 
   const config: GameConfig = { players, options }
   const error = configError(config)
@@ -50,11 +58,26 @@ export function SetupScreen({ onStart, onOpenLab }: Props) {
     setPlayers((prev) => {
       const next = prev.slice(0, n)
       while (next.length < n) {
-        next.push({ name: DEFAULT_NAMES[next.length], kind: 'human' })
+        next.push({
+          name: `Joueur ${next.length + 1}`,
+          kind: 'human',
+          boardColor: freeBoardColor(next.map((p) => p.boardColor)),
+        })
       }
       return next
     })
   }
+
+  /** Choisir une couleur déjà prise l'échange avec l'autre joueur. */
+  const pickColor = (index: number, color: BoardColor) =>
+    setPlayers((prev) => {
+      const owner = prev.findIndex((p) => p.boardColor === color)
+      return prev.map((p, i) => {
+        if (i === index) return { ...p, boardColor: color }
+        if (i === owner) return { ...p, boardColor: prev[index].boardColor }
+        return p
+      })
+    })
 
   const patchRuleset = (patch: Partial<Ruleset>) =>
     setOptions((o) => ({ ...o, ruleset: { ...o.ruleset, ...patch } }))
@@ -88,29 +111,45 @@ export function SetupScreen({ onStart, onOpenLab }: Props) {
           <div className="row wrap">
             <div className="seg">
               {[1, 2, 3, 4, 5, 6].map((n) => (
-                <button key={n} className={players.length === n ? 'on' : ''} onClick={() => setCount(n)}>
+                <button
+                  key={n}
+                  className={players.length === n ? 'on' : ''}
+                  onClick={() => setCount(n)}
+                >
                   {n}
                 </button>
               ))}
             </div>
-            <span className="note">{players.length === 1 ? 'solo' : `${players.length} joueurs`}</span>
+            <span className="note">
+              {players.length === 1 ? 'solo' : `${players.length} joueurs`}
+            </span>
           </div>
 
-          <div className="stack" style={{ gap: 8 }}>
+          <div className="stack" style={{ gap: 10 }}>
             {players.map((p, i) => (
               <div className="player-row" key={i}>
-                <span className="dot" style={{ background: PLAYER_COLORS[i] }} />
                 <input
                   type="text"
                   value={p.name}
                   maxLength={18}
-                  placeholder={DEFAULT_NAMES[i]}
+                  placeholder={`Joueur ${i + 1}`}
                   onChange={(e) =>
                     setPlayers((prev) =>
                       prev.map((q, k) => (k === i ? { ...q, name: e.target.value } : q)),
                     )
                   }
                 />
+                <div className="color-picker">
+                  {BOARD_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      className={`chip ${p.boardColor === c ? 'on' : ''}`}
+                      style={{ background: BOARD_COLOR_HEX[c] }}
+                      title={`Plateau ${BOARD_COLOR_NAMES[c].toLowerCase()}`}
+                      onClick={() => pickColor(i, c)}
+                    />
+                  ))}
+                </div>
                 <select
                   value={p.kind}
                   onChange={(e) =>
@@ -139,8 +178,9 @@ export function SetupScreen({ onStart, onOpenLab }: Props) {
             ))}
           </div>
           <p className="note">
-            Les bots jouent tout seuls : pratique pour tester une configuration ou compléter une
-            table. Le « stratège » anticipe les chemins et regroupe ses zones noires.
+            Chaque joueur prend un plateau : cliquez sur une pastille pour changer de couleur, deux
+            joueurs ne peuvent pas avoir la même. Les bots jouent tout seuls — pratique pour tester
+            une configuration ou compléter une table.
           </p>
         </div>
 
@@ -148,12 +188,12 @@ export function SetupScreen({ onStart, onOpenLab }: Props) {
           <h3>Options de partie</h3>
           <div className="row wrap">
             <Toggle
-              label="Score en direct"
+              label="Score visible"
               on={options.liveScore}
               onChange={(v) => setOptions((o) => ({ ...o, liveScore: v }))}
             />
             <Toggle
-              label="Contours des zones"
+              label="Points par Zone visible"
               on={options.showZones}
               onChange={(v) => setOptions((o) => ({ ...o, showZones: v }))}
             />
@@ -162,16 +202,7 @@ export function SetupScreen({ onStart, onOpenLab }: Props) {
               on={options.showHints}
               onChange={(v) => setOptions((o) => ({ ...o, showHints: v }))}
             />
-            <Toggle
-              label="Cartes missions"
-              on={options.useCards}
-              onChange={(v) => setOptions((o) => ({ ...o, useCards: v }))}
-            />
           </div>
-          <p className="note">
-            Les cartes missions sont des <strong>propositions</strong> à valider : la mécanique est
-            branchée, le texte des 12 vraies cartes reste à intégrer.
-          </p>
 
           <div className="field">
             <span>Graine aléatoire (même graine = même pioche)</span>
@@ -191,17 +222,61 @@ export function SetupScreen({ onStart, onOpenLab }: Props) {
             </div>
           </div>
 
+          {/* ------------------------------------------------------ variantes */}
+          <div className="section-head">Variantes</div>
+          <div className="row wrap">
+            <Toggle
+              label="Cartes missions"
+              on={options.useCards}
+              onChange={(v) => setOptions((o) => ({ ...o, useCards: v }))}
+            />
+            <Toggle
+              label="Pose libre"
+              on={!options.ruleset.requireAdjacency}
+              onChange={(v) => patchRuleset({ requireAdjacency: !v })}
+            />
+          </div>
+          <p className="note">
+            <strong>Cartes missions :</strong> une carte est tirée pour la table, tout le monde joue
+            la même mission. <strong>Pose libre :</strong> les tuiles n’ont plus besoin de toucher
+            une tuile déjà posée.
+          </p>
+
+          {options.useCards && (
+            <div className="field">
+              <span>Carte de la partie</span>
+              <select
+                value={options.cardId ?? ''}
+                onChange={(e) =>
+                  setOptions((o) => ({ ...o, cardId: e.target.value || undefined }))
+                }
+              >
+                <option value="">Tirée au hasard</option>
+                {CARDS.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.badge} — {c.name}
+                  </option>
+                ))}
+              </select>
+              {options.cardId && (
+                <div style={{ marginTop: 8 }}>
+                  <MissionCardView card={CARDS.find((c) => c.id === options.cardId)!} compact />
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <span className="note">
               {perRound} tuile{perRound > 1 ? 's' : ''} révélée{perRound > 1 ? 's' : ''} par manche
               · {needed}/{TILE_COUNT} tuiles utilisées
             </span>
-            <button className="btn small ghost" onClick={() => setAdvanced((v) => !v)}>
-              {advanced ? 'Masquer' : 'Barème & variantes'}
+            <button className="btn small ghost" onClick={() => setShowScale((v) => !v)}>
+              {showScale ? 'Masquer le barème' : 'Barème'}
             </button>
           </div>
 
-          {advanced && (
+          {showScale && (
             <div className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: 12 }}>
               <div className="row wrap">
                 <label className="field" style={{ width: 130 }}>
@@ -253,7 +328,7 @@ export function SetupScreen({ onStart, onOpenLab }: Props) {
               </div>
 
               <div>
-                <span className="note">Barème (points selon le nombre de tuiles traversées)</span>
+                <span className="note">Points selon le nombre de tuiles traversées</span>
                 <div className="row wrap" style={{ marginTop: 6 }}>
                   {[3, 4, 5, 6, 7, 8, 9].map((span) => (
                     <label className="field" key={span} style={{ width: 74 }}>
@@ -272,19 +347,13 @@ export function SetupScreen({ onStart, onOpenLab }: Props) {
                 </div>
               </div>
 
-              <div className="row wrap">
-                <Toggle
-                  label="Pose obligatoirement adjacente"
-                  on={options.ruleset.requireAdjacency}
-                  onChange={(v) => patchRuleset({ requireAdjacency: v })}
-                />
-                <button
-                  className="btn small ghost"
-                  onClick={() => patchRuleset({ ...DEFAULT_RULESET })}
-                >
-                  Revenir au barème officiel
-                </button>
-              </div>
+              <button
+                className="btn small ghost"
+                style={{ alignSelf: 'flex-start' }}
+                onClick={() => patchRuleset({ ...DEFAULT_RULESET })}
+              >
+                Revenir au barème officiel
+              </button>
             </div>
           )}
 
@@ -293,7 +362,12 @@ export function SetupScreen({ onStart, onOpenLab }: Props) {
       </div>
 
       <div className="row" style={{ marginTop: 18, justifyContent: 'center', gap: 12 }}>
-        <button className="btn primary" style={{ padding: '12px 30px' }} disabled={!!error} onClick={start}>
+        <button
+          className="btn primary"
+          style={{ padding: '12px 30px' }}
+          disabled={!!error}
+          onClick={start}
+        >
           Commencer la partie
         </button>
         <button className="btn" onClick={onOpenLab}>
@@ -318,6 +392,8 @@ export function SetupScreen({ onStart, onOpenLab }: Props) {
           sa taille, coûte 2 points.
         </p>
       </div>
+
+      <MaterialSection />
     </div>
   )
 }

@@ -103,14 +103,23 @@ export const DEFAULT_RULESET: Ruleset = {
 
 export type PlayerKind = 'human' | 'bot-random' | 'bot-greedy' | 'bot-smart'
 
+/**
+ * Les six plateaux de la boîte se distinguent par la couleur de leur contour.
+ * Deux joueurs ne peuvent pas prendre le même plateau.
+ */
+export type BoardColor = 'O' | 'R' | 'P' | 'G' | 'Y' | 'B'
+
+export const BOARD_COLORS: BoardColor[] = ['O', 'R', 'P', 'G', 'Y', 'B']
+
 export interface Player {
   id: number
   name: string
   kind: PlayerKind
+  /** Couleur du contour de son plateau. */
+  boardColor: BoardColor
+  /** Code hexadécimal correspondant, pour l'affichage. */
   color: string
   board: Board
-  /** Carte mission (phase 2). */
-  cardId?: string
 }
 
 export interface PoolTile {
@@ -129,8 +138,10 @@ export interface GameOptions {
   showZones: boolean
   /** Affiche le meilleur coup possible (aide au playtest). */
   showHints: boolean
-  /** Distribue une carte mission à chaque joueur. */
+  /** Une carte mission est tirée pour la table. */
   useCards: boolean
+  /** Carte imposée ; sinon elle est tirée au hasard selon la graine. */
+  cardId?: string
   seed: string
 }
 
@@ -151,6 +162,8 @@ export interface RoundLogEntry {
 export interface GameState {
   phase: Phase
   options: GameOptions
+  /** Carte mission de la table (identique pour tout le monde). */
+  cardId?: string
   players: Player[]
   /** Pioche restante (ids de tuiles), mélangée. */
   bag: number[]

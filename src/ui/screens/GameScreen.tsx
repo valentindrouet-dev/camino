@@ -7,7 +7,7 @@ import {
   currentLegalCells,
   currentPlayerId,
   isBot,
-  scorePlayer,
+  scoreAll,
   topMoves,
 } from '../../engine/index.ts'
 import type { GameState, Rotation } from '../../engine/index.ts'
@@ -15,6 +15,7 @@ import { BoardView } from '../components/BoardView.tsx'
 import { TileGlyph } from '../components/TileGlyph.tsx'
 import { ScoreDetail } from '../components/ScoreDetail.tsx'
 import { ScoreLines } from '../components/Charts.tsx'
+import { MissionCardView } from '../components/MissionCard.tsx'
 
 interface Props {
   history: GameState[]
@@ -42,10 +43,8 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
   const free = useMemo(() => availableTiles(state), [state])
   const legal = useMemo(() => currentLegalCells(state), [state])
 
-  const breakdowns = useMemo(
-    () => state.players.map((p) => scorePlayer(p, options)),
-    [state.players, options],
-  )
+  const breakdowns = useMemo(() => scoreAll(state), [state])
+  const card = cardById(state.cardId)
 
   const lastPlaced = useMemo(() => {
     for (let i = state.log.length - 1; i >= 0; i--) {
@@ -169,9 +168,9 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
               <BoardView
                 board={p.board}
                 ruleset={options.ruleset}
+                frameColor={p.color}
                 compact
                 showZones={false}
-                showGrid
               />
             </div>
             {state.bagHolder === p.id && state.phase === 'playing' && (
@@ -264,6 +263,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
           <BoardView
             board={viewed.board}
             ruleset={options.ruleset}
+            frameColor={viewed.color}
             showZones={options.showZones}
             interactive={canPlaceHere}
             legal={viewId === activeId ? legal : []}
@@ -293,13 +293,19 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
               décompte pendant la partie.
             </p>
           )}
-          {options.useCards && viewed.cardId && (
-            <div className="card-mission" style={{ marginTop: 10 }}>
-              <div className="t">{cardById(viewed.cardId)?.name}</div>
-              <div className="note">{cardById(viewed.cardId)?.description}</div>
-            </div>
-          )}
         </div>
+
+        {card && (
+          <div className="panel">
+            <h3>Carte mission de la table</h3>
+            <MissionCardView
+              card={card}
+              compact
+              points={breakdowns[viewId].cardPoints}
+              detail={breakdowns[viewId].cardLabel}
+            />
+          </div>
+        )}
 
         {options.liveScore && state.scoreHistory[0].length > 1 && (
           <div className="panel">

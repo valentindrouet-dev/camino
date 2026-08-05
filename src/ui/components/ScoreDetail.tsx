@@ -54,10 +54,17 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
       )}
 
       {!dense && breakdown.cardLabel && (
-        <div className="score-line" title={breakdown.cardLabel}>
-          <span className="swatch" style={{ background: '#8b6ad6' }} />
+        <div className="score-line" title={`Carte mission — ${breakdown.cardLabel}`}>
+          <span className="swatch mission" style={{ background: '#F9B515' }}>
+            ★
+          </span>
           <span className="bar">
-            <i style={{ width: '100%', background: '#8b6ad6', opacity: 0.4 }} />
+            <i
+              style={{
+                width: breakdown.cardPoints > 0 ? '100%' : '0%',
+                background: '#F9B515',
+              }}
+            />
           </span>
           <span className={`val ${breakdown.cardPoints > 0 ? 'pos' : ''}`}>
             {breakdown.cardPoints > 0 ? `+${breakdown.cardPoints}` : '—'}

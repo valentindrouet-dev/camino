@@ -1,194 +1,288 @@
 /**
- * Cartes missions (les 12 cartes de la boîte).
+ * Les 12 cartes missions de CAMINO (Cartes_CAMINO_OK.pdf).
  *
- * PHASE 2 — le contenu exact des cartes n'était pas fourni : les cartes
- * ci-dessous sont des PROPOSITIONS (`draft: true`) qui servent à valider la
- * mécanique. Chaque carte est une fonction pure `evaluate()` : pour brancher
- * les vraies cartes, il suffit de remplacer le tableau `CARDS`, rien d'autre
- * dans le moteur ni dans l'interface n'a besoin de changer.
+ * Une seule carte est tirée pour la table : toutes et tous jouent la même
+ * mission. C'est ce qu'implique la carte « plus grand chemin violet », dont la
+ * clause « si égalité, +5 points par joueur » n'a de sens que si plusieurs
+ * joueurs visent le même objectif.
+ *
+ * Chaque carte est une fonction pure évaluée sur le plateau final.
  */
-import { colOf, quadGrid, rowOf } from './board.ts'
-import type { Board, Color, Ruleset, ScoreBreakdown } from './types.ts'
-import { BLACK, PATH_COLORS } from './types.ts'
-import { COLOR_NAMES } from './scoring.ts'
+import { quadGrid } from './board.ts'
+import { computeZones } from './scoring.ts'
+import type { Board, Ruleset, ScoreBreakdown, Zone } from './types.ts'
+import { BLACK } from './types.ts'
+
+export interface CardTableEntry {
+  playerId: number
+  zones: Zone[]
+}
 
 export interface CardContext {
+  playerId: number
   board: Board
+  /** Décompte de base (zones + points), avant carte. */
   breakdown: ScoreBreakdown
   ruleset: Ruleset
+  /** Les zones de tous les joueurs — pour les cartes comparatives. */
+  table: CardTableEntry[]
+}
+
+export interface CardResult {
+  points: number
+  /** Explication courte affichée au joueur. */
+  detail: string
 }
 
 export interface MissionCard {
   id: string
+  /** Texte exact de la carte. */
+  text: string
+  /** Valeur affichée dans la pastille de la carte. */
+  badge: string
+  /** Nom court pour les listes et les statistiques. */
   name: string
-  description: string
-  /** Proposition à valider avec l'auteur du jeu. */
-  draft: boolean
-  evaluate(ctx: CardContext): { points: number; detail: string }
+  evaluate(ctx: CardContext): CardResult
 }
 
-function scoringZones(ctx: CardContext, color?: Color) {
-  return ctx.breakdown.zones.filter(
-    (z) => z.color !== BLACK && z.points > 0 && (!color || z.color === color),
-  )
+/** Chemins qui marquent : zones de couleur d'au moins `minSpan` tuiles. */
+function paths(ctx: CardContext): Zone[] {
+  return ctx.breakdown.zones.filter((z) => z.color !== BLACK && z.span >= ctx.ruleset.minSpan)
 }
 
-const colorCard = (color: Color, bonus: number): MissionCard => ({
-  id: `color-${color}`,
-  name: `Spécialiste ${COLOR_NAMES[color].toLowerCase()}`,
-  description: `+${bonus} pts si votre chemin le plus long est ${COLOR_NAMES[color].toLowerCase()}.`,
-  draft: true,
-  evaluate(ctx) {
-    const zones = scoringZones(ctx)
-    if (!zones.length) return { points: 0, detail: 'aucun chemin qui marque' }
-    const longest = Math.max(...zones.map((z) => z.span))
-    const ok = zones.some((z) => z.color === color && z.span === longest)
-    return {
-      points: ok ? bonus : 0,
-      detail: ok
-        ? `chemin ${COLOR_NAMES[color].toLowerCase()} de ${longest} tuiles`
-        : 'chemin le plus long d’une autre couleur',
+function plural(n: number, one: string, many = `${one}s`): string {
+  return `${n} ${n > 1 ? many : one}`
+}
+
+// ---------------------------------------------------------------------------
+
+/** Zones de couleur dont la forme est exactement un carré de 2 x 2 quarts. */
+function squareZones(ctx: CardContext): Zone[] {
+  const qs = ctx.board.size * 2
+  return ctx.breakdown.zones.filter((z) => {
+    if (z.color === BLACK || z.cells.length !== 4) return false
+    const rows = z.cells.map((c) => Math.floor(c / qs))
+    const cols = z.cells.map((c) => c % qs)
+    const carre =
+      Math.max(...rows) - Math.min(...rows) === 1 && Math.max(...cols) - Math.min(...cols) === 1
+    // « au moins 2 tuiles » : un carré aligné sur une seule tuile ne compte pas.
+    return carre && z.span >= 2
+  })
+}
+
+/** Bords touchés par une zone. */
+function edges(zone: Zone, boardSize: number) {
+  const qs = boardSize * 2
+  let top = false
+  let bottom = false
+  let left = false
+  let right = false
+  for (const c of zone.cells) {
+    const r = Math.floor(c / qs)
+    const col = c % qs
+    if (r === 0) top = true
+    if (r === qs - 1) bottom = true
+    if (col === 0) left = true
+    if (col === qs - 1) right = true
+  }
+  return { top, bottom, left, right }
+}
+
+/** Les 4 quarts situés dans les angles du plateau. */
+function cornerQuads(boardSize: number): number[] {
+  const qs = boardSize * 2
+  return [0, qs - 1, qs * (qs - 1), qs * qs - 1]
+}
+
+/**
+ * Une zone « enferme » quelque chose si, en la retirant du plateau, il reste un
+ * groupe de quarts qui ne touche aucun bord — donc entouré uniquement par elle.
+ */
+function enclosesSomething(zone: Zone, board: Board): boolean {
+  const grid = quadGrid(board)
+  const qs = grid.size
+  const inZone = new Set(zone.cells)
+  const seen = new Uint8Array(qs * qs)
+  for (let start = 0; start < qs * qs; start++) {
+    if (seen[start] || inZone.has(start)) continue
+    // Parcours du groupe contigu hors de la zone.
+    const stack = [start]
+    seen[start] = 1
+    let touchesEdge = false
+    let complete = true
+    while (stack.length) {
+      const cur = stack.pop() as number
+      const r = Math.floor(cur / qs)
+      const c = cur % qs
+      if (grid.cells[cur] === null) complete = false
+      if (r === 0 || c === 0 || r === qs - 1 || c === qs - 1) touchesEdge = true
+      for (const n of [
+        r > 0 ? cur - qs : -1,
+        r < qs - 1 ? cur + qs : -1,
+        c > 0 ? cur - 1 : -1,
+        c < qs - 1 ? cur + 1 : -1,
+      ]) {
+        if (n >= 0 && !seen[n] && !inZone.has(n)) {
+          seen[n] = 1
+          stack.push(n)
+        }
+      }
     }
-  },
-})
+    if (!touchesEdge && complete) return true
+  }
+  return false
+}
+
+// ---------------------------------------------------------------------------
 
 export const CARDS: MissionCard[] = [
-  ...PATH_COLORS.map((c) => colorCard(c, 6)),
   {
-    id: 'rainbow',
-    name: 'Arc-en-ciel',
-    description: '+2 pts par couleur ayant au moins un chemin qui marque.',
-    draft: true,
+    id: 'exact-4',
+    name: 'Chemins de 4',
+    badge: '+5',
+    text: '+5 points pour chaque chemin composé d’exactement 4 tuiles.',
     evaluate(ctx) {
-      const colors = new Set(scoringZones(ctx).map((z) => z.color))
-      return { points: colors.size * 2, detail: `${colors.size} couleurs qui marquent` }
+      const n = paths(ctx).filter((z) => z.span === 4).length
+      return { points: n * 5, detail: plural(n, 'chemin') + ' de 4 tuiles' }
     },
   },
   {
-    id: 'clean',
-    name: 'Terrain propre',
-    description: '+8 pts si vous avez au plus 2 zones noires.',
-    draft: true,
+    id: 'exact-5',
+    name: 'Chemins de 5',
+    badge: '+8',
+    text: '+8 points pour chaque chemin composé d’exactement 5 tuiles.',
     evaluate(ctx) {
-      const n = ctx.breakdown.blackZones
-      return { points: n <= 2 ? 8 : 0, detail: `${n} zone(s) noire(s)` }
+      const n = paths(ctx).filter((z) => z.span === 5).length
+      return { points: n * 8, detail: plural(n, 'chemin') + ' de 5 tuiles' }
     },
   },
   {
-    id: 'marathon',
-    name: 'Marathon',
-    description: '+10 pts si un de vos chemins traverse 6 tuiles ou plus.',
-    draft: true,
+    id: 'long-6',
+    name: 'Longs chemins',
+    badge: '+10',
+    text: '+10 points pour chaque chemin composé d’au moins 6 tuiles.',
     evaluate(ctx) {
-      const zones = scoringZones(ctx)
-      const longest = zones.length ? Math.max(...zones.map((z) => z.span)) : 0
-      return { points: longest >= 6 ? 10 : 0, detail: `plus long chemin : ${longest} tuiles` }
+      const n = paths(ctx).filter((z) => z.span >= 6).length
+      return { points: n * 10, detail: plural(n, 'chemin') + ' de 6 tuiles ou plus' }
+    },
+  },
+  {
+    id: 'black-positive',
+    name: 'Noir positif',
+    badge: '+2',
+    text: 'Les zones noires deviennent positives. +2 points pour chaque zone noire !',
+    evaluate(ctx) {
+      const z = ctx.breakdown.blackZones
+      // On annule le malus déjà compté, puis on crédite +2 par zone.
+      return {
+        points: z * 2 - ctx.breakdown.blackPoints,
+        detail: plural(z, 'zone noire') + ' à +2 au lieu du malus',
+      }
+    },
+  },
+  {
+    id: 'six-colors',
+    name: 'Six couleurs',
+    badge: '+18',
+    text: '+18 points si vous marquez des points dans les 6 couleurs.',
+    evaluate(ctx) {
+      const colors = new Set(paths(ctx).map((z) => z.color)).size
+      return {
+        points: colors >= 6 ? 18 : 0,
+        detail: `${colors} couleur${colors > 1 ? 's' : ''} qui marquent`,
+      }
+    },
+  },
+  {
+    id: 'five-colors',
+    name: 'Cinq couleurs',
+    badge: '+12',
+    text: '+12 points si vous marquez des points dans 5 couleurs.',
+    evaluate(ctx) {
+      const colors = new Set(paths(ctx).map((z) => z.color)).size
+      return {
+        points: colors >= 5 ? 12 : 0,
+        detail: `${colors} couleur${colors > 1 ? 's' : ''} qui marquent`,
+      }
+    },
+  },
+  {
+    id: 'squares',
+    name: 'Les carrés',
+    badge: '+6',
+    text: '+6 points par carré composé d’au moins 2 tuiles.',
+    evaluate(ctx) {
+      const n = squareZones(ctx).length
+      return { points: n * 6, detail: plural(n, 'carré') }
+    },
+  },
+  {
+    id: 'purple-longest',
+    name: 'Plus grand violet',
+    badge: '+10',
+    text: '+10 points pour le plus grand chemin violet. Si égalité, +5 points par joueur.',
+    evaluate(ctx) {
+      const bestOf = (zones: Zone[]) =>
+        zones
+          .filter((z) => z.color === 'P' && z.span >= ctx.ruleset.minSpan)
+          .reduce((m, z) => Math.max(m, z.span), 0)
+      const mine = bestOf(ctx.breakdown.zones)
+      if (mine === 0) return { points: 0, detail: 'aucun chemin violet' }
+      const all = ctx.table.map((t) => bestOf(t.zones))
+      const best = Math.max(...all)
+      if (mine < best) return { points: 0, detail: `violet de ${mine} tuiles, battu par ${best}` }
+      const exaequo = all.filter((v) => v === best).length
+      return {
+        points: exaequo > 1 ? 5 : 10,
+        detail:
+          exaequo > 1
+            ? `à égalité (${best} tuiles) avec ${exaequo - 1} autre${exaequo > 2 ? 's' : ''}`
+            : `plus grand violet (${best} tuiles)`,
+      }
+    },
+  },
+  {
+    id: 'orange-paths',
+    name: 'Chemins orange',
+    badge: '+8',
+    text: '+8 points pour chaque chemin orange.',
+    evaluate(ctx) {
+      const n = paths(ctx).filter((z) => z.color === 'O').length
+      return { points: n * 8, detail: plural(n, 'chemin orange') }
     },
   },
   {
     id: 'crossing',
-    name: 'La traversée',
-    description: '+10 pts si un chemin relie deux bords opposés du plateau.',
-    draft: true,
+    name: 'Bords opposés',
+    badge: '+12',
+    text: '+12 points pour chaque chemin qui relie 2 bords opposés.',
     evaluate(ctx) {
-      const qs = ctx.board.size * 2
-      const ok = scoringZones(ctx).some((z) => {
-        let top = false
-        let bottom = false
-        let left = false
-        let right = false
-        for (const c of z.cells) {
-          const r = Math.floor(c / qs)
-          const col = c % qs
-          if (r === 0) top = true
-          if (r === qs - 1) bottom = true
-          if (col === 0) left = true
-          if (col === qs - 1) right = true
-        }
-        return (top && bottom) || (left && right)
-      })
-      return { points: ok ? 10 : 0, detail: ok ? 'traversée réussie' : 'aucune traversée' }
+      const n = paths(ctx).filter((z) => {
+        const e = edges(z, ctx.board.size)
+        return (e.top && e.bottom) || (e.left && e.right)
+      }).length
+      return { points: n * 12, detail: plural(n, 'traversée') }
     },
   },
   {
     id: 'corners',
-    name: 'Les quatre coins',
-    description: '+3 pts par coin du plateau sans aucun quart noir.',
-    draft: true,
+    name: 'Par les angles',
+    badge: '+6',
+    text: '+6 points pour chaque chemin qui part ou passe par un angle.',
     evaluate(ctx) {
-      const grid = quadGrid(ctx.board)
-      const qs = grid.size
-      const corners = [
-        [0, 0],
-        [0, qs - 1],
-        [qs - 1, 0],
-        [qs - 1, qs - 1],
-      ]
-      const clean = corners.filter(([r, c]) => grid.cells[r * qs + c] !== BLACK).length
-      return { points: clean * 3, detail: `${clean} coin(s) sans noir` }
+      const corners = cornerQuads(ctx.board.size)
+      const n = paths(ctx).filter((z) => corners.some((c) => z.cells.includes(c))).length
+      return { points: n * 6, detail: plural(n, 'chemin') + ' par un angle' }
     },
   },
   {
-    id: 'core',
-    name: 'Le cœur du camino',
-    description: '+8 pts si les tuiles centrales ne contiennent aucun noir.',
-    draft: true,
+    id: 'enclose',
+    name: 'Encerclement',
+    badge: '+10',
+    text: '+10 points pour chaque chemin qui enferme une couleur ou du noir. Sans l’aide des bords.',
     evaluate(ctx) {
-      const n = ctx.board.size
-      const mid = Math.floor((n - 1) / 2)
-      const grid = quadGrid(ctx.board)
-      const qs = grid.size
-      let clean = true
-      for (let r = mid; r <= mid + (n % 2 === 0 ? 1 : 0); r++) {
-        for (let c = mid; c <= mid + (n % 2 === 0 ? 1 : 0); c++) {
-          for (const [dr, dc] of [
-            [0, 0],
-            [0, 1],
-            [1, 0],
-            [1, 1],
-          ]) {
-            if (grid.cells[(r * 2 + dr) * qs + (c * 2 + dc)] === BLACK) clean = false
-          }
-        }
-      }
-      return { points: clean ? 8 : 0, detail: clean ? 'centre immaculé' : 'du noir au centre' }
-    },
-  },
-  {
-    id: 'twins',
-    name: 'Les jumelles',
-    description: '+8 pts si deux couleurs différentes marquent exactement le même total (non nul).',
-    draft: true,
-    evaluate(ctx) {
-      const totals = PATH_COLORS.map((c) => ctx.breakdown.byColor[c].points).filter((p) => p > 0)
-      const ok = new Set(totals).size < totals.length
-      return { points: ok ? 8 : 0, detail: ok ? 'deux couleurs à égalité' : 'aucune égalité' }
-    },
-  },
-  {
-    id: 'frontier',
-    name: 'La frontière',
-    description: '+1 pt par tuile de bord sans aucun quart noir.',
-    draft: true,
-    evaluate(ctx) {
-      const n = ctx.board.size
-      const grid = quadGrid(ctx.board)
-      const qs = grid.size
-      let count = 0
-      for (let i = 0; i < n * n; i++) {
-        const r = rowOf(n, i)
-        const c = colOf(n, i)
-        const edge = r === 0 || c === 0 || r === n - 1 || c === n - 1
-        if (!edge || !ctx.board.cells[i]) continue
-        const black = [
-          [0, 0],
-          [0, 1],
-          [1, 0],
-          [1, 1],
-        ].some(([dr, dc]) => grid.cells[(r * 2 + dr) * qs + (c * 2 + dc)] === BLACK)
-        if (!black) count++
-      }
-      return { points: count, detail: `${count} tuile(s) de bord propres` }
+      const n = paths(ctx).filter((z) => enclosesSomething(z, ctx.board)).length
+      return { points: n * 10, detail: plural(n, 'chemin') + ' qui enferme' }
     },
   },
 ]
@@ -197,20 +291,27 @@ export function cardById(id: string | undefined): MissionCard | undefined {
   return id ? CARDS.find((c) => c.id === id) : undefined
 }
 
-/** Applique la carte du joueur à un décompte déjà calculé. */
+/** Décompte enrichi de la carte mission de la table. */
 export function applyCard(
   breakdown: ScoreBreakdown,
-  board: Board,
-  ruleset: Ruleset,
+  ctx: Omit<CardContext, 'breakdown'>,
   cardId?: string,
 ): ScoreBreakdown {
   const card = cardById(cardId)
   if (!card) return breakdown
-  const { points, detail } = card.evaluate({ board, breakdown, ruleset })
+  const { points, detail } = card.evaluate({ ...ctx, breakdown })
   return {
     ...breakdown,
     cardPoints: points,
-    cardLabel: `${card.name} — ${detail}`,
+    cardLabel: detail,
     total: breakdown.total + points,
   }
+}
+
+/** Zones de chaque joueur — contexte nécessaire aux cartes comparatives. */
+export function cardTable(
+  players: { id: number; board: Board }[],
+  ruleset: Ruleset,
+): CardTableEntry[] {
+  return players.map((p) => ({ playerId: p.id, zones: computeZones(p.board, ruleset) }))
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   cardById,
   COLOR_HEX,
@@ -11,7 +11,7 @@ import type { Color, GameState } from "../../engine/index.ts";
 import { BoardView } from "../components/BoardView.tsx";
 import { ScoreDetail } from "../components/ScoreDetail.tsx";
 import { Bars, ScoreLines } from "../components/Charts.tsx";
-import { archiveGame } from "../storage.ts";
+import { MissionCardView } from "../components/MissionCard.tsx";
 
 interface Props {
   state: GameState;
@@ -28,16 +28,10 @@ export function ResultsScreen({
   onBackToGame,
   onOpenArchive,
 }: Props) {
+  const card = cardById(state.cardId)
   const stats = useMemo(() => playerStats(state), [state]);
   const ranked = useMemo(() => ranking(stats), [stats]);
   const [focus, setFocus] = useState(ranked[0]?.player.id ?? 0);
-
-  // La partie est archivée une seule fois, pour alimenter les statistiques
-  // cumulées entre les sessions.
-  useEffect(() => {
-    archiveGame(state);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const focused = stats[focus];
   const colorTotals = PATH_COLORS.map((c) => ({
@@ -90,8 +84,8 @@ export function ResultsScreen({
                 zone
                 {s.breakdown.blackZones > 1 ? "s" : ""} noire
                 {s.breakdown.blackZones > 1 ? "s" : ""}
-                {state.options.useCards && s.player.cardId
-                  ? ` · ${cardById(s.player.cardId)?.name} ${
+                {card
+                  ? ` · ${card.name} ${
                       s.breakdown.cardPoints > 0
                         ? `+${s.breakdown.cardPoints}`
                         : "+0"
@@ -126,18 +120,20 @@ export function ResultsScreen({
                 <BoardView
                   board={focused.player.board}
                   ruleset={state.options.ruleset}
+                  frameColor={focused.player.color}
                   showZones
-                  showGrid
                 />
               </div>
               <div style={{ flex: "1 1 200px", minWidth: 180 }}>
                 <ScoreDetail breakdown={focused.breakdown} />
-                {state.options.useCards && focused.player.cardId && (
-                  <div className="card-mission" style={{ marginTop: 10 }}>
-                    <div className="t">
-                      {cardById(focused.player.cardId)?.name}
-                    </div>
-                    <div className="note">{focused.breakdown.cardLabel}</div>
+                {card && (
+                  <div style={{ marginTop: 10 }}>
+                    <MissionCardView
+                      card={card}
+                      compact
+                      points={focused.breakdown.cardPoints}
+                      detail={focused.breakdown.cardLabel}
+                    />
                   </div>
                 )}
               </div>
