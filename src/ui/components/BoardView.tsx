@@ -7,6 +7,7 @@ import {
   placeTile,
   quadGrid,
   scoreOf,
+  signed,
   tileQuads,
   zoneLabel,
 } from '../../engine/index.ts'
@@ -370,7 +371,7 @@ function ZoneBadge({ zone, n, ruleset }: { zone: Zone; n: number; ruleset: Rules
   const { x, y } = quadXY(best, n)
   const cx = x + QUAD / 2
   const cy = y + QUAD / 2
-  const label = zone.color === BLACK ? `${zone.points}` : `+${zone.points}`
+  const label = signed(zone.points)
   return (
     <g className="zone-badge" pointerEvents="none">
       <title>{zoneLabel(zone, ruleset)}</title>

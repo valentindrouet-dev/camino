@@ -1,4 +1,5 @@
 import { legalCells, neighbours, placeTile, quadGrid, tileOfQuad } from './board.ts'
+import { activeRuleset } from './cards.ts'
 import { Rng } from './rng.ts'
 import { computeZones, pointsForSpan, scoreOf } from './scoring.ts'
 import { distinctRotations, tileQuads } from './tiles.ts'
@@ -144,7 +145,7 @@ function connectedColors(board: Board, cell: number, tileId: number, rot: Rotati
 /** Tous les coups possibles pour le joueur courant, évalués. */
 export function enumerateMoves(state: GameState): ScoredMove[] {
   const player = currentPlayer(state)
-  const ruleset = state.options.ruleset
+  const ruleset = activeRuleset(state)
   const cells = legalCells(player.board, ruleset.requireAdjacency)
   const base = scoreOf(player.board, ruleset)
   const blackBefore = computeZones(player.board, ruleset).filter((z) => z.color === BLACK).length

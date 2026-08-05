@@ -1,4 +1,4 @@
-import { BLACK, COLOR_HEX, COLOR_NAMES, PATH_COLORS } from '../../engine/index.ts'
+import { BLACK, COLOR_HEX, COLOR_NAMES, PATH_COLORS, signed } from '../../engine/index.ts'
 import type { ScoreBreakdown } from '../../engine/index.ts'
 
 interface Props {
@@ -47,8 +47,12 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
               }}
             />
           </span>
-          <span className={`val ${breakdown.blackPoints < 0 ? 'neg' : ''}`}>
-            {breakdown.blackPoints !== 0 ? `${breakdown.blackPoints} pts` : '—'}
+          <span
+            className={`val ${
+              breakdown.blackPoints < 0 ? 'neg' : breakdown.blackPoints > 0 ? 'pos' : ''
+            }`}
+          >
+            {breakdown.blackPoints !== 0 ? `${signed(breakdown.blackPoints)} pts` : '—'}
           </span>
         </div>
       )}

@@ -85,13 +85,30 @@ test('chemins d’au moins 6 tuiles (+10)', () => {
 })
 
 test('les zones noires deviennent positives (+2)', () => {
+  // Cette carte ne s'ajoute pas au total : elle change le barème. Le moteur
+  // l'applique partout via effectiveRuleset, donc la carte elle-même ne
+  // rapporte rien de plus — sinon les points seraient comptés deux fois.
   const r = evalCard('black-positive', EXAMPLE)
-  // 4 zones noires : on annule -8 et on crédite +8.
   assert.equal(r.breakdown.blackZones, 4)
-  assert.equal(r.points, 16, '4 zones : +8 crédités et -8 annulés')
-  // Le décompte de base vaut 20 ; avec la carte, le noir rapporte au lieu de coûter.
-  assert.equal(r.breakdown.total, 20)
-  assert.equal(r.breakdown.total + r.points, r.breakdown.colorPoints + 4 * 2)
+  assert.equal(r.points, 0)
+  assert.equal(r.structural, true)
+
+  const positif = E.effectiveRuleset(R, 'black-positive')
+  assert.equal(positif.blackPenalty, 2, 'une zone noire vaut +2')
+
+  const board = boardFrom(EXAMPLE.map((x) => x.split('')))
+  const normal = E.scoreBoard(board, R)
+  const avecCarte = E.scoreBoard(board, positif)
+  assert.equal(normal.total, 20, 'décompte officiel')
+  assert.equal(avecCarte.blackZones, 4)
+  assert.equal(avecCarte.blackPoints, 8, 'le noir rapporte au lieu de coûter')
+  assert.equal(avecCarte.total, normal.colorPoints + 8)
+
+  // Les pastilles du plateau affichent bien +2 sur chaque zone noire.
+  const noires = E.computeZones(board, positif).filter((z) => z.color === 'K')
+  assert.equal(noires.length, 4)
+  for (const z of noires) assert.equal(z.points, 2)
+  assert.match(E.zoneLabel(noires[0], positif), /\+2/)
 })
 
 test('5 et 6 couleurs', () => {

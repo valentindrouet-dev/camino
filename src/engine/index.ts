@@ -1,4 +1,4 @@
-import { applyCard, cardTable } from './cards.ts'
+import { activeRuleset, applyCard, cardTable } from './cards.ts'
 import { scoreBoard } from './scoring.ts'
 import type { GameState, Player, ScoreBreakdown } from './types.ts'
 
@@ -18,7 +18,7 @@ export * from './rng.ts'
  * chemin violet »), d'où le passage de l'état complet.
  */
 export function scorePlayer(player: Player, state: GameState): ScoreBreakdown {
-  const ruleset = state.options.ruleset
+  const ruleset = activeRuleset(state)
   const breakdown = scoreBoard(player.board, ruleset)
   if (!state.options.useCards || !state.cardId) return breakdown
   return applyCard(
@@ -35,7 +35,7 @@ export function scorePlayer(player: Player, state: GameState): ScoreBreakdown {
 
 /** Décompte de tous les joueurs (le contexte des cartes n'est calculé qu'une fois). */
 export function scoreAll(state: GameState): ScoreBreakdown[] {
-  const ruleset = state.options.ruleset
+  const ruleset = activeRuleset(state)
   const table = state.options.useCards && state.cardId ? cardTable(state.players, ruleset) : []
   return state.players.map((player) => {
     const breakdown = scoreBoard(player.board, ruleset)

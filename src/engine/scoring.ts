@@ -118,11 +118,20 @@ export function zoneMap(zones: Zone[], quadCount: number): Int16Array {
 }
 
 /** Libellé lisible d'une zone, pour les infobulles. */
+/** Nombre signé, pour ne jamais laisser planer de doute sur un bonus. */
+export function signed(n: number): string {
+  return n > 0 ? `+${n}` : `${n}`
+}
+
 export function zoneLabel(zone: Zone, ruleset: Ruleset): string {
-  if (zone.color === BLACK) return `Zone noire — ${ruleset.blackPenalty} pt`
+  if (zone.color === BLACK) {
+    return `Zone noire — ${signed(ruleset.blackPenalty)} pt${
+      Math.abs(ruleset.blackPenalty) > 1 ? 's' : ''
+    }`
+  }
   const t = `${zone.span} tuile${zone.span > 1 ? 's' : ''}`
   return zone.points > 0
-    ? `${t} — ${zone.points} pts`
+    ? `${t} — ${signed(zone.points)} pts`
     : `${t} — 0 pt (minimum ${ruleset.minSpan})`
 }
 

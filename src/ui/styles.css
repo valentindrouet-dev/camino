@@ -1189,3 +1189,24 @@ button.mission-card.selected {
   font-size: 12.5px;
   margin-top: 6px;
 }
+
+/* Tuile qui s'envole de la pioche vers le plateau d'un bot. */
+.flying-tile {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 80;
+  pointer-events: none;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(120, 90, 40, 0.35);
+  transition-property: transform, opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flying-tile {
+    display: none;
+  }
+}

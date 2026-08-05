@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { createGame } from '../engine/index.ts'
+import { createGame, randomSeed } from '../engine/index.ts'
 import type { GameConfig, GameState } from '../engine/index.ts'
 import { archiveGame } from './storage.ts'
 import { SetupScreen } from './screens/SetupScreen.tsx'
@@ -26,9 +26,18 @@ export default function App() {
   const historyRef = useRef<GameState[]>(history)
   historyRef.current = history
 
-  const start = (cfg: GameConfig) => {
-    setConfig(cfg)
-    setHistory([createGame(cfg)])
+  /**
+   * Lance une partie. Sauf graine manuelle — ou rejeu explicite de la même
+   * pioche — chaque nouvelle partie tire une graine neuve.
+   */
+  const start = (cfg: GameConfig, keepSeed = false) => {
+    const options =
+      keepSeed || cfg.options.manualSeed
+        ? cfg.options
+        : { ...cfg.options, seed: randomSeed() }
+    const next: GameConfig = { ...cfg, options }
+    setConfig(next)
+    setHistory([createGame(next)])
     settled.current = false
     setScreen('game')
   }
@@ -183,7 +192,7 @@ export default function App() {
         <ResultsScreen
           state={state}
           onBackToGame={() => setScreen('game')}
-          onReplaySameSeed={() => config && start(config)}
+          onReplaySameSeed={() => config && start(config, true)}
           onNewGame={() => quitGame('setup')}
           onQuit={() => quitGame('setup')}
           onOpenArchive={() => setScreen('archive')}

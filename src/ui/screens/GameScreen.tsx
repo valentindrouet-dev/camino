@@ -6,6 +6,7 @@ import {
   cardById,
   currentLegalCells,
   currentPlayerId,
+  activeRuleset,
   isBot,
   scoreAll,
   topMoves,
@@ -24,7 +25,9 @@ interface Props {
   onQuit: () => void
 }
 
-const BOT_DELAY = 420
+const BOT_DELAY = 520
+/** Durée du vol d'une tuile de la pioche vers le plateau d'un bot. */
+const FLY_MS = 620
 
 export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
   const state = history[history.length - 1]
@@ -36,7 +39,22 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
   const [rot, setRot] = useState<Rotation>(0)
   const [spin, setSpin] = useState(0)
   const [pinned, setPinned] = useState<number | null>(null)
-  const viewId = pinned ?? activeId
+
+  /*
+   * Le plateau central reste celui du joueur humain : pendant que les bots
+   * jouent, on ne fait pas défiler leurs plateaux sous ses yeux. Leur pose est
+   * montrée autrement — la tuile s'envole de la pioche vers leur plateau dans
+   * la colonne de gauche.
+   */
+  const humanIds = useMemo(
+    () => state.players.filter((p) => !isBot(p)).map((p) => p.id),
+    [state.players],
+  )
+  const [humanFocus, setHumanFocus] = useState(() => humanIds[0] ?? 0)
+  useEffect(() => {
+    if (!isBot(active)) setHumanFocus(active.id)
+  }, [active])
+  const viewId = pinned ?? (isBot(active) && humanIds.length ? humanFocus : activeId)
   const viewed = state.players[viewId]
 
   const pool = state.pool
@@ -44,6 +62,9 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
   const legal = useMemo(() => currentLegalCells(state), [state])
 
   const breakdowns = useMemo(() => scoreAll(state), [state])
+  // Barème en vigueur : avec la carte « zones noires positives », une zone
+  // noire vaut +2 et les pastilles du plateau doivent le montrer.
+  const ruleset = useMemo(() => activeRuleset(state), [state])
   const card = cardById(state.cardId)
 
   const lastPlaced = useMemo(() => {
@@ -141,11 +162,41 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
     return () => el.removeEventListener('wheel', onWheel)
   }, [selected, rotate])
 
+  /* Vol de la tuile prise par un bot, de la pioche vers son plateau. */
+  const poolRefs = useRef(new Map<number, HTMLElement>())
+  const cardRefs = useRef(new Map<number, HTMLElement>())
+  const [fly, setFly] = useState<null | {
+    key: number
+    tileId: number
+    from: DOMRect
+    to: DOMRect
+  }>(null)
+  const lastLogSeen = useRef(state.log.length)
+
+  useEffect(() => {
+    const entries = state.log
+    if (entries.length <= lastLogSeen.current) {
+      lastLogSeen.current = entries.length // annulation : on se resynchronise
+      return
+    }
+    lastLogSeen.current = entries.length
+    const last = entries[entries.length - 1]
+    if (!isBot(state.players[last.playerId])) return
+    const from = poolRefs.current.get(last.tileId)?.getBoundingClientRect()
+    const to = cardRefs.current.get(last.playerId)?.getBoundingClientRect()
+    if (!from || !to) return
+    setFly({ key: entries.length, tileId: last.tileId, from, to })
+    const id = window.setTimeout(() => setFly(null), FLY_MS)
+    return () => window.clearTimeout(id)
+  }, [state.log, state.players])
+
   const humanTurn = !isBot(active) && state.phase === 'playing'
   const canPlaceHere = humanTurn && viewId === activeId && selected !== null
 
   return (
     <div className="table">
+      {fly && <FlyingTile key={fly.key} tileId={fly.tileId} from={fly.from} to={fly.to} />}
+
       {/* ------------------------------------------------ colonne joueurs */}
       <div className="col-left">
         {state.players.map((p, i) => (
@@ -155,6 +206,10 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
               activeId === p.id && state.phase === 'playing' ? 'active' : ''
             }`}
             onClick={() => setPinned(pinned === p.id ? null : p.id)}
+            ref={(el) => {
+              if (el) cardRefs.current.set(p.id, el)
+              else cardRefs.current.delete(p.id)
+            }}
           >
             <div className="head">
               <span className="name">
@@ -167,7 +222,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
             <div className="mini-board">
               <BoardView
                 board={p.board}
-                ruleset={options.ruleset}
+                ruleset={ruleset}
                 frameColor={p.color}
                 compact
                 showZones={false}
@@ -209,6 +264,10 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                 }`}
                 disabled={taken || !humanTurn}
                 onClick={() => setSelected(t.tileId)}
+                ref={(el) => {
+                  if (el) poolRefs.current.set(t.tileId, el)
+                  else poolRefs.current.delete(t.tileId)
+                }}
                 title={taken ? `Prise par ${owner?.name}` : `Choisir cette tuile (${i + 1})`}
               >
                 <span className="frame">
@@ -252,7 +311,12 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
           <span className="who">
             <span className="dot" style={{ background: viewed.color }} />
             Plateau de {viewed.name}
-            {viewId !== activeId && <span className="tag">lecture seule</span>}
+            {viewId !== activeId &&
+              (isBot(active) && pinned === null ? (
+                <span className="tag">{active.name} joue…</span>
+              ) : (
+                <span className="tag">lecture seule</span>
+              ))}
           </span>
           <span className="tag">
             Manche <strong>{Math.min(state.round + 1, state.totalRounds)}</strong> / {state.totalRounds}
@@ -262,7 +326,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
         <div className="board-wrap">
           <BoardView
             board={viewed.board}
-            ruleset={options.ruleset}
+            ruleset={ruleset}
             frameColor={viewed.color}
             showZones={options.showZones}
             interactive={canPlaceHere}
@@ -303,6 +367,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
               compact
               points={breakdowns[viewId].cardPoints}
               detail={breakdowns[viewId].cardLabel}
+              structural={breakdowns[viewId].cardStructural}
             />
           </div>
         )}
@@ -351,6 +416,39 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
           </span>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * La tuile qu'un bot vient de prendre traverse l'écran, de la pioche vers son
+ * plateau : on comprend ce qu'il a joué sans quitter son propre plateau.
+ */
+function FlyingTile({ tileId, from, to }: { tileId: number; from: DOMRect; to: DOMRect }) {
+  const [arrived, setArrived] = useState(false)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setArrived(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
+  const size = 60
+  const start = { x: from.left + from.width / 2 - size / 2, y: from.top + 4 }
+  const end = { x: to.left + to.width / 2 - size / 2, y: to.top + to.height / 2 - size / 2 }
+  const pos = arrived ? end : start
+  return (
+    <div
+      className="flying-tile"
+      style={{
+        transform: `translate(${pos.x}px, ${pos.y}px) scale(${arrived ? 0.45 : 1}) rotate(${
+          arrived ? 180 : 0
+        }deg)`,
+        opacity: arrived ? 0 : 1,
+        width: size,
+        height: size,
+        transitionDuration: `${FLY_MS}ms`,
+      }}
+      aria-hidden
+    >
+      <TileGlyph tileId={tileId} size={size} />
     </div>
   )
 }

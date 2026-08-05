@@ -32,6 +32,11 @@ export interface CardResult {
   points: number
   /** Explication courte affichée au joueur. */
   detail: string
+  /**
+   * La carte ne s'ajoute pas au décompte : elle en modifie la règle, et son
+   * effet est déjà compris dans le score (voir `effectiveRuleset`).
+   */
+  structural?: boolean
 }
 
 export interface MissionCard {
@@ -172,11 +177,16 @@ export const CARDS: MissionCard[] = [
     badge: '+2',
     text: 'Les zones noires deviennent positives. +2 points pour chaque zone noire !',
     evaluate(ctx) {
+      // Cette carte ne s'ajoute pas au total : elle inverse la valeur des zones
+      // noires, déjà appliquée par `effectiveRuleset` partout — plateau,
+      // pastilles de points, score en direct et décompte final.
       const z = ctx.breakdown.blackZones
-      // On annule le malus déjà compté, puis on crédite +2 par zone.
       return {
-        points: z * 2 - ctx.breakdown.blackPoints,
-        detail: plural(z, 'zone noire') + ' à +2 au lieu du malus',
+        points: 0,
+        structural: true,
+        detail: z
+          ? `${plural(z, 'zone noire', 'zones noires')} à +2 : ${z * 2} pts déjà comptés`
+          : 'aucune zone noire pour l’instant',
       }
     },
   },
@@ -291,6 +301,28 @@ export function cardById(id: string | undefined): MissionCard | undefined {
   return id ? CARDS.find((c) => c.id === id) : undefined
 }
 
+/**
+ * Barème réellement appliqué compte tenu de la carte de la table.
+ *
+ * La carte « Les zones noires deviennent positives » ne se contente pas
+ * d'ajouter des points : elle change la valeur d'une zone noire. On la traduit
+ * donc en barème, ce qui garantit que le plateau, les pastilles, le score en
+ * direct, la courbe et le décompte final racontent tous la même chose.
+ */
+export function effectiveRuleset(ruleset: Ruleset, cardId?: string): Ruleset {
+  if (cardId !== 'black-positive') return ruleset
+  return { ...ruleset, blackPenalty: Math.abs(ruleset.blackPenalty) }
+}
+
+/** Barème en vigueur dans une partie, carte mission comprise. */
+export function activeRuleset(state: {
+  options: { ruleset: Ruleset; useCards: boolean }
+  cardId?: string
+}): Ruleset {
+  if (!state.options.useCards) return state.options.ruleset
+  return effectiveRuleset(state.options.ruleset, state.cardId)
+}
+
 /** Décompte enrichi de la carte mission de la table. */
 export function applyCard(
   breakdown: ScoreBreakdown,
@@ -299,11 +331,12 @@ export function applyCard(
 ): ScoreBreakdown {
   const card = cardById(cardId)
   if (!card) return breakdown
-  const { points, detail } = card.evaluate({ ...ctx, breakdown })
+  const { points, detail, structural } = card.evaluate({ ...ctx, breakdown })
   return {
     ...breakdown,
     cardPoints: points,
     cardLabel: detail,
+    cardStructural: structural,
     total: breakdown.total + points,
   }
 }

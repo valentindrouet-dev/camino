@@ -71,6 +71,8 @@ export interface ScoreBreakdown {
   blackPoints: number
   cardPoints: number
   cardLabel?: string
+  /** La carte modifie le barème au lieu d'ajouter des points (voir cards.ts). */
+  cardStructural?: boolean
   byColor: Record<Color, ColorScore>
   zones: Zone[]
 }
@@ -142,6 +144,11 @@ export interface GameOptions {
   useCards: boolean
   /** Carte imposée ; sinon elle est tirée au hasard selon la graine. */
   cardId?: string
+  /**
+   * La graine est saisie à la main : elle est conservée d'une partie à
+   * l'autre. Sinon chaque nouvelle partie en tire une nouvelle.
+   */
+  manualSeed?: boolean
   seed: string
 }
 

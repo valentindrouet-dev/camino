@@ -84,3 +84,53 @@ test('le barème est modifiable et recalcule les scores', () => {
   const doubled = { ...E.DEFAULT_RULESET, pointsBySpan: [0, 0, 0, 6, 10, 16, 24, 34, 46, 60] }
   assert.equal(E.scoreOf(b, doubled), 6)
 })
+
+test('la courbe des scores dit la même chose que le classement final', () => {
+  // Régression : la courbe utilisait le score de base, sans la carte mission.
+  // Avec « les zones noires deviennent positives », le vainqueur pouvait donc
+  // apparaître sous le perdant, et les scores ne correspondaient pas.
+  for (const cardId of ['black-positive', 'orange-paths', 'six-colors']) {
+    const config = {
+      players: [
+        { name: 'A', kind: 'bot-smart', boardColor: 'O' },
+        { name: 'B', kind: 'bot-greedy', boardColor: 'B' },
+        { name: 'C', kind: 'bot-random', boardColor: 'G' },
+      ],
+      options: { ...E.defaultOptions('courbe-' + cardId), useCards: true, cardId },
+    }
+    let state = E.createGame(config)
+    assert.equal(state.cardId, cardId)
+    let guard = 0
+    while (state.phase === 'playing' && guard++ < 500) {
+      state = E.applyMove(state, E.bestMove(state, E.currentPlayer(state).kind))
+    }
+    const finals = E.playerStats(state).map((s) => s.breakdown.total)
+    const derniers = state.scoreHistory.map((h) => h[h.length - 1])
+    assert.deepEqual(derniers, finals, `carte ${cardId} : fin de courbe = score final`)
+
+    // …et l'ordre de la courbe est celui du podium.
+    const ordreCourbe = derniers.map((v, i) => [i, v]).sort((a, b) => b[1] - a[1]).map((x) => x[0])
+    const ordrePodium = E.ranking(E.playerStats(state)).map((s) => s.player.id)
+    assert.deepEqual(ordreCourbe, ordrePodium, `carte ${cardId} : même ordre`)
+  }
+})
+
+test('le score en direct inclut la carte à chaque manche', () => {
+  const config = {
+    players: [
+      { name: 'A', kind: 'bot-smart', boardColor: 'O' },
+      { name: 'B', kind: 'bot-smart', boardColor: 'R' },
+    ],
+    options: { ...E.defaultOptions('direct'), useCards: true, cardId: 'black-positive' },
+  }
+  let state = E.createGame(config)
+  let guard = 0
+  while (state.phase === 'playing' && guard++ < 500) {
+    state = E.applyMove(state, E.bestMove(state, E.currentPlayer(state).kind))
+    if (state.turnIndex === 0 && state.scoreHistory[0].length) {
+      const attendus = E.scoreAll(state).map((b) => b.total)
+      const courbe = state.scoreHistory.map((h) => h[h.length - 1])
+      assert.deepEqual(courbe, attendus, 'la courbe suit le score affiché')
+    }
+  }
+})

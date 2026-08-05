@@ -1,7 +1,7 @@
 import { createBoard, isFull, legalCells, placeTile } from './board.ts'
-import { CARDS } from './cards.ts'
+import { activeRuleset, applyCard, cardTable, CARDS } from './cards.ts'
 import { Rng } from './rng.ts'
-import { scoreOf } from './scoring.ts'
+import { scoreBoard, scoreOf } from './scoring.ts'
 import { TILE_COUNT } from './tiles.ts'
 import type {
   BoardColor,
@@ -187,7 +187,8 @@ export function applyMove(state: GameState, move: Move): GameState {
   if (!isLegalMove(state, move)) return state
   const playerId = currentPlayerId(state)
   const player = state.players[playerId]
-  const ruleset = state.options.ruleset
+  // Barème en vigueur : la carte « zones noires positives » en fait partie.
+  const ruleset = activeRuleset(state)
 
   const before = scoreOf(player.board, ruleset)
   const board = placeTile(player.board, move.cell, move.tileId, move.rot, state.round)
@@ -216,9 +217,10 @@ export function applyMove(state: GameState, move: Move): GameState {
 
   // Fin du tour : tous les joueurs ont choisi une tuile.
   if (next.turnIndex >= next.players.length) {
-    const scoreHistory = next.scoreHistory.map((h, i) =>
-      h.concat(scoreOf(next.players[i].board, ruleset)),
-    )
+    // La courbe doit raconter la même histoire que le classement final :
+    // on y met le score complet, carte mission comprise.
+    const totals = roundTotals(next, ruleset)
+    const scoreHistory = next.scoreHistory.map((h, i) => h.concat(totals[i]))
     const round = next.round + 1
     const finished = round >= next.totalRounds || next.players.every((p) => isFull(p.board))
     next = {
@@ -234,6 +236,22 @@ export function applyMove(state: GameState, move: Move): GameState {
   }
 
   return next
+}
+
+/** Score complet de chaque joueur à cet instant, carte mission comprise. */
+function roundTotals(state: GameState, ruleset: Ruleset): number[] {
+  if (!state.options.useCards || !state.cardId) {
+    return state.players.map((p) => scoreOf(p.board, ruleset))
+  }
+  const table = cardTable(state.players, ruleset)
+  return state.players.map(
+    (p) =>
+      applyCard(
+        scoreBoard(p.board, ruleset),
+        { playerId: p.id, board: p.board, ruleset, table },
+        state.cardId,
+      ).total,
+  )
 }
 
 export function isBot(player: Player): boolean {

@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import {
+  activeRuleset,
   cardById,
   COLOR_HEX,
   COLOR_NAMES,
   PATH_COLORS,
   playerStats,
+  signed,
   ranking,
 } from "../../engine/index.ts";
 import type { Color, GameState } from "../../engine/index.ts";
@@ -124,7 +126,7 @@ export function ResultsScreen({
               <div style={{ flex: "1 1 240px", minWidth: 200 }}>
                 <BoardView
                   board={focused.player.board}
-                  ruleset={state.options.ruleset}
+                  ruleset={activeRuleset(state)}
                   frameColor={focused.player.color}
                   showZones
                 />
@@ -138,6 +140,7 @@ export function ResultsScreen({
                       compact
                       points={focused.breakdown.cardPoints}
                       detail={focused.breakdown.cardLabel}
+                      structural={focused.breakdown.cardStructural}
                     />
                   </div>
                 )}
@@ -145,8 +148,8 @@ export function ResultsScreen({
             </div>
             <p className="note" style={{ marginTop: 10 }}>
               Survole une zone du plateau pour voir sa valeur ; les pastilles
-              indiquent les points de chaque chemin qui marque et les −2 des
-              zones noires.
+              indiquent les points de chaque chemin qui marque et de chaque zone
+              noire.
             </p>
           </div>
 
@@ -187,10 +190,15 @@ export function ResultsScreen({
                     ))}
                     <td
                       style={{
-                        color: s.breakdown.blackPoints ? "#ff7a7a" : undefined,
+                        color:
+                          s.breakdown.blackPoints < 0
+                            ? "var(--bad)"
+                            : s.breakdown.blackPoints > 0
+                              ? "var(--good)"
+                              : undefined,
                       }}
                     >
-                      {s.breakdown.blackPoints || "·"}
+                      {s.breakdown.blackPoints ? signed(s.breakdown.blackPoints) : "·"}
                     </td>
                     <td>
                       <strong>{s.breakdown.total}</strong>

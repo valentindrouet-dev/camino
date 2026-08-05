@@ -214,24 +214,6 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
             />
           </div>
 
-          <div className="field">
-            <span>Graine aléatoire (même graine = même pioche)</span>
-            <div className="row">
-              <input
-                type="text"
-                value={options.seed}
-                onChange={(e) => setOptions((o) => ({ ...o, seed: e.target.value }))}
-              />
-              <button
-                className="btn icon"
-                title="Nouvelle graine"
-                onClick={() => setOptions((o) => ({ ...o, seed: randomSeed() }))}
-              >
-                🎲
-              </button>
-            </div>
-          </div>
-
           {/* ------------------------------------------------------ variantes */}
           <div className="section-head">Variantes</div>
           <div className="row wrap">
@@ -245,11 +227,44 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
               on={!options.ruleset.requireAdjacency}
               onChange={(v) => patchRuleset({ requireAdjacency: !v })}
             />
+            <Toggle
+              label="Graine manuelle"
+              on={!!options.manualSeed}
+              onChange={(v) =>
+                setOptions((o) => ({ ...o, manualSeed: v, seed: v ? o.seed : randomSeed() }))
+              }
+            />
           </div>
+
+          {options.manualSeed && (
+            <div className="field">
+              <span>Graine de la partie (même graine = même pioche)</span>
+              <div className="row">
+                <input
+                  type="text"
+                  value={options.seed}
+                  placeholder="ex. oro-9594"
+                  onChange={(e) => setOptions((o) => ({ ...o, seed: e.target.value }))}
+                />
+                <button
+                  className="btn icon"
+                  title="Tirer une graine au hasard"
+                  onClick={() => setOptions((o) => ({ ...o, seed: randomSeed() }))}
+                >
+                  🎲
+                </button>
+              </div>
+              <span className="note">
+                Reprenez la graine affichée à la fin d’une partie pour rejouer exactement la même
+                pioche.
+              </span>
+            </div>
+          )}
           <p className="note">
             <strong>Cartes missions :</strong> une carte est tirée pour la table, tout le monde joue
             la même mission. <strong>Pose libre :</strong> les tuiles n’ont plus besoin de toucher
-            une tuile déjà posée.
+            une tuile déjà posée. <strong>Graine manuelle :</strong> sans elle, chaque partie tire
+            une nouvelle pioche.
           </p>
 
           {options.useCards && (
