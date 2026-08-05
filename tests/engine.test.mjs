@@ -6,11 +6,16 @@ const E = await import('../src/engine/index.ts')
 test('le sac contient bien les 97 tuiles officielles', () => {
   assert.equal(E.TILE_COUNT, 97)
   const count = {}
-  for (const t of E.TILES) for (const q of t.quads) count[q] = (count[q] ?? 0) + 1
+  // Les tuiles de variantes (monochromes, blanches) vivent après les 97.
+  for (const t of E.TILES.slice(0, E.TILE_COUNT)) {
+    for (const q of t.quads) count[q] = (count[q] ?? 0) + 1
+  }
   // Planche officielle : 55 quarts de chaque couleur, 58 quarts noirs.
   for (const c of ['Y', 'O', 'R', 'G', 'B', 'P']) assert.equal(count[c], 55, `couleur ${c}`)
   assert.equal(count.K, 58)
   assert.equal(Object.values(count).reduce((a, b) => a + b, 0), 97 * 4)
+  assert.equal(E.MONO_TILE_IDS.length, 12)
+  assert.equal(E.WHITE_TILE_IDS.length, 6)
 })
 
 test('la rotation est un décalage circulaire réversible', () => {

@@ -2,7 +2,7 @@ import { legalCells, neighbours, placeTile, quadGrid, tileOfQuad } from './board
 import { activeRuleset } from './cards.ts'
 import { Rng } from './rng.ts'
 import { computeZones, pointsForSpan, scoreOf } from './scoring.ts'
-import { distinctRotations, tileQuads } from './tiles.ts'
+import { distinctOrientations, tileQuads } from './tiles.ts'
 import type { Board, Color, GameState, PlayerKind, Rotation, Ruleset } from './types.ts'
 import { BLACK, PATH_COLORS } from './types.ts'
 import { availableTiles, currentPlayer, type Move } from './game.ts'
@@ -38,6 +38,8 @@ export const AI_WEIGHTS = {
   multiColor: 1.1,
   /** Préférence pour les poses au centre (plus de voisins = plus d'options). */
   centrality: 0.05,
+  /** Décote de la tuile personnelle : on la garde pour un vrai bon coup. */
+  personalReserve: 3,
 }
 
 interface ColorPotential {
@@ -151,10 +153,25 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
   const blackBefore = computeZones(player.board, ruleset).filter((z) => z.color === BLACK).length
   const out: ScoredMove[] = []
 
-  for (const pool of availableTiles(state)) {
-    for (const rot of distinctRotations(pool.tileId)) {
+  const allowFlip = Boolean(ruleset.variants?.mirrorTiles)
+  const candidates: { tileId: number; personal: boolean }[] = availableTiles(state).map((p) => ({
+    tileId: p.tileId,
+    personal: false,
+  }))
+  // Tuile personnelle : jouable à tout moment, mais elle a une valeur de
+  // réserve — on la décote pour que les bots ne la brûlent pas trop tôt.
+  if (
+    ruleset.variants?.personalTile &&
+    player.personalTileId !== undefined &&
+    !player.personalUsed
+  ) {
+    candidates.push({ tileId: player.personalTileId, personal: true })
+  }
+
+  for (const cand of candidates) {
+    for (const { rot, flipped } of distinctOrientations(cand.tileId, allowFlip)) {
       for (const cell of cells) {
-        const board = placeTile(player.board, cell, pool.tileId, rot, state.round)
+        const board = placeTile(player.board, cell, cand.tileId, rot, state.round, flipped)
         const score = scoreOf(board, ruleset)
         let value = evaluateBoard(board, ruleset)
         value += AI_WEIGHTS.centrality * neighbours(player.board.size, cell).length
@@ -163,19 +180,42 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
         // récompense les fusions.
         const blackAfter = computeZones(board, ruleset).filter((z) => z.color === BLACK).length
         value -= AI_WEIGHTS.blackMerge * Math.max(0, blackAfter - blackBefore)
-        if (blackAfter < blackBefore + countBlackQuads(pool.tileId) && blackAfter <= blackBefore) {
+        if (blackAfter < blackBefore + countBlackQuads(cand.tileId) && blackAfter <= blackBefore) {
           value += AI_WEIGHTS.blackMerge
         }
 
         // Relier plusieurs couleurs d'un coup.
-        const linked = connectedColors(player.board, cell, pool.tileId, rot)
+        const linked = connectedColors(player.board, cell, cand.tileId, rot)
         if (linked > 1) value += AI_WEIGHTS.multiColor * (linked - 1)
 
-        out.push({ tileId: pool.tileId, cell, rot, score, value, delta: score - base })
+        if (cand.personal) value -= AI_WEIGHTS.personalReserve
+
+        out.push({
+          tileId: cand.tileId,
+          cell,
+          rot,
+          ...(flipped ? { flipped } : {}),
+          ...(cand.personal ? { personal: true } : {}),
+          score,
+          value,
+          delta: score - base,
+        })
       }
     }
   }
   return out
+}
+
+/**
+ * Politique de repioche des bots (variante Dernier choix aléatoire) : on
+ * échange la tuile restante quand le meilleur coup qu'elle permet reste
+ * clairement perdant.
+ */
+export function botWantsRedraw(state: GameState): boolean {
+  const moves = enumerateMoves(state)
+  if (!moves.length) return false
+  const best = moves.reduce((m, x) => (x.delta > m.delta ? x : m))
+  return best.delta <= -2
 }
 
 function countBlackQuads(tileId: number): number {

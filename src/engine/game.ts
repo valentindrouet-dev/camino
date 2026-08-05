@@ -2,9 +2,11 @@ import { createBoard, isFull, legalCells, placeTile } from './board.ts'
 import { activeRuleset, applyCard, cardTable, CARDS } from './cards.ts'
 import { Rng } from './rng.ts'
 import { scoreBoard, scoreOf } from './scoring.ts'
-import { TILE_COUNT } from './tiles.ts'
+import { MONO_TILE_IDS, TILE_COUNT, TILES, WHITE_TILE_IDS } from './tiles.ts'
 import type {
   BoardColor,
+  BorderSpec,
+  Color,
   GameOptions,
   GameState,
   Player,
@@ -82,7 +84,16 @@ export function tilesPerRound(ruleset: Ruleset, playerCount: number): number {
 
 /** Nombre de tuiles nécessaires pour aller au bout de la partie. */
 export function tilesNeeded(ruleset: Ruleset, playerCount: number): number {
-  return ruleset.boardSize * ruleset.boardSize * tilesPerRound(ruleset, playerCount)
+  const reserve = ruleset.variants?.personalTile ? playerCount : 0
+  return ruleset.boardSize * ruleset.boardSize * tilesPerRound(ruleset, playerCount) + reserve
+}
+
+/** Taille du sac selon les variantes actives. */
+export function bagSize(ruleset: Ruleset): number {
+  let n = TILE_COUNT
+  if (ruleset.variants?.monoTiles) n += MONO_TILE_IDS.length
+  if (ruleset.variants?.whiteTiles) n += WHITE_TILE_IDS.length
+  return n
 }
 
 export function configError(config: GameConfig): string | null {
@@ -92,23 +103,60 @@ export function configError(config: GameConfig): string | null {
   if (new Set(colors).size !== colors.length) {
     return 'Deux joueurs ne peuvent pas prendre le même plateau : choisissez des couleurs différentes.'
   }
+  const v = config.options.ruleset.variants
+  if (v?.coloredBorders && v?.multiBorders) {
+    return 'Bordures colorées et Bordures multicolores ne peuvent pas être activées en même temps.'
+  }
   const needed = tilesNeeded(config.options.ruleset, n)
-  if (needed > TILE_COUNT) {
-    return `Il faudrait ${needed} tuiles pour cette configuration, le sac n'en contient que ${TILE_COUNT}. Réduisez la taille du plateau, le nombre de tuiles par tour ou le nombre de joueurs.`
+  const available = bagSize(config.options.ruleset)
+  if (needed > available) {
+    return `Il faudrait ${needed} tuiles pour cette configuration, le sac n'en contient que ${available}. Réduisez le nombre de joueurs ou ajoutez des tuiles de variante.`
   }
   return null
+}
+
+/**
+ * Bordure multicolore d'un plateau : 8 carrés par côté, coins blancs, jamais
+ * deux carrés identiques adjacents. Fixe par couleur de plateau — ce sont des
+ * plateaux imprimés, identiques d'une partie à l'autre.
+ */
+export function multiBorderFor(boardColor: BoardColor, size = 4): BorderSpec {
+  const rng = new Rng(`camino-bordure-${boardColor}`)
+  const per = size * 2
+  const squares: [Color[], Color[], Color[], Color[]] = [[], [], [], []]
+  const PALETTE: Color[] = ['Y', 'O', 'R', 'G', 'B', 'P']
+  for (let side = 0; side < 4; side++) {
+    for (let k = 0; k < per; k++) {
+      // voisin précédent sur le même côté ; aux jonctions, les coins blancs isolent
+      const prev = k > 0 ? squares[side][k - 1] : null
+      let c: Color
+      do {
+        c = PALETTE[rng.int(PALETTE.length)]
+      } while (c === prev)
+      squares[side].push(c)
+    }
+  }
+  return { kind: 'multi', squares }
+}
+
+/** Bordure du plateau d'un joueur selon les variantes actives. */
+export function bordersFor(ruleset: Ruleset, boardColor: BoardColor): BorderSpec | undefined {
+  if (ruleset.variants?.coloredBorders) return { kind: 'uniform', color: boardColor }
+  if (ruleset.variants?.multiBorders) return multiBorderFor(boardColor, ruleset.boardSize)
+  return undefined
 }
 
 export function createGame(config: GameConfig): GameState {
   const rng = new Rng(config.options.seed)
   const size = config.options.ruleset.boardSize
+  const ruleset = config.options.ruleset
   const players: Player[] = config.players.map((p, i) => ({
     id: i,
     name: p.name.trim() || `Joueur ${i + 1}`,
     kind: p.kind,
     boardColor: p.boardColor,
     color: BOARD_COLOR_HEX[p.boardColor],
-    board: createBoard(size),
+    board: { ...createBoard(size), borders: bordersFor(ruleset, p.boardColor) },
   }))
 
   // Une seule carte mission pour toute la table.
@@ -116,7 +164,21 @@ export function createGame(config: GameConfig): GameState {
     ? (config.options.cardId ?? rng.pick(CARDS).id)
     : undefined
 
-  const bag = rng.shuffle(Array.from({ length: TILE_COUNT }, (_, i) => i))
+  const ids = Array.from({ length: TILE_COUNT }, (_, i) => i)
+  if (ruleset.variants?.monoTiles) ids.push(...MONO_TILE_IDS)
+  if (ruleset.variants?.whiteTiles) ids.push(...WHITE_TILE_IDS)
+  const bag = rng.shuffle(ids)
+
+  // Tuile personnelle : une tuile sans noir tirée du sac pour chaque joueur.
+  if (ruleset.variants?.personalTile) {
+    for (const p of players) {
+      const idx = bag.findIndex((id) => !TILES[id].quads.includes('K'))
+      if (idx >= 0) {
+        p.personalTileId = bag.splice(idx, 1)[0]
+        p.personalUsed = false
+      }
+    }
+  }
   const state: GameState = {
     phase: 'playing',
     options: config.options,
@@ -136,12 +198,15 @@ export function createGame(config: GameConfig): GameState {
 
 function drawPool(state: GameState): GameState {
   const count = tilesPerRound(state.options.ruleset, state.players.length)
-  const bag = state.bag.slice()
+  // Les tuiles restées au centre (tuile personnelle jouée à la place)
+  // retournent au fond du sac.
+  const leftovers = state.pool.filter((p) => p.takenBy === null).map((p) => p.tileId)
+  const bag = [...leftovers, ...state.bag]
   const pool: PoolTile[] = []
   for (let i = 0; i < count && bag.length; i++) {
     pool.push({ tileId: bag.pop() as number, takenBy: null })
   }
-  return { ...state, bag, pool }
+  return { ...state, bag, pool, redrawUsed: false }
 }
 
 export function currentPlayerId(state: GameState): number {
@@ -166,15 +231,55 @@ export interface Move {
   tileId: number
   cell: number
   rot: Rotation
+  /** Face miroir (variante Tuiles miroir). */
+  flipped?: boolean
+  /** Tuile jouée depuis la réserve personnelle plutôt que du centre. */
+  personal?: boolean
 }
 
 export function isLegalMove(state: GameState, move: Move): boolean {
   if (state.phase !== 'playing') return false
-  const pool = state.pool.find((p) => p.tileId === move.tileId && p.takenBy === null)
-  if (!pool) return false
   const player = currentPlayer(state)
+  const variants = state.options.ruleset.variants
+  if (move.flipped && !variants?.mirrorTiles) return false
+  if (move.personal) {
+    if (!variants?.personalTile) return false
+    if (player.personalTileId !== move.tileId || player.personalUsed) return false
+  } else {
+    const pool = state.pool.find((p) => p.tileId === move.tileId && p.takenBy === null)
+    if (!pool) return false
+  }
   if (player.board.cells[move.cell] !== null) return false
   return currentLegalCells(state).includes(move.cell)
+}
+
+/**
+ * Variante « Dernier choix aléatoire » : le dernier joueur du tour peut
+ * échanger la tuile restante contre une pioche au hasard — une seule fois,
+ * sans retour possible.
+ */
+export function canRedrawLastTile(state: GameState): boolean {
+  return Boolean(
+    state.phase === 'playing' &&
+      state.options.ruleset.variants?.lastPickRandom &&
+      !state.redrawUsed &&
+      state.turnIndex === state.players.length - 1 &&
+      availableTiles(state).length === 1 &&
+      state.bag.length > 0,
+  )
+}
+
+export function redrawLastTile(state: GameState): GameState {
+  if (!canRedrawLastTile(state)) return state
+  const remaining = availableTiles(state)[0]
+  const bag = state.bag.slice()
+  const drawn = bag.pop() as number
+  // la tuile refusée part au fond du sac : impossible d'y revenir
+  bag.unshift(remaining.tileId)
+  const pool = state.pool.map((p) =>
+    p.tileId === remaining.tileId ? { tileId: drawn, takenBy: null } : p,
+  )
+  return { ...state, bag, pool, redrawUsed: true }
 }
 
 /**
@@ -191,15 +296,24 @@ export function applyMove(state: GameState, move: Move): GameState {
   const ruleset = activeRuleset(state)
 
   const before = scoreOf(player.board, ruleset)
-  const board = placeTile(player.board, move.cell, move.tileId, move.rot, state.round)
+  const board = placeTile(
+    player.board,
+    move.cell,
+    move.tileId,
+    move.rot,
+    state.round,
+    move.flipped,
+  )
   const after = scoreOf(board, ruleset)
 
   const players = state.players.slice()
-  players[playerId] = { ...player, board }
+  players[playerId] = move.personal
+    ? { ...player, board, personalUsed: true }
+    : { ...player, board }
 
-  const pool = state.pool.map((p) =>
-    p.tileId === move.tileId ? { ...p, takenBy: playerId } : p,
-  )
+  const pool = move.personal
+    ? state.pool
+    : state.pool.map((p) => (p.tileId === move.tileId ? { ...p, takenBy: playerId } : p))
 
   const log = state.log.concat({
     round: state.round,

@@ -4,13 +4,13 @@ import {
   BOARD_COLOR_NAMES,
   BOARD_COLORS,
   CARDS,
+  bagSize,
   configError,
   defaultOptions,
   defaultPlayers,
   DEFAULT_RULESET,
   freeBoardColor,
   randomSeed,
-  TILE_COUNT,
   tilesNeeded,
   tilesPerRound,
 } from "../../engine/index.ts";
@@ -20,6 +20,7 @@ import type {
   PlayerConfig,
   PlayerKind,
   Ruleset,
+  Variants,
 } from "../../engine/index.ts";
 import { loadLastConfig, saveLastConfig } from "../storage.ts";
 import { MaterialSection } from "../components/MaterialSection.tsx";
@@ -101,6 +102,13 @@ export function SetupScreen({
 
   const patchRuleset = (patch: Partial<Ruleset>) =>
     setOptions((o) => ({ ...o, ruleset: { ...o.ruleset, ...patch } }));
+
+  const variants = options.ruleset.variants ?? {};
+  const patchVariants = (patch: Partial<Variants>) =>
+    setOptions((o) => ({
+      ...o,
+      ruleset: { ...o.ruleset, variants: { ...o.ruleset.variants, ...patch } },
+    }));
 
   const start = () => {
     saveLastConfig(config);
@@ -283,24 +291,71 @@ export function SetupScreen({
           {/* ------------------------------------------------------ variantes */}
           <div className="section-head">Variantes</div>
           <div className="row wrap">
-            <Toggle
+            <VariantToggle
               label="Cartes missions"
               on={options.useCards}
               onChange={(v) => setOptions((o) => ({ ...o, useCards: v }))}
+              description="Une carte tirée pour la table, la même mission pour tout le monde."
             />
-            <Toggle
+            <VariantToggle
               label="Pose libre"
               on={!options.ruleset.requireAdjacency}
               onChange={(v) => patchRuleset({ requireAdjacency: !v })}
+              description="Les tuiles n’ont plus besoin de toucher une tuile déjà posée."
+            />
+            <VariantToggle
+              label="Dernier choix aléatoire"
+              on={!!variants.lastPickRandom}
+              onChange={(v) => patchVariants({ lastPickRandom: v })}
+              description="Le dernier à choisir peut échanger la tuile restante contre une pioche au hasard — une fois, sans retour."
+            />
+            <VariantToggle
+              label="Bordures colorées"
+              on={!!variants.coloredBorders}
+              onChange={(v) =>
+                patchVariants({ coloredBorders: v, ...(v ? { multiBorders: false } : {}) })
+              }
+              description="Le bord du plateau score dans la couleur du joueur : chaque côté relié compte comme une case (max 4). Exclusif avec Bordures multicolores."
+            />
+            <VariantToggle
+              label="Bordures multicolores"
+              on={!!variants.multiBorders}
+              onChange={(v) =>
+                patchVariants({ multiBorders: v, ...(v ? { coloredBorders: false } : {}) })
+              }
+              description="Plateaux bordés de 8 carrés colorés par côté (coins blancs) : chaque carré relié à sa couleur compte comme une case. Exclusif avec Bordures colorées."
+            />
+            <VariantToggle
+              label="Tuiles monochromes"
+              on={!!variants.monoTiles}
+              onChange={(v) => patchVariants({ monoTiles: v })}
+              description="+12 tuiles unies dans le sac (2 par couleur)."
+            />
+            <VariantToggle
+              label="Tuiles blanches"
+              on={!!variants.whiteTiles}
+              onChange={(v) => patchVariants({ whiteTiles: v })}
+              description="+6 tuiles blanches jokers : elles prolongent et relient les chemins de toutes les couleurs voisines."
+            />
+            <VariantToggle
+              label="Étoiles magiques"
+              on={!!variants.magicStars}
+              onChange={(v) => patchVariants({ magicStars: v })}
+              description="30 tuiles portent une étoile. 1 étoile = 1 pt ; reliées : 2 = 3, 3 = 6, 4 = 10, 5 = 20 pts."
+            />
+            <VariantToggle
+              label="Tuile personnelle"
+              on={!!variants.personalTile}
+              onChange={(v) => patchVariants({ personalTile: v })}
+              description="Chaque joueur reçoit une tuile sans noir, jouable une seule fois à la place d’une tuile du centre."
+            />
+            <VariantToggle
+              label="Tuiles miroir"
+              on={!!variants.mirrorTiles}
+              onChange={(v) => patchVariants({ mirrorTiles: v })}
+              description="Chaque tuile peut se retourner sur sa face miroir (touche F) : couleurs inversées gauche-droite."
             />
           </div>
-
-          <p className="note">
-            <strong>Cartes missions :</strong> une carte est tirée pour la
-            table, tout le monde joue la même mission.{" "}
-            <strong>Pose libre :</strong> les tuiles n’ont plus besoin de
-            toucher une tuile déjà posée.
-          </p>
 
           {options.useCards && (
             <div className="field">
@@ -335,8 +390,8 @@ export function SetupScreen({
           <div className="row" style={{ justifyContent: "space-between" }}>
             <span className="note">
               {perRound} tuile{perRound > 1 ? "s" : ""} révélée
-              {perRound > 1 ? "s" : ""} par manche · {needed}/{TILE_COUNT}{" "}
-              tuiles utilisées
+              {perRound > 1 ? "s" : ""} par manche · {needed}/
+              {bagSize(options.ruleset)} tuiles utilisées
             </span>
             <button
               className="btn small ghost"
@@ -511,5 +566,25 @@ function Toggle({
       />
       {label}
     </label>
+  );
+}
+
+/** Interrupteur de variante : sa description n'apparaît qu'une fois coché. */
+function VariantToggle({
+  label,
+  on,
+  onChange,
+  description,
+}: {
+  label: string;
+  on: boolean;
+  onChange: (v: boolean) => void;
+  description: string;
+}) {
+  return (
+    <div className={`variant ${on ? "on" : ""}`}>
+      <Toggle label={label} on={on} onChange={onChange} />
+      {on && <p className="variant-desc">{description}</p>}
+    </div>
   );
 }

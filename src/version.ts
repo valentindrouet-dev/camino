@@ -15,6 +15,17 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.19',
+    date: '2026-08-05',
+    changes: [
+      'Huit variantes jouables : Dernier choix aléatoire, Bordures colorées, Bordures multicolores, Tuiles monochromes, Tuiles blanches, Étoiles magiques, Tuile personnelle et Tuiles miroir.',
+      'Les bordures prolongent et relient les chemins ; le blanc sert de joker ; les étoiles reliées rapportent 1/3/6/10/20 points.',
+      'Les bots jouent toutes les variantes : face miroir, tuile personnelle gardée en réserve, repioche du dernier choix.',
+      'Matériel enrichi : les 6 plateaux multicolores, les 18 tuiles de variante et les étoiles sur les 97 tuiles.',
+      'Les descriptions des variantes n’apparaissent qu’une fois la variante cochée.',
+    ],
+  },
+  {
     version: '1.18',
     date: '2026-08-05',
     changes: [

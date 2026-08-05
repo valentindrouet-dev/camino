@@ -6,8 +6,13 @@
  * Node (multijoueur en ligne), dans un worker (simulations) ou dans les tests.
  */
 
-/** Les 6 couleurs qui rapportent des points + le noir qui en enlève. */
-export type Color = 'Y' | 'O' | 'R' | 'G' | 'B' | 'P' | 'K'
+/**
+ * Les 6 couleurs qui rapportent des points, le noir qui en enlève, et le
+ * blanc des tuiles jokers (variante) qui rejoint toutes les couleurs.
+ */
+export type Color = 'Y' | 'O' | 'R' | 'G' | 'B' | 'P' | 'K' | 'W'
+
+export const WHITE: Color = 'W'
 
 export const COLORS: Color[] = ['Y', 'O', 'R', 'G', 'B', 'P', 'K']
 /** Couleurs « chemin » (le noir est traité à part). */
@@ -33,14 +38,32 @@ export type Rotation = 0 | 1 | 2 | 3
 export interface PlacedTile {
   tileId: number
   rot: Rotation
+  /** Face miroir (variante Tuiles miroir). */
+  flipped?: boolean
   /** Numéro du tour où la tuile a été posée (pour le rejeu / les stats). */
   round: number
 }
+
+/** Côtés d'un plateau, dans l'ordre haut, droite, bas, gauche. */
+export type Side = 0 | 1 | 2 | 3
+
+/**
+ * Bordure d'un plateau (variantes) :
+ *  - `uniform` : tout le bord est de la couleur du joueur ; chaque côté touché
+ *    par un chemin de cette couleur compte comme une case de plus ;
+ *  - `multi` : 8 petits carrés colorés par côté (coins blancs) ; chaque carré
+ *    relié à un chemin de sa couleur compte comme une case de plus.
+ */
+export type BorderSpec =
+  | { kind: 'uniform'; color: Color }
+  | { kind: 'multi'; squares: [Color[], Color[], Color[], Color[]] }
 
 /** Plateau : tableau de `size * size` cases, `null` = case vide. */
 export interface Board {
   size: number
   cells: (PlacedTile | null)[]
+  /** Bordure scorante (variantes Bordures colorées / multicolores). */
+  borders?: BorderSpec
 }
 
 export interface Zone {
@@ -49,7 +72,11 @@ export interface Zone {
   cells: number[]
   /** Index des tuiles (case du plateau) traversées par la zone. */
   tiles: number[]
-  /** Nombre de tuiles distinctes = ce qui détermine les points. */
+  /** Cases de bordure reliées (variantes) : chacune compte comme une case. */
+  borders: number
+  /** Étoiles magiques reliées par cette zone (variante). */
+  stars: number
+  /** Tuiles distinctes + bordures = ce qui détermine les points. */
   span: number
   points: number
 }
@@ -69,12 +96,34 @@ export interface ScoreBreakdown {
   colorPoints: number
   blackZones: number
   blackPoints: number
+  /** Points des étoiles magiques (variante). */
+  starPoints: number
   cardPoints: number
   cardLabel?: string
   /** La carte modifie le barème au lieu d'ajouter des points (voir cards.ts). */
   cardStructural?: boolean
   byColor: Record<Color, ColorScore>
   zones: Zone[]
+}
+
+/** Variantes de la boîte — toutes optionnelles, certaines exclusives. */
+export interface Variants {
+  /** Le dernier à choisir peut piocher au hasard au lieu de la tuile restante. */
+  lastPickRandom?: boolean
+  /** Le bord du plateau score dans la couleur du joueur (1 par côté). */
+  coloredBorders?: boolean
+  /** Plateaux à bordures multicolores (exclusif avec coloredBorders). */
+  multiBorders?: boolean
+  /** +12 tuiles monochromes dans le sac (2 par couleur). */
+  monoTiles?: boolean
+  /** +6 tuiles blanches jokers dans le sac. */
+  whiteTiles?: boolean
+  /** Étoiles sur 30 tuiles ; les relier rapporte des points. */
+  magicStars?: boolean
+  /** Une tuile personnelle par joueur, jouable à tout moment. */
+  personalTile?: boolean
+  /** Chaque tuile peut être retournée sur sa face miroir. */
+  mirrorTiles?: boolean
 }
 
 /** Barème modifiable — c'est le cœur de l'outil d'équilibrage. */
@@ -91,6 +140,8 @@ export interface Ruleset {
   tilesPerRound: number
   /** Une tuile (sauf la première) doit toucher une tuile déjà posée. */
   requireAdjacency: boolean
+  /** Variantes actives. */
+  variants?: Variants
 }
 
 export const DEFAULT_RULESET: Ruleset = {
@@ -122,6 +173,9 @@ export interface Player {
   /** Code hexadécimal correspondant, pour l'affichage. */
   color: string
   board: Board
+  /** Tuile personnelle (variante) : jouable une fois, à tout moment. */
+  personalTileId?: number
+  personalUsed?: boolean
 }
 
 export interface PoolTile {
@@ -171,6 +225,8 @@ export interface GameState {
   options: GameOptions
   /** Carte mission de la table (identique pour tout le monde). */
   cardId?: string
+  /** Le dernier joueur du tour a déjà repioché (variante Dernier choix). */
+  redrawUsed?: boolean
   players: Player[]
   /** Pioche restante (ids de tuiles), mélangée. */
   bag: number[]

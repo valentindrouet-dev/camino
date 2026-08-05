@@ -6,7 +6,7 @@ export function createBoard(size: number): Board {
 }
 
 export function cloneBoard(board: Board): Board {
-  return { size: board.size, cells: board.cells.slice() }
+  return { size: board.size, cells: board.cells.slice(), borders: board.borders }
 }
 
 export function idx(size: number, row: number, col: number): number {
@@ -61,9 +61,10 @@ export function placeTile(
   tileId: number,
   rot: Rotation,
   round: number,
+  flipped = false,
 ): Board {
   const next = cloneBoard(board)
-  next.cells[cell] = { tileId, rot, round }
+  next.cells[cell] = flipped ? { tileId, rot, flipped, round } : { tileId, rot, round }
   return next
 }
 
@@ -84,7 +85,7 @@ export function quadGrid(board: Board): QuadGrid {
     if (!placed) continue
     const r = rowOf(board.size, i) * 2
     const c = colOf(board.size, i) * 2
-    const q = tileQuads(placed.tileId, placed.rot)
+    const q = tileQuads(placed.tileId, placed.rot, placed.flipped)
     cells[r * qs + c] = q[0] // haut-gauche
     cells[r * qs + c + 1] = q[1] // haut-droite
     cells[(r + 1) * qs + c + 1] = q[2] // bas-droite

@@ -57,6 +57,18 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
         </div>
       )}
 
+      {!dense && breakdown.starPoints > 0 && (
+        <div className="score-line" title="Étoiles magiques reliées">
+          <span className="swatch mission" style={{ background: '#FFD23F' }}>
+            ★
+          </span>
+          <span className="bar">
+            <i style={{ width: '100%', background: '#FFD23F' }} />
+          </span>
+          <span className="val pos">+{breakdown.starPoints}</span>
+        </div>
+      )}
+
       {!dense && breakdown.cardLabel && (
         <div className="score-line" title={`Carte mission — ${breakdown.cardLabel}`}>
           <span className="swatch mission" style={{ background: '#F9B515' }}>

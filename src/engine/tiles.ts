@@ -32,12 +32,24 @@ const RAW: string[] = [
   'PBPO', 'BOBR', // 95
 ]
 
-export const TILES: Tile[] = RAW.map((s, id) => ({
+/**
+ * Tuiles de variantes, à la suite des 97 de base :
+ *  - 97..108 : 12 tuiles monochromes (2 par couleur) ;
+ *  - 109..114 : 6 tuiles blanches jokers.
+ * Elles n'entrent dans le sac que si la variante correspondante est active.
+ */
+const MONO: string[] = ['Y', 'O', 'R', 'G', 'B', 'P'].flatMap((c) => [c.repeat(4), c.repeat(4)])
+const WHITES: string[] = Array.from({ length: 6 }, () => 'WWWW')
+
+export const TILES: Tile[] = [...RAW, ...MONO, ...WHITES].map((s, id) => ({
   id,
   quads: s.split('') as unknown as Quads,
 }))
 
-export const TILE_COUNT = TILES.length
+/** Nombre de tuiles de la boîte de base (hors variantes). */
+export const TILE_COUNT = RAW.length
+export const MONO_TILE_IDS = MONO.map((_, i) => RAW.length + i)
+export const WHITE_TILE_IDS = WHITES.map((_, i) => RAW.length + MONO.length + i)
 
 /** Quarts d'une tuile après rotation horaire de `rot` x 90°. */
 export function rotatedQuads(quads: Quads, rot: Rotation): Quads {
@@ -51,8 +63,35 @@ export function rotatedQuads(quads: Quads, rot: Rotation): Quads {
   ] as unknown as Quads
 }
 
-export function tileQuads(tileId: number, rot: Rotation): Quads {
-  return rotatedQuads(TILES[tileId].quads, rot)
+/** Face miroir : inversion gauche-droite (HG↔HD, BG↔BD). */
+export function mirroredQuads(quads: Quads): Quads {
+  return [quads[1], quads[0], quads[3], quads[2]] as unknown as Quads
+}
+
+export function tileQuads(tileId: number, rot: Rotation, flipped = false): Quads {
+  const base = flipped ? mirroredQuads(TILES[tileId].quads) : TILES[tileId].quads
+  return rotatedQuads(base, rot)
+}
+
+export interface Orientation {
+  rot: Rotation
+  flipped: boolean
+}
+
+/** Orientations réellement distinctes, faces miroir comprises si permises. */
+export function distinctOrientations(tileId: number, allowFlip: boolean): Orientation[] {
+  const seen = new Set<string>()
+  const out: Orientation[] = []
+  for (const flipped of allowFlip ? [false, true] : [false]) {
+    for (const rot of [0, 1, 2, 3] as Rotation[]) {
+      const key = tileQuads(tileId, rot, flipped).join('')
+      if (!seen.has(key)) {
+        seen.add(key)
+        out.push({ rot, flipped })
+      }
+    }
+  }
+  return out
 }
 
 /** Orientations réellement distinctes (une tuile unie n'en a qu'une). */
@@ -75,4 +114,44 @@ export function tileColorCount(tileId: number): Partial<Record<Color, number>> {
   const out: Partial<Record<Color, number>> = {}
   for (const q of TILES[tileId].quads) out[q] = (out[q] ?? 0) + 1
   return out
+}
+
+// ---------------------------------------------------------------------------
+// Étoiles magiques (variante) : 30 tuiles de la boîte portent une étoile dans
+// un de leurs quarts — jamais un quart noir, et 75 % d'entre elles sur des
+// tuiles qui contiennent du noir. L'attribution est fixe (tuiles imprimées).
+// ---------------------------------------------------------------------------
+import { Rng } from './rng.ts'
+
+/** quart étoilé (0..3, avant rotation) par id de tuile. */
+export const STARS: ReadonlyMap<number, number> = (() => {
+  const rng = new Rng('camino-etoiles-magiques')
+  const withBlack: number[] = []
+  const without: number[] = []
+  for (let id = 0; id < TILE_COUNT; id++) {
+    const quads = TILES[id].quads
+    if (quads.every((q) => q === 'K')) continue // aucune case possible
+    ;(quads.includes('K') ? withBlack : without).push(id)
+  }
+  const target = 30
+  const nBlack = Math.min(withBlack.length, Math.round(target * 0.75))
+  const picked = [
+    ...rng.shuffle(withBlack).slice(0, nBlack),
+    ...rng.shuffle(without).slice(0, target - nBlack),
+  ]
+  const map = new Map<number, number>()
+  for (const id of picked) {
+    const options = [0, 1, 2, 3].filter((q) => TILES[id].quads[q] !== 'K')
+    map.set(id, options[rng.int(options.length)])
+  }
+  return map
+})()
+
+/** Position du quart étoilé après orientation (0..3 dans la tuile posée). */
+export function starQuadIndex(tileId: number, rot: Rotation, flipped = false): number | null {
+  const base = STARS.get(tileId)
+  if (base === undefined) return null
+  const FLIP: number[] = [1, 0, 3, 2]
+  const afterFlip = flipped ? FLIP[base] : base
+  return (afterFlip + rot) % 4
 }

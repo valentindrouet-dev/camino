@@ -8,6 +8,7 @@ import {
   quadGrid,
   scoreOf,
   signed,
+  starQuadIndex,
   tileQuads,
   zoneLabel,
 } from '../../engine/index.ts'
@@ -28,10 +29,13 @@ const GRID = '#A7A9AC'
 const SLOT = '#FFFFFF'
 /** Rouge clair des zones noires : contour et pastille. */
 const BLACK_ACCENT = '#FF6B6B'
+/** Profondeur de la couronne de bordure scorante (variantes). */
+const BORDER_W = 26
 
 export interface Ghost {
   tileId: number
   rot: Rotation
+  flipped?: boolean
 }
 
 interface Props {
@@ -67,7 +71,8 @@ export function BoardView({
   const [hoverZone, setHoverZone] = useState<number | null>(null)
 
   const n = board.size
-  const side = PAD * 2 + n * PITCH + GAP
+  const bw = board.borders ? BORDER_W : 0
+  const side = PAD * 2 + 2 * bw + n * PITCH + GAP
   const grid = useMemo(() => quadGrid(board), [board])
   const zones = useMemo(
     () => (compact ? [] : computeZones(board, ruleset)),
@@ -81,17 +86,17 @@ export function BoardView({
   // Aperçu : la tuile fantôme suit la souris et annonce le gain immédiat.
   const preview = useMemo(() => {
     if (!ghost || hover === null || !legalSet.has(hover)) return null
-    const after = placeTile(board, hover, ghost.tileId, ghost.rot, 0)
+    const after = placeTile(board, hover, ghost.tileId, ghost.rot, 0, ghost.flipped)
     return {
       cell: hover,
-      quads: tileQuads(ghost.tileId, ghost.rot),
+      quads: tileQuads(ghost.tileId, ghost.rot, ghost.flipped),
       delta: scoreOf(after, ruleset) - scoreOf(board, ruleset),
     }
   }, [ghost, hover, legalSet, board, ruleset])
 
   const cellXY = (i: number) => ({
-    x: PAD + GAP + (i % n) * PITCH,
-    y: PAD + GAP + Math.floor(i / n) * PITCH,
+    x: PAD + bw + GAP + (i % n) * PITCH,
+    y: PAD + bw + GAP + Math.floor(i / n) * PITCH,
   })
 
   return (
@@ -105,11 +110,12 @@ export function BoardView({
     >
       {/* contour coloré du plateau */}
       <rect x="0" y="0" width={side} height={side} rx={compact ? 10 : 20} fill={frameColor} />
+      {board.borders && <BorderRing spec={board.borders} n={n} side={side} />}
       <rect
-        x={PAD}
-        y={PAD}
-        width={side - PAD * 2}
-        height={side - PAD * 2}
+        x={PAD + bw}
+        y={PAD + bw}
+        width={side - (PAD + bw) * 2}
+        height={side - (PAD + bw) * 2}
         rx={compact ? 4 : 8}
         fill={GRID}
       />
@@ -125,13 +131,37 @@ export function BoardView({
           <rect
             key={`q${qi}`}
             className="quad"
-            {...quadXY(qi, n)}
+            {...quadXY(qi, n, bw)}
             width={QUAD}
             height={QUAD}
             fill={COLOR_HEX[color]}
           />
         ),
       )}
+
+      {/* étoiles magiques (variante) */}
+      {board.cells.map((placed, i) => {
+        if (!placed) return null
+        const sq = starQuadIndex(placed.tileId, placed.rot, placed.flipped)
+        if (sq === null) return null
+        const { x, y } = cellXY(i)
+        const [dx, dy] = QUAD_OFFSETS[sq]
+        return (
+          <text
+            key={`s${i}`}
+            x={x + dx + QUAD / 2}
+            y={y + dy + QUAD / 2 + 7}
+            textAnchor="middle"
+            fontSize="21"
+            pointerEvents="none"
+            fill="#FFFFFF"
+            stroke="#00000088"
+            strokeWidth="1"
+          >
+            ★
+          </text>
+        )
+      })}
 
       {/* dernière tuile posée : équerres dans les séparateurs, pour ne pas
           être confondue avec le contour blanc d'une zone qui marque */}
@@ -193,7 +223,7 @@ export function BoardView({
       {!compact &&
         zones.map((z, i) =>
           (showZones && z.points !== 0) || hoverZone === i ? (
-            <ZoneOutline key={`z${i}`} zone={z} n={n} highlight={hoverZone === i} />
+            <ZoneOutline key={`z${i}`} zone={z} n={n} bw={bw} highlight={hoverZone === i} />
           ) : null,
         )}
 
@@ -202,7 +232,7 @@ export function BoardView({
         showZones &&
         zones
           .filter((z) => z.points !== 0)
-          .map((z, i) => <ZoneBadge key={`b${i}`} zone={z} n={n} ruleset={ruleset} />)}
+          .map((z, i) => <ZoneBadge key={`b${i}`} zone={z} n={n} bw={bw} ruleset={ruleset} />)}
 
       {/* meilleur coup (aide) */}
       {hint && board.cells[hint.cell] === null && (
@@ -228,7 +258,7 @@ export function BoardView({
           onMouseEnter={() => setHover(i)}
           onMouseMove={(e) => {
             if (compact) return
-            const q = quadAt(e.currentTarget, e.clientX, e.clientY, n)
+            const q = quadAt(e.currentTarget, e.clientX, e.clientY, n, bw)
             setHoverZone(q === null ? null : zones.findIndex((z) => z.cells.includes(q)))
           }}
           onClick={() => interactive && legalSet.has(i) && onPlace?.(i)}
@@ -237,7 +267,7 @@ export function BoardView({
 
       {/* infobulle de zone */}
       {!compact && hoverZone !== null && zones[hoverZone] && !preview && (
-        <ZoneTooltip zone={zones[hoverZone]} n={n} ruleset={ruleset} />
+        <ZoneTooltip zone={zones[hoverZone]} n={n} bw={bw} ruleset={ruleset} />
       )}
     </svg>
   )
@@ -252,14 +282,93 @@ const QUAD_OFFSETS: [number, number][] = [
 ]
 
 /** Coin haut-gauche d'un quart, séparateurs gris compris. */
-function quadXY(qi: number, n: number) {
+function quadXY(qi: number, n: number, bw = 0) {
   const qs = n * 2
   const qr = Math.floor(qi / qs)
   const qc = qi % qs
   return {
-    x: PAD + GAP + Math.floor(qc / 2) * PITCH + (qc % 2) * QUAD,
-    y: PAD + GAP + Math.floor(qr / 2) * PITCH + (qr % 2) * QUAD,
+    x: PAD + bw + GAP + Math.floor(qc / 2) * PITCH + (qc % 2) * QUAD,
+    y: PAD + bw + GAP + Math.floor(qr / 2) * PITCH + (qr % 2) * QUAD,
   }
+}
+
+/** Couronne de bordure scorante (variantes Bordures colorées / multicolores). */
+function BorderRing({
+  spec,
+  n,
+  side,
+}: {
+  spec: NonNullable<Board['borders']>
+  n: number
+  side: number
+}) {
+  const inner = side - PAD * 2 - 2 * BORDER_W // côté de la grille grise
+  const x0 = PAD
+  const y0 = PAD
+  if (spec.kind === 'uniform') {
+    return (
+      <g>
+        <rect
+          x={x0}
+          y={y0}
+          width={side - PAD * 2}
+          height={side - PAD * 2}
+          rx="10"
+          fill={COLOR_HEX[spec.color]}
+          stroke="#00000022"
+        />
+      </g>
+    )
+  }
+  // multicolore : 2N carrés par côté, coins blancs
+  const qs = n * 2
+  const cellW = (inner + GAP) / qs
+  const rects: React.ReactNode[] = []
+  for (let side4 = 0; side4 < 4; side4++) {
+    for (let k = 0; k < qs; k++) {
+      const color = spec.squares[side4 as 0 | 1 | 2 | 3][k]
+      const along = BORDER_W + (k * (inner + GAP)) / qs + GAP / 2
+      const w = cellW - GAP / 2
+      let x = 0
+      let y = 0
+      let rw = w
+      let rh = BORDER_W
+      if (side4 === 0) [x, y] = [x0 + along, y0]
+      else if (side4 === 2) [x, y] = [x0 + along, y0 + BORDER_W + inner]
+      else {
+        rw = BORDER_W
+        rh = w
+        x = side4 === 3 ? x0 : x0 + BORDER_W + inner
+        y = y0 + along
+      }
+      rects.push(
+        <rect key={`${side4}-${k}`} x={x} y={y} width={rw} height={rh} fill={COLOR_HEX[color]} />,
+      )
+    }
+  }
+  const corner = BORDER_W
+  return (
+    <g>
+      <rect
+        x={x0}
+        y={y0}
+        width={side - PAD * 2}
+        height={side - PAD * 2}
+        rx="10"
+        fill="#FFFFFF"
+        stroke="#00000022"
+      />
+      {rects}
+      {[
+        [x0, y0],
+        [x0 + BORDER_W + inner, y0],
+        [x0, y0 + BORDER_W + inner],
+        [x0 + BORDER_W + inner, y0 + BORDER_W + inner],
+      ].map(([cx, cy], i) => (
+        <rect key={`c${i}`} x={cx} y={cy} width={corner} height={corner} fill="#FFFFFF" />
+      ))}
+    </g>
+  )
 }
 
 /** Repère de la dernière tuile posée : quatre équerres dans la grille grise. */
@@ -372,7 +481,7 @@ function roundedPolygon(points: { x: number; y: number }[], radius: number): str
   return d + 'Z'
 }
 
-function zoneOutlinePath(zone: Zone, n: number): string {
+function zoneOutlinePath(zone: Zone, n: number, bw: number): string {
   const qs = n * 2
   const set = new Set(zone.cells)
   const inside: { x: number; y: number; w: number; h: number }[] = []
@@ -387,7 +496,7 @@ function zoneOutlinePath(zone: Zone, n: number): string {
   for (const c of zone.cells) {
     const r = Math.floor(c / qs)
     const col = c % qs
-    const { x, y } = quadXY(c, n)
+    const { x, y } = quadXY(c, n, bw)
     inside.push({ x, y, w: QUAD, h: QUAD })
 
     if (r === 0 || !set.has(c - qs)) add(x, y, x + QUAD, y)
@@ -413,7 +522,7 @@ function zoneOutlinePath(zone: Zone, n: number): string {
     for (let col = 1; col < qs - 1; col += 2) {
       const a = r * qs + col
       if (!set.has(a) || !set.has(a + 1) || !set.has(a + qs) || !set.has(a + qs + 1)) continue
-      const { x, y } = quadXY(a, n)
+      const { x, y } = quadXY(a, n, bw)
       const cx = x + QUAD
       const cy = y + QUAD
       inside.push({ x: cx, y: cy, w: GAP, h: GAP })
@@ -512,8 +621,18 @@ function zoneOutlinePath(zone: Zone, n: number): string {
   return parts.join(' ')
 }
 
-function ZoneOutline({ zone, n, highlight }: { zone: Zone; n: number; highlight: boolean }) {
-  const d = useMemo(() => zoneOutlinePath(zone, n), [zone, n])
+function ZoneOutline({
+  zone,
+  n,
+  bw,
+  highlight,
+}: {
+  zone: Zone
+  n: number
+  bw: number
+  highlight: boolean
+}) {
+  const d = useMemo(() => zoneOutlinePath(zone, n, bw), [zone, n, bw])
   const color = zone.color === BLACK ? BLACK_ACCENT : '#FFFFFF'
   return (
     <g pointerEvents="none">
@@ -540,7 +659,17 @@ function ZoneOutline({ zone, n, highlight }: { zone: Zone; n: number; highlight:
  * Pastille de points : un simple rond, intérieur transparent. La police se
  * réduit au-delà de 9 pour que « +23 » tienne dans le cercle.
  */
-function ZoneBadge({ zone, n, ruleset }: { zone: Zone; n: number; ruleset: Ruleset }) {
+function ZoneBadge({
+  zone,
+  n,
+  bw,
+  ruleset,
+}: {
+  zone: Zone
+  n: number
+  bw: number
+  ruleset: Ruleset
+}) {
   const qs = n * 2
   let bx = 0
   let by = 0
@@ -559,7 +688,7 @@ function ZoneBadge({ zone, n, ruleset }: { zone: Zone; n: number; ruleset: Rules
       best = c
     }
   }
-  const { x, y } = quadXY(best, n)
+  const { x, y } = quadXY(best, n, bw)
   const cx = x + QUAD / 2
   const cy = y + QUAD / 2
   const label = signed(zone.points)
@@ -584,12 +713,22 @@ function ZoneBadge({ zone, n, ruleset }: { zone: Zone; n: number; ruleset: Rules
 }
 
 /** Étiquette flottante décrivant la zone survolée. */
-function ZoneTooltip({ zone, n, ruleset }: { zone: Zone; n: number; ruleset: Ruleset }) {
+function ZoneTooltip({
+  zone,
+  n,
+  bw,
+  ruleset,
+}: {
+  zone: Zone
+  n: number
+  bw: number
+  ruleset: Ruleset
+}) {
   const first = zone.cells[0]
   const text = zoneLabel(zone, ruleset)
   const w = text.length * 8.2 + 18
-  const pos = quadXY(first, n)
-  const side = PAD * 2 + n * PITCH + GAP
+  const pos = quadXY(first, n, bw)
+  const side = PAD * 2 + 2 * bw + n * PITCH + GAP
   const x = Math.max(2, Math.min(pos.x + QUAD / 2 - w / 2, side - w - 2))
   const y = pos.y - 16
   return (
@@ -610,14 +749,20 @@ function ZoneTooltip({ zone, n, ruleset }: { zone: Zone; n: number; ruleset: Rul
 }
 
 /** Index du quart survolé à partir des coordonnées écran. */
-function quadAt(el: SVGRectElement, clientX: number, clientY: number, n: number): number | null {
+function quadAt(
+  el: SVGRectElement,
+  clientX: number,
+  clientY: number,
+  n: number,
+  bw: number,
+): number | null {
   const svg = el.ownerSVGElement
   if (!svg) return null
   const rect = svg.getBoundingClientRect()
-  const side = PAD * 2 + n * PITCH + GAP
+  const side = PAD * 2 + 2 * bw + n * PITCH + GAP
   const scale = rect.width / side
-  const x = (clientX - rect.left) / scale - PAD - GAP
-  const y = (clientY - rect.top) / scale - PAD - GAP
+  const x = (clientX - rect.left) / scale - PAD - bw - GAP
+  const y = (clientY - rect.top) / scale - PAD - bw - GAP
   const tileC = Math.floor(x / PITCH)
   const tileR = Math.floor(y / PITCH)
   if (tileC < 0 || tileR < 0 || tileC >= n || tileR >= n) return null

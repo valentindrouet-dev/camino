@@ -7,7 +7,10 @@ import {
   currentLegalCells,
   currentPlayerId,
   activeRuleset,
+  botWantsRedraw,
+  canRedrawLastTile,
   isBot,
+  redrawLastTile,
   scoreAll,
   topMoves,
 } from '../../engine/index.ts'
@@ -36,7 +39,9 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
   const active = state.players[activeId]
 
   const [selected, setSelected] = useState<number | null>(null)
+  const [fromPersonal, setFromPersonal] = useState(false)
   const [rot, setRot] = useState<Rotation>(0)
+  const [flipped, setFlipped] = useState(false)
   const [spin, setSpin] = useState(0)
   const [pinned, setPinned] = useState<number | null>(null)
 
@@ -60,6 +65,10 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
   const pool = state.pool
   const free = useMemo(() => availableTiles(state), [state])
   const legal = useMemo(() => currentLegalCells(state), [state])
+  const variants = state.options.ruleset.variants
+  const personalAvailable =
+    variants?.personalTile && active.personalTileId !== undefined && !active.personalUsed
+  const redrawPossible = canRedrawLastTile(state)
 
   const breakdowns = useMemo(() => scoreAll(state), [state])
   // Barème en vigueur : avec la carte « zones noires positives », une zone
@@ -84,13 +93,18 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
   useEffect(() => {
     if (state.phase !== 'playing') return
     setSelected((cur) => {
-      if (cur !== null && free.some((t) => t.tileId === cur)) return cur
+      if (cur !== null && fromPersonal && personalAvailable && cur === active.personalTileId) {
+        return cur
+      }
+      if (cur !== null && !fromPersonal && free.some((t) => t.tileId === cur)) return cur
+      setFromPersonal(false)
       return free.length === 1 ? free[0].tileId : null
     })
-  }, [free, state.phase])
+  }, [free, state.phase, fromPersonal, personalAvailable, active.personalTileId])
 
   useEffect(() => {
     setRot(0)
+    setFlipped(false)
     setSpin(0)
   }, [activeId, state.round])
 
@@ -101,17 +115,38 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
   const play = useCallback(
     (cell: number) => {
       if (selected === null) return
-      onHistory((h) => [...h, applyMove(h[h.length - 1], { tileId: selected, cell, rot })])
+      const move = {
+        tileId: selected,
+        cell,
+        rot,
+        ...(flipped ? { flipped: true } : {}),
+        ...(fromPersonal ? { personal: true } : {}),
+      }
+      onHistory((h) => [...h, applyMove(h[h.length - 1], move)])
       setSelected(null)
+      setFromPersonal(false)
     },
-    [selected, rot, onHistory],
+    [selected, rot, flipped, fromPersonal, onHistory],
   )
+
+  const redraw = useCallback(
+    () => onHistory((h) => [...h, redrawLastTile(h[h.length - 1])]),
+    [onHistory],
+  )
+
+  const flip = useCallback(() => {
+    if (variants?.mirrorTiles) setFlipped((f) => !f)
+  }, [variants?.mirrorTiles])
 
   // Tour des bots.
   const botTimer = useRef<number | null>(null)
   useEffect(() => {
     if (state.phase !== 'playing' || !isBot(active)) return
     botTimer.current = window.setTimeout(() => {
+      if (canRedrawLastTile(state) && botWantsRedraw(state)) {
+        onHistory((h) => [...h, redrawLastTile(h[h.length - 1])])
+        return // le nouvel état relance cet effet, le bot jouera au tour suivant
+      }
       const move = bestMove(state, active.kind)
       if (move) onHistory((h) => [...h, applyMove(h[h.length - 1], move)])
     }, BOT_DELAY)
@@ -135,6 +170,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return
       if (e.key === 'r' || e.key === 'R') rotate(e.shiftKey ? -1 : 1)
+      else if (e.key === 'f' || e.key === 'F') flip()
       else if (e.key === 'Escape') setSelected(null)
       else if (e.key >= '1' && e.key <= '9') {
         const t = pool[Number(e.key) - 1]
@@ -146,7 +182,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [pool, rotate, undo])
+  }, [pool, rotate, undo, flip])
 
   // Molette au-dessus du plateau = rotation (sans faire défiler la page).
   const stageRef = useRef<HTMLDivElement>(null)
@@ -263,7 +299,10 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                   taken ? 'taken' : ''
                 }`}
                 disabled={taken || !humanTurn}
-                onClick={() => setSelected(t.tileId)}
+                onClick={() => {
+                  setSelected(t.tileId)
+                  setFromPersonal(false)
+                }}
                 ref={(el) => {
                   if (el) poolRefs.current.set(t.tileId, el)
                   else poolRefs.current.delete(t.tileId)
@@ -273,16 +312,48 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                 <span className="frame">
                   <TileGlyph
                     tileId={t.tileId}
-                    angle={selected === t.tileId ? spin : 0}
-                    size={selected === t.tileId ? 78 : 66}
+                    flipped={selected === t.tileId && !fromPersonal ? flipped : false}
+                    showStar={Boolean(variants?.magicStars)}
+                    angle={selected === t.tileId && !fromPersonal ? spin : 0}
+                    size={selected === t.tileId && !fromPersonal ? 78 : 66}
                   />
                 </span>
                 <small>{taken ? (owner?.name ?? '—') : `touche ${i + 1}`}</small>
               </button>
             )
           })}
+          {personalAvailable && (
+            <button
+              className={`pool-tile personal ${
+                selected === active.personalTileId && fromPersonal ? 'selected' : ''
+              }`}
+              disabled={!humanTurn}
+              onClick={() => {
+                setSelected(active.personalTileId as number)
+                setFromPersonal(true)
+              }}
+              title="Tuile personnelle : jouable une seule fois, à la place d’une tuile du centre"
+            >
+              <span className="frame">
+                <TileGlyph
+                  tileId={active.personalTileId as number}
+                  flipped={fromPersonal ? flipped : false}
+                  showStar={Boolean(variants?.magicStars)}
+                  angle={selected === active.personalTileId && fromPersonal ? spin : 0}
+                  size={selected === active.personalTileId && fromPersonal ? 78 : 66}
+                />
+              </span>
+              <small>tuile perso</small>
+            </button>
+          )}
           {pool.length === 0 && <span className="note">Plus de tuiles au centre.</span>}
         </div>
+
+        {redrawPossible && humanTurn && (
+          <button className="btn small" onClick={redraw}>
+            🎲 Refuser la tuile restante et piocher au hasard (définitif)
+          </button>
+        )}
 
         {/* commandes de pose */}
         {humanTurn && (
@@ -293,9 +364,24 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
             <button className="btn icon" onClick={() => rotate(1)} title="Rotation horaire (R)">
               ↻
             </button>
+            {variants?.mirrorTiles && (
+              <button
+                className={`btn icon ${flipped ? 'primary' : ''}`}
+                onClick={flip}
+                title="Face miroir (F)"
+              >
+                ⇋
+              </button>
+            )}
             <span className="note">
-              <span className="kbd">R</span> tourner · <span className="kbd">1-9</span> choisir ·
-              molette sur le plateau · <span className="kbd">Échap</span> annuler
+              <span className="kbd">R</span> tourner ·{' '}
+              {variants?.mirrorTiles && (
+                <>
+                  <span className="kbd">F</span> miroir ·{' '}
+                </>
+              )}
+              <span className="kbd">1-9</span> choisir · molette sur le plateau ·{' '}
+              <span className="kbd">Échap</span> annuler
             </span>
           </div>
         )}
@@ -331,7 +417,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
             showZones={options.showZones}
             interactive={canPlaceHere}
             legal={viewId === activeId ? legal : []}
-            ghost={canPlaceHere && selected !== null ? { tileId: selected, rot } : null}
+            ghost={canPlaceHere && selected !== null ? { tileId: selected, rot, flipped } : null}
             hint={hint && viewId === activeId ? { cell: hint.cell, rot: hint.rot } : null}
             lastPlaced={lastPlaced}
             onPlace={play}

@@ -1266,3 +1266,47 @@ button.mission-card.selected {
 .release-list li::marker {
   color: var(--accent);
 }
+
+/* ------------------------------------------------------------- variantes */
+
+.variant {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-width: 100%;
+}
+
+.variant.on {
+  flex-basis: 100%;
+}
+
+.variant .toggle {
+  align-self: flex-start;
+}
+
+.variant-desc {
+  margin: 0 0 2px 6px;
+  font-size: 12px;
+  color: var(--ink-dim);
+  line-height: 1.45;
+  border-left: 3px solid #f3c27e;
+  padding-left: 9px;
+}
+
+/* tuile personnelle dans le centre de table */
+
+.pool-tile.personal .frame {
+  outline: 2px dashed #b98ae0;
+}
+
+.pool-tile.personal.selected .frame {
+  outline: 2px solid #8b5cf6;
+  box-shadow:
+    0 0 0 4px rgba(139, 92, 246, 0.22),
+    0 6px 16px rgba(120, 90, 40, 0.2);
+}
+
+.pool-tile.personal small {
+  color: #8b5cf6;
+  font-weight: 700;
+}
