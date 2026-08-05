@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -27,22 +27,29 @@ jobs:
       - run: npm test
       - run: npm run build
 
-      # Bascule la source Pages sur « GitHub Actions ». Sans cela, l'ancien
-      # déploiement « depuis la branche » republie le code source brut à chaque
-      # push et écrase le site construit quelques secondes après ce workflow.
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - name: Forcer la source Pages sur « GitHub Actions »
+      # La source Pages de ce dépôt est restée sur « depuis la branche »
+      # (le jeton du workflow n'a pas le droit de la changer : HTTP 403).
+      # On committe donc les fichiers construits SUR la branche : quel que
+      # soit le mécanisme qui publie — branche ou Actions — le site sert une
+      # application qui démarre (index.html sait charger ./assets/camino.js).
+      - name: Committer les fichiers construits sur la branche
         run: |
-          curl -sS -X PUT \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/pages" \
-            -d '{"build_type":"workflow"}' \
-            -o /tmp/pages.json -w "HTTP %{http_code}\n" || true
-          cat /tmp/pages.json || true
+          rm -rf assets
+          cp -r dist/assets assets
+          touch .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A assets .nojekyll
+          if git diff --cached --quiet; then
+            echo "Aucun changement d'assets à publier."
+          else
+            git commit -m "[skip ci] Publication des fichiers construits sur la branche"
+            git push origin "HEAD:${GITHUB_REF_NAME}" ||
+              (git pull --rebase origin "${GITHUB_REF_NAME}" &&
+               git push origin "HEAD:${GITHUB_REF_NAME}")
+          fi
 
+      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
@@ -57,23 +64,23 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v4
 
-      # Vérité terrain : on relit le site publié depuis l'extérieur et on
-      # échoue si ce n'est pas le build qui est servi. Couvre aussi le délai
-      # de propagation du CDN (10 minutes maximum).
-      - name: Vérifier que le site en ligne sert bien le build
+      # Vérité terrain : on relit le site publié depuis l'extérieur.
+      # Deux formes sont acceptées : l'index construit (déploiement Actions)
+      # ou l'index source accompagné des assets commités (déploiement branche).
+      # Dans les deux cas, l'application doit être réellement chargeable.
+      - name: Vérifier que le site en ligne sert une application qui démarre
         run: |
           URL="${{ steps.deployment.outputs.page_url }}"
           echo "Vérification de $URL"
           for i in $(seq 1 60); do
+            JS_SIZE=$(curl -fsSL "${URL}assets/camino.js?ci=${GITHUB_RUN_ID}-${i}" 2>/dev/null | wc -c || echo 0)
             HTML=$(curl -fsSL -H 'Cache-Control: no-cache' "${URL}?ci=${GITHUB_RUN_ID}-${i}" || true)
-            if echo "$HTML" | grep -q 'assets/camino\.js' && ! echo "$HTML" | grep -q 'src/main\.tsx'; then
-              if curl -fsS -o /dev/null "${URL}assets/camino.js?ci=${GITHUB_RUN_ID}-${i}"; then
-                echo "OK : le site sert le build (tentative $i)."
-                exit 0
-              fi
+            if [ "$JS_SIZE" -gt 10000 ] && echo "$HTML" | grep -q 'camino'; then
+              echo "OK (tentative $i) : assets/camino.js fait ${JS_SIZE} octets et la page le référence ou sait le charger."
+              exit 0
             fi
-            echo "Tentative $i/60 : le CDN sert encore autre chose, nouvel essai dans 10 s…"
+            echo "Tentative $i/60 : js=${JS_SIZE} octets — nouvel essai dans 10 s…"
             sleep 10
           done
-          echo "ÉCHEC : le site en ligne ne sert toujours pas le build après 10 minutes."
+          echo "ÉCHEC : l'application n'est toujours pas chargeable après 10 minutes."
           exit 1

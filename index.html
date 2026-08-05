@@ -99,19 +99,22 @@
 
     <script>
       /*
-       * Filet de sécurité contre l'écran blanc.
+       * Filet de sécurité contre l'écran blanc — deux étages.
        *
-       * GitHub Pages peut servir un index.html encore en cache alors que les
-       * fichiers de l'application ont été renommés par un déploiement plus
-       * récent : le script renvoie une 404 et rien ne s'affiche. Si
-       * l'application n'a pas démarré au bout de quelques secondes, on recharge
-       * une seule fois avec un paramètre anti-cache ; si ça échoue encore, on
-       * affiche un message plutôt qu'une page vide.
+       * 1. Si le script principal ne démarre pas (page servie par la
+       *    publication « depuis la branche », qui expose le code source brut),
+       *    on charge l'application depuis ./assets/camino.js : ces fichiers
+       *    construits sont commités sur la branche par le workflow de
+       *    publication, ils existent donc dans les deux modes de déploiement.
+       * 2. Si même ce secours échoue (propagation du CDN en cours), on
+       *    recharge tout seul, de plus en plus espacé, avant d'afficher un
+       *    message avec un bouton.
        */
       ;(function () {
         var KEY = 'camino.boot-retry'
         var MAX_TRIES = 6
         var done = false
+        var fallbackTried = false
         function started() {
           return document.documentElement.getAttribute('data-app') === 'ready'
         }
@@ -140,7 +143,7 @@
             return giveUp()
           }
           // Un déploiement met quelques minutes à se propager sur le CDN :
-          // on réessaie tout seul, de plus en plus espacé (~0s, 5s, 15s, 30s…).
+          // on réessaie tout seul, de plus en plus espacé (~0s, 5s, 20s, 45s…).
           var delay = n === 0 ? 0 : Math.min(n * n * 5000, 60000)
           if (delay > 0) {
             var note = document.getElementById('boot-note')
@@ -148,15 +151,31 @@
           }
           setTimeout(reloadFresh, delay)
         }
+        // Étage 1 : démarrer l'application depuis les fichiers construits.
+        function fallback() {
+          if (started() || fallbackTried) return
+          fallbackTried = true
+          var css = document.createElement('link')
+          css.rel = 'stylesheet'
+          css.href = './assets/camino.css?fb=' + Date.now()
+          document.head.appendChild(css)
+          var js = document.createElement('script')
+          js.type = 'module'
+          js.src = './assets/camino.js?fb=' + Date.now()
+          js.onerror = recover
+          document.body.appendChild(js)
+          // Si le secours ne démarre pas non plus, reprendre le cycle normal.
+          setTimeout(recover, 5000)
+        }
         // Un module qui ne se charge pas déclenche un « error » de ressource.
         window.addEventListener(
           'error',
           function (e) {
-            if (e.target && e.target !== window && e.target.tagName === 'SCRIPT') recover()
+            if (e.target && e.target !== window && e.target.tagName === 'SCRIPT') fallback()
           },
           true,
         )
-        setTimeout(recover, 6000)
+        setTimeout(fallback, 6000)
         window.addEventListener('load', function () {
           setTimeout(function () {
             if (!started()) return
