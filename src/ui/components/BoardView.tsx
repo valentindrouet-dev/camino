@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   BLACK,
   COLOR_HEX,
@@ -65,7 +65,6 @@ export function BoardView({
 }: Props) {
   const [hover, setHover] = useState<number | null>(null)
   const [hoverZone, setHoverZone] = useState<number | null>(null)
-  const uid = useId().replace(/:/g, '')
 
   const n = board.size
   const side = PAD * 2 + n * PITCH + GAP
@@ -134,17 +133,10 @@ export function BoardView({
         ),
       )}
 
-      {/* dernière tuile posée */}
+      {/* dernière tuile posée : équerres dans les séparateurs, pour ne pas
+          être confondue avec le contour blanc d'une zone qui marque */}
       {lastPlaced !== null && board.cells[lastPlaced] && (
-        <rect
-          {...cellXY(lastPlaced)}
-          width={TILEW}
-          height={TILEW}
-          fill="none"
-          stroke="#FFFFFF"
-          strokeWidth="3"
-          opacity="0.95"
-        />
+        <LastPlacedMarker {...cellXY(lastPlaced)} />
       )}
 
       {/* cases jouables */}
@@ -201,13 +193,7 @@ export function BoardView({
       {!compact &&
         zones.map((z, i) =>
           (showZones && z.points !== 0) || hoverZone === i ? (
-            <ZoneOutline
-              key={`z${i}`}
-              zone={z}
-              n={n}
-              highlight={hoverZone === i}
-              clipId={`zc-${uid}-${i}`}
-            />
+            <ZoneOutline key={`z${i}`} zone={z} n={n} highlight={hoverZone === i} />
           ) : null,
         )}
 
@@ -276,6 +262,33 @@ function quadXY(qi: number, n: number) {
   }
 }
 
+/** Repère de la dernière tuile posée : quatre équerres dans la grille grise. */
+function LastPlacedMarker({ x, y }: { x: number; y: number }) {
+  const m = GAP / 2
+  const x0 = x - m
+  const y0 = y - m
+  const x1 = x + TILEW + m
+  const y1 = y + TILEW + m
+  const L = 17
+  const d = [
+    `M${x0} ${y0 + L}V${y0}H${x0 + L}`,
+    `M${x1 - L} ${y0}H${x1}V${y0 + L}`,
+    `M${x1} ${y1 - L}V${y1}H${x1 - L}`,
+    `M${x0 + L} ${y1}H${x0}V${y1 - L}`,
+  ].join(' ')
+  return (
+    <path
+      d={d}
+      fill="none"
+      stroke="#F7931D"
+      strokeWidth="3.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      pointerEvents="none"
+    />
+  )
+}
+
 function PreviewBadge({ x, y, delta }: { x: number; y: number; delta: number }) {
   const txt = delta > 0 ? `+${delta}` : `${delta}`
   const fill = delta > 0 ? '#2F8F3C' : delta < 0 ? '#CF3A33' : '#8A7C6C'
@@ -306,71 +319,96 @@ function PreviewBadge({ x, y, delta }: { x: number; y: number; delta: number }) 
 }
 
 /**
- * Contour d'une zone. On garde les côtés qui n'ont pas de voisin de la même
- * zone ; quand deux quarts de la zone se font face de part et d'autre d'un
- * séparateur gris, on trace les deux bords du couloir pour que le contour
- * reste fermé.
+ * Géométrie du contour d'une zone.
+ *
+ * On part des arêtes de la frontière, on les enchaîne en boucles fermées puis
+ * on décale chaque boucle vers l'intérieur. Résultat : un trait entièrement
+ * contenu dans la zone, d'épaisseur constante partout et dont les angles
+ * peuvent être arrondis — ce qu'un simple découpage ne permettait pas.
  */
-function ZoneOutline({
-  zone,
-  n,
-  highlight,
-  clipId,
-}: {
-  zone: Zone
-  n: number
-  highlight: boolean
-  clipId: string
-}) {
+interface Edge {
+  ax: number
+  ay: number
+  bx: number
+  by: number
+}
+
+/** Décalage du trait vers l'intérieur de la zone. */
+const OUTLINE_INSET = 2.6
+/** Rayon des angles du contour. */
+const CORNER_RADIUS = 6
+
+/**
+ * Polygone aux angles arrondis : chaque sommet devient un petit arc, limité à
+ * la moitié du plus court segment voisin pour ne jamais se replier.
+ */
+function roundedPolygon(points: { x: number; y: number }[], radius: number): string {
+  const n = points.length
+  if (n < 3) return ''
+  const dist = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+    Math.hypot(b.x - a.x, b.y - a.y)
+  const towards = (
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    d: number,
+  ) => {
+    const len = dist(from, to) || 1
+    return { x: from.x + ((to.x - from.x) * d) / len, y: from.y + ((to.y - from.y) * d) / len }
+  }
+  const fmt = (p: { x: number; y: number }) =>
+    `${Math.round(p.x * 10) / 10} ${Math.round(p.y * 10) / 10}`
+
+  let d = ''
+  for (let i = 0; i < n; i++) {
+    const prev = points[(i - 1 + n) % n]
+    const cur = points[i]
+    const next = points[(i + 1) % n]
+    const r = Math.min(radius, dist(prev, cur) / 2, dist(cur, next) / 2)
+    const entry = towards(cur, prev, r)
+    const exit = towards(cur, next, r)
+    d += i === 0 ? `M${fmt(entry)}` : `L${fmt(entry)}`
+    if (r > 0.1) d += `Q${fmt(cur)} ${fmt(exit)}`
+  }
+  return d + 'Z'
+}
+
+function zoneOutlinePath(zone: Zone, n: number): string {
   const qs = n * 2
   const set = new Set(zone.cells)
-  /*
-   * Segments du contour, comptés : une arête ajoutée deux fois est partagée
-   * par deux quarts de la zone, donc intérieure — c'est le cas des traits qui
-   * traversaient les couloirs entre deux tuiles voisines. On ne garde que les
-   * arêtes vues une seule fois.
-   */
-  const segs = new Map<string, number>()
-  const add = (key: string) => segs.set(key, (segs.get(key) ?? 0) + 1)
-  const hSeg = (x: number, y: number, len: number) => `M${x} ${y}h${len}`
-  const vSeg = (x: number, y: number, len: number) => `M${x} ${y}v${len}`
-  /** Rectangles couvrant la zone : ils découpent le trait pour qu'il reste
-   *  strictement à l'intérieur, sans jamais baver sur la grille grise. */
-  const clip: { x: number; y: number; w: number; h: number }[] = []
+  const inside: { x: number; y: number; w: number; h: number }[] = []
+  const edges = new Map<string, number>()
+  const key = (ax: number, ay: number, bx: number, by: number) => `${ax},${ay},${bx},${by}`
+  /** Une arête vue deux fois est partagée par deux morceaux : elle est interne. */
+  const add = (ax: number, ay: number, bx: number, by: number) => {
+    const k = ax < bx || ay < by ? key(ax, ay, bx, by) : key(bx, by, ax, ay)
+    edges.set(k, (edges.get(k) ?? 0) + 1)
+  }
 
   for (const c of zone.cells) {
     const r = Math.floor(c / qs)
     const col = c % qs
     const { x, y } = quadXY(c, n)
-    const gapRight = col % 2 === 1
-    const gapBelow = r % 2 === 1
-    clip.push({ x, y, w: QUAD, h: QUAD })
+    inside.push({ x, y, w: QUAD, h: QUAD })
 
-    // haut
-    if (r === 0 || !set.has(c - qs)) add(hSeg(x, y, QUAD))
-    // bas
-    if (r === qs - 1 || !set.has(c + qs)) add(hSeg(x, y + QUAD, QUAD))
-    else if (gapBelow) {
-      add(vSeg(x, y + QUAD, GAP))
-      add(vSeg(x + QUAD, y + QUAD, GAP))
-      clip.push({ x, y: y + QUAD, w: QUAD, h: GAP })
+    if (r === 0 || !set.has(c - qs)) add(x, y, x + QUAD, y)
+    if (r === qs - 1 || !set.has(c + qs)) add(x, y + QUAD, x + QUAD, y + QUAD)
+    else if (r % 2 === 1) {
+      // couloir vertical entre deux tuiles : ses deux bords ferment le contour
+      add(x, y + QUAD, x, y + QUAD + GAP)
+      add(x + QUAD, y + QUAD, x + QUAD, y + QUAD + GAP)
+      inside.push({ x, y: y + QUAD, w: QUAD, h: GAP })
     }
-    // gauche
-    if (col === 0 || !set.has(c - 1)) add(vSeg(x, y, QUAD))
-    // droite
-    if (col === qs - 1 || !set.has(c + 1)) add(vSeg(x + QUAD, y, QUAD))
-    else if (gapRight) {
-      add(hSeg(x + QUAD, y, GAP))
-      add(hSeg(x + QUAD, y + QUAD, GAP))
-      clip.push({ x: x + QUAD, y, w: GAP, h: QUAD })
+    if (col === 0 || !set.has(c - 1)) add(x, y, x, y + QUAD)
+    if (col === qs - 1 || !set.has(c + 1)) add(x + QUAD, y, x + QUAD, y + QUAD)
+    else if (col % 2 === 1) {
+      add(x + QUAD, y, x + QUAD + GAP, y)
+      add(x + QUAD, y + QUAD, x + QUAD + GAP, y + QUAD)
+      inside.push({ x: x + QUAD, y, w: GAP, h: QUAD })
     }
   }
 
-  /*
-   * Croisement de quatre tuiles entièrement occupé par la zone : le petit
-   * carré central appartient à l'intérieur. Sans cela, les bords des deux
-   * couloirs l'encadrent et dessinent un carré parasite au milieu de la zone.
-   */
+  // Croisement de quatre tuiles entièrement occupé : le carré central est
+  // intérieur, sinon les bords des couloirs y dessinent un carré parasite.
   for (let r = 1; r < qs - 1; r += 2) {
     for (let col = 1; col < qs - 1; col += 2) {
       const a = r * qs + col
@@ -378,42 +416,129 @@ function ZoneOutline({
       const { x, y } = quadXY(a, n)
       const cx = x + QUAD
       const cy = y + QUAD
-      clip.push({ x: cx, y: cy, w: GAP, h: GAP })
-      segs.delete(hSeg(cx, cy, GAP))
-      segs.delete(hSeg(cx, cy + GAP, GAP))
-      segs.delete(vSeg(cx, cy, GAP))
-      segs.delete(vSeg(cx + GAP, cy, GAP))
+      inside.push({ x: cx, y: cy, w: GAP, h: GAP })
+      for (const k of [
+        key(cx, cy, cx + GAP, cy),
+        key(cx, cy + GAP, cx + GAP, cy + GAP),
+        key(cx, cy, cx, cy + GAP),
+        key(cx + GAP, cy, cx + GAP, cy + GAP),
+      ]) {
+        edges.delete(k)
+      }
     }
   }
 
-  const d = [...segs.entries()]
-    .filter(([, count]) => count === 1)
-    .map(([key]) => key)
-    .join(' ')
+  const isInside = (x: number, y: number) =>
+    inside.some((r) => x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h)
+
+  // Chaque arête est orientée de sorte que l'intérieur soit à sa droite.
+  const directed: Edge[] = []
+  for (const [k, count] of edges) {
+    if (count !== 1) continue
+    const [ax, ay, bx, by] = k.split(',').map(Number)
+    const mx = (ax + bx) / 2
+    const my = (ay + by) / 2
+    const dx = Math.sign(bx - ax)
+    const dy = Math.sign(by - ay)
+    // normale droite d'une direction (dx, dy) dans un repère à y vers le bas
+    const right = { x: -dy, y: dx }
+    directed.push(
+      isInside(mx + right.x, my + right.y)
+        ? { ax, ay, bx, by }
+        : { ax: bx, ay: by, bx: ax, by: ay },
+    )
+  }
+
+  // Enchaînement en boucles : à chaque sommet on tourne d'abord à droite,
+  // ce qui garde l'intérieur du même côté même aux points de pincement.
+  const starting = new Map<string, Edge[]>()
+  for (const e of directed) {
+    const k = `${e.ax},${e.ay}`
+    const list = starting.get(k)
+    if (list) list.push(e)
+    else starting.set(k, [e])
+  }
+  const used = new Set<Edge>()
+  const loops: Edge[][] = []
+  for (const first of directed) {
+    if (used.has(first)) continue
+    const loop: Edge[] = []
+    let e: Edge | undefined = first
+    while (e && !used.has(e)) {
+      used.add(e)
+      loop.push(e)
+      const dx = Math.sign(e.bx - e.ax)
+      const dy = Math.sign(e.by - e.ay)
+      const candidates: Edge[] = (starting.get(`${e.bx},${e.by}`) ?? []).filter(
+        (c: Edge) => !used.has(c),
+      )
+      const rank = (c: Edge) => {
+        const cx = Math.sign(c.bx - c.ax)
+        const cy = Math.sign(c.by - c.ay)
+        if (cx === -dy && cy === dx) return 0 // à droite
+        if (cx === dx && cy === dy) return 1 // tout droit
+        if (cx === dy && cy === -dx) return 2 // à gauche
+        return 3 // demi-tour
+      }
+      e = candidates.sort((a: Edge, b: Edge) => rank(a) - rank(b))[0]
+    }
+    loops.push(loop)
+  }
+
+  // Décalage vers l'intérieur, puis reconstruction des sommets.
+  const parts: string[] = []
+  for (const loop of loops) {
+    if (loop.length < 2) continue
+    const shifted = loop.map((e) => {
+      const dx = Math.sign(e.bx - e.ax)
+      const dy = Math.sign(e.by - e.ay)
+      const ox = -dy * OUTLINE_INSET
+      const oy = dx * OUTLINE_INSET
+      return { ax: e.ax + ox, ay: e.ay + oy, bx: e.bx + ox, by: e.by + oy, dx, dy }
+    })
+    const points: { x: number; y: number }[] = []
+    for (let i = 0; i < shifted.length; i++) {
+      const cur = shifted[i]
+      const next = shifted[(i + 1) % shifted.length]
+      // deux segments à angle droit : le sommet est l'intersection de leurs
+      // droites ; alignés, on garde simplement le point commun.
+      points.push({
+        x: cur.dx !== 0 ? (next.dx !== 0 ? cur.bx : next.ax) : cur.ax,
+        y: cur.dy !== 0 ? (next.dy !== 0 ? cur.by : next.ay) : cur.ay,
+      })
+    }
+    parts.push(roundedPolygon(points, CORNER_RADIUS))
+  }
+  return parts.join(' ')
+}
+
+function ZoneOutline({ zone, n, highlight }: { zone: Zone; n: number; highlight: boolean }) {
+  const d = useMemo(() => zoneOutlinePath(zone, n), [zone, n])
   const color = zone.color === BLACK ? BLACK_ACCENT : '#FFFFFF'
-  const w = highlight ? 9 : 6
   return (
     <g pointerEvents="none">
-      <defs>
-        <clipPath id={clipId}>
-          {clip.map((r, i) => (
-            <rect key={i} x={r.x} y={r.y} width={r.w} height={r.h} />
-          ))}
-        </clipPath>
-      </defs>
-      <g clipPath={`url(#${clipId})`}>
-        {/* Trait épais rogné par le découpage : seule la moitié intérieure
-            reste visible, ce qui donne un liseré net collé à la zone. */}
-        <path d={d} fill="none" stroke="#00000055" strokeWidth={w + 4} />
-        <path d={d} fill="none" stroke={color} strokeWidth={w} opacity={highlight ? 1 : 0.95} />
-      </g>
+      <path
+        d={d}
+        fill="none"
+        stroke="#00000040"
+        strokeWidth={(highlight ? 4.6 : 3.4) + 2}
+        strokeLinejoin="round"
+      />
+      <path
+        d={d}
+        fill="none"
+        stroke={color}
+        strokeWidth={highlight ? 4.6 : 3.4}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
     </g>
   )
 }
 
 /**
- * Pastille de points : contour et chiffre seuls, intérieur transparent.
- * La largeur suit le texte — « +23 » ne doit pas déborder.
+ * Pastille de points : un simple rond, intérieur transparent. La police se
+ * réduit au-delà de 9 pour que « +23 » tienne dans le cercle.
  */
 function ZoneBadge({ zone, n, ruleset }: { zone: Zone; n: number; ruleset: Ruleset }) {
   const qs = n * 2
@@ -439,22 +564,19 @@ function ZoneBadge({ zone, n, ruleset }: { zone: Zone; n: number; ruleset: Rules
   const cy = y + QUAD / 2
   const label = signed(zone.points)
   const color = zone.color === BLACK ? BLACK_ACCENT : '#FFFFFF'
-  const h = 27
-  const w = Math.max(h, 13 + label.length * 10)
+  // À deux chiffres le texte doit rentrer dans le rond avec de la marge.
+  const size = label.length <= 2 ? 15 : label.length === 3 ? 11 : 9.5
   return (
     <g className="zone-badge" pointerEvents="none">
       <title>{zoneLabel(zone, ruleset)}</title>
-      <rect
-        x={cx - w / 2}
-        y={cy - h / 2}
-        width={w}
-        height={h}
-        rx={h / 2}
-        fill="none"
-        stroke={color}
-        strokeWidth="1.8"
-      />
-      <text x={cx} y={cy + 5} textAnchor="middle" fill={color}>
+      <circle cx={cx} cy={cy} r="15" fill="none" stroke={color} strokeWidth="1.8" />
+      <text
+        x={cx}
+        y={cy + size * 0.35}
+        textAnchor="middle"
+        fill={color}
+        fontSize={size}
+      >
         {label}
       </text>
     </g>

@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.18',
+    date: '2026-08-05',
+    changes: [
+      'Contours de zones à angles arrondis et d’épaisseur constante, tracés par décalage vers l’intérieur.',
+      'Les pastilles redeviennent rondes ; la police se réduit au-delà de 9 pour que « +23 » tienne dedans.',
+      'La dernière tuile posée est signalée par des équerres orange dans la grille, au lieu d’un cadre blanc confondu avec les contours de zones.',
+    ],
+  },
+  {
     version: '1.17',
     date: '2026-08-05',
     changes: [
