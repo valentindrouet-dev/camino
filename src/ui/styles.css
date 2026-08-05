@@ -1310,3 +1310,38 @@ button.mission-card.selected {
   color: #8b5cf6;
   font-weight: 700;
 }
+
+/* --------------------------------------------------------------- barème */
+
+.bareme {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bareme-item {
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  padding: 3px 8px;
+  color: var(--ink-dim);
+}
+
+.bareme-item strong {
+  color: var(--ink);
+}
+
+.bareme-item.neg strong {
+  color: var(--bad);
+}
+
+.bareme-item.pos strong {
+  color: var(--good);
+}
+
+.bareme-item.star {
+  border-color: #f3d27e;
+  background: #fff8e0;
+}

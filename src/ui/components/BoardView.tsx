@@ -8,6 +8,7 @@ import {
   quadGrid,
   scoreOf,
   signed,
+  starClusters,
   starQuadIndex,
   tileQuads,
   zoneLabel,
@@ -78,6 +79,10 @@ export function BoardView({
     () => (compact ? [] : computeZones(board, ruleset)),
     [board, ruleset, compact],
   )
+  const starGroups = useMemo(
+    () => (compact || !ruleset.variants?.magicStars ? [] : starClusters(board)),
+    [board, ruleset.variants?.magicStars, compact],
+  )
   const legalSet = useMemo(
     () => new Set(legal ?? (interactive ? computeLegalCells(board, ruleset.requireAdjacency) : [])),
     [legal, interactive, board, ruleset.requireAdjacency],
@@ -140,28 +145,48 @@ export function BoardView({
       )}
 
       {/* étoiles magiques (variante) */}
-      {board.cells.map((placed, i) => {
-        if (!placed) return null
-        const sq = starQuadIndex(placed.tileId, placed.rot, placed.flipped)
-        if (sq === null) return null
-        const { x, y } = cellXY(i)
-        const [dx, dy] = QUAD_OFFSETS[sq]
-        return (
-          <text
-            key={`s${i}`}
-            x={x + dx + QUAD / 2}
-            y={y + dy + QUAD / 2 + 7}
-            textAnchor="middle"
-            fontSize="21"
-            pointerEvents="none"
-            fill="#FFFFFF"
-            stroke="#00000088"
-            strokeWidth="1"
-          >
-            ★
-          </text>
-        )
-      })}
+      {ruleset.variants?.magicStars &&
+        board.cells.map((placed, i) => {
+          if (!placed) return null
+          const sq = starQuadIndex(placed.tileId, placed.rot, placed.flipped)
+          if (sq === null) return null
+          const { x, y } = cellXY(i)
+          const [dx, dy] = QUAD_OFFSETS[sq]
+          return (
+            <text
+              key={`s${i}`}
+              x={x + dx + QUAD / 2}
+              y={y + dy + QUAD / 2 + 7}
+              textAnchor="middle"
+              fontSize="21"
+              pointerEvents="none"
+              fill="#FFFFFF"
+              stroke="#00000088"
+              strokeWidth="1"
+            >
+              ★
+            </text>
+          )
+        })}
+
+      {/* groupes d'étoiles adjacentes : liseré doré discret + points du groupe */}
+      {!compact &&
+        showZones &&
+        ruleset.variants?.magicStars &&
+        starGroups.map((g, i) => (
+          <g key={`sg${i}`} pointerEvents="none">
+            <path
+              d={zoneOutlinePath({ cells: g.cells } as Zone, n, bw)}
+              fill="none"
+              stroke="#FFD23F"
+              strokeWidth="2.2"
+              strokeDasharray="7 5"
+              strokeLinejoin="round"
+              opacity="0.9"
+            />
+            {g.count > 1 && <StarBadge cluster={g} n={n} bw={bw} />}
+          </g>
+        ))}
 
       {/* dernière tuile posée : équerres dans les séparateurs, pour ne pas
           être confondue avec le contour blanc d'une zone qui marque */}
@@ -203,6 +228,29 @@ export function BoardView({
               />
             )
           })}
+          {ruleset.variants?.magicStars &&
+            ghost &&
+            (() => {
+              const sq = starQuadIndex(ghost.tileId, ghost.rot, ghost.flipped)
+              if (sq === null) return null
+              const { x, y } = cellXY(preview.cell)
+              const [dx, dy] = QUAD_OFFSETS[sq]
+              return (
+                <text
+                  x={x + dx + QUAD / 2}
+                  y={y + dy + QUAD / 2 + 7}
+                  textAnchor="middle"
+                  fontSize="21"
+                  pointerEvents="none"
+                  fill="#FFFFFF"
+                  stroke="#00000088"
+                  strokeWidth="1"
+                  opacity="0.88"
+                >
+                  ★
+                </text>
+              )
+            })()}
           <rect
             {...cellXY(preview.cell)}
             width={TILEW}
@@ -320,7 +368,7 @@ function BorderRing({
       </g>
     )
   }
-  // multicolore : 2N carrés par côté, coins blancs
+  // multicolore : 2N carrés par côté, coins blancs, posés sur le cadre coloré
   const qs = n * 2
   const cellW = (inner + GAP) / qs
   const rects: React.ReactNode[] = []
@@ -342,22 +390,22 @@ function BorderRing({
         y = y0 + along
       }
       rects.push(
-        <rect key={`${side4}-${k}`} x={x} y={y} width={rw} height={rh} fill={COLOR_HEX[color]} />,
+        <rect
+          key={`${side4}-${k}`}
+          x={x}
+          y={y}
+          width={rw}
+          height={rh}
+          fill={COLOR_HEX[color]}
+          stroke="#00000026"
+          strokeWidth="1"
+        />,
       )
     }
   }
   const corner = BORDER_W
   return (
     <g>
-      <rect
-        x={x0}
-        y={y0}
-        width={side - PAD * 2}
-        height={side - PAD * 2}
-        rx="10"
-        fill="#FFFFFF"
-        stroke="#00000022"
-      />
       {rects}
       {[
         [x0, y0],
@@ -365,7 +413,16 @@ function BorderRing({
         [x0, y0 + BORDER_W + inner],
         [x0 + BORDER_W + inner, y0 + BORDER_W + inner],
       ].map(([cx, cy], i) => (
-        <rect key={`c${i}`} x={cx} y={cy} width={corner} height={corner} fill="#FFFFFF" />
+        <rect
+          key={`c${i}`}
+          x={cx}
+          y={cy}
+          width={corner}
+          height={corner}
+          fill="#FFFFFF"
+          stroke="#00000026"
+          strokeWidth="1"
+        />
       ))}
     </g>
   )
@@ -706,6 +763,30 @@ function ZoneBadge({
         fill={color}
         fontSize={size}
       >
+        {label}
+      </text>
+    </g>
+  )
+}
+
+/** Petite pastille dorée : points d'un groupe d'étoiles adjacentes. */
+function StarBadge({
+  cluster,
+  n,
+  bw,
+}: {
+  cluster: { cells: number[]; count: number; points: number }
+  n: number
+  bw: number
+}) {
+  const first = cluster.cells[0]
+  const { x, y } = quadXY(first, n, bw)
+  const label = `+${cluster.points}`
+  return (
+    <g className="zone-badge">
+      <title>{`${cluster.count} étoiles adjacentes — +${cluster.points} pts`}</title>
+      <circle cx={x + QUAD - 4} cy={y + 6} r="11" fill="#FFD23F" stroke="#00000033" />
+      <text x={x + QUAD - 4} y={y + 10} textAnchor="middle" fontSize="11" fill="#5c4500">
         {label}
       </text>
     </g>

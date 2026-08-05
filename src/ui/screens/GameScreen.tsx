@@ -3,15 +3,16 @@ import {
   applyMove,
   availableTiles,
   bestMove,
-  cardById,
   currentLegalCells,
   currentPlayerId,
-  activeRuleset,
   botWantsRedraw,
+  cardResults,
   canRedrawLastTile,
   isBot,
   redrawLastTile,
+  rulesetForPlayer,
   scoreAll,
+  signed,
   topMoves,
 } from '../../engine/index.ts'
 import type { GameState, Rotation } from '../../engine/index.ts'
@@ -73,8 +74,8 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
   const breakdowns = useMemo(() => scoreAll(state), [state])
   // Barème en vigueur : avec la carte « zones noires positives », une zone
   // noire vaut +2 et les pastilles du plateau doivent le montrer.
-  const ruleset = useMemo(() => activeRuleset(state), [state])
-  const card = cardById(state.cardId)
+  const ruleset = useMemo(() => rulesetForPlayer(state, viewId), [state, viewId])
+  const missions = useMemo(() => cardResults(state, viewId), [state, viewId])
 
   const lastPlaced = useMemo(() => {
     for (let i = state.log.length - 1; i >= 0; i--) {
@@ -231,7 +232,15 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
 
   return (
     <div className="table">
-      {fly && <FlyingTile key={fly.key} tileId={fly.tileId} from={fly.from} to={fly.to} />}
+      {fly && (
+        <FlyingTile
+          key={fly.key}
+          tileId={fly.tileId}
+          from={fly.from}
+          to={fly.to}
+          showStar={Boolean(variants?.magicStars)}
+        />
+      )}
 
       {/* ------------------------------------------------ colonne joueurs */}
       <div className="col-left">
@@ -445,18 +454,57 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
           )}
         </div>
 
-        {card && (
+        {missions.length > 0 && (
           <div className="panel">
-            <h3>Carte mission de la table</h3>
-            <MissionCardView
-              card={card}
-              compact
-              points={breakdowns[viewId].cardPoints}
-              detail={breakdowns[viewId].cardLabel}
-              structural={breakdowns[viewId].cardStructural}
-            />
+            <h3>
+              {state.options.personalCards
+                ? `Carte mission de ${viewed.name}`
+                : missions.length > 1
+                  ? 'Cartes missions de la table'
+                  : 'Carte mission de la table'}
+            </h3>
+            <div className="stack" style={{ gap: 8 }}>
+              {missions.map((m) => (
+                <MissionCardView
+                  key={m.card.id}
+                  card={m.card}
+                  compact
+                  points={m.points}
+                  detail={m.detail}
+                  structural={m.structural}
+                />
+              ))}
+            </div>
           </div>
         )}
+
+        {/* barème en vigueur pour le plateau affiché */}
+        <div className="panel">
+          <h3>Barème</h3>
+          <div className="bareme">
+            {[3, 4, 5, 6, 7, 8].map((n) => (
+              <span className="bareme-item" key={n}>
+                {n}&nbsp;: <strong>{ruleset.pointsBySpan[n] ?? 0}</strong>
+              </span>
+            ))}
+            <span className="bareme-item">
+              9+&nbsp;: <strong>{ruleset.pointsBySpan[9] ?? 0}</strong>
+            </span>
+            <span className={`bareme-item ${ruleset.blackPenalty < 0 ? 'neg' : 'pos'}`}>
+              noir&nbsp;: <strong>{signed(ruleset.blackPenalty)}</strong>
+            </span>
+            {variants?.magicStars && (
+              <span className="bareme-item star">
+                ★ 1&nbsp;:&nbsp;<strong>1</strong> · 2&nbsp;:&nbsp;<strong>3</strong> ·
+                3&nbsp;:&nbsp;<strong>6</strong> · 4&nbsp;:&nbsp;<strong>10</strong> ·
+                5+&nbsp;:&nbsp;<strong>20</strong>
+              </span>
+            )}
+          </div>
+          <p className="note" style={{ marginTop: 6 }}>
+            Points selon le nombre de tuiles (bordures comprises) d’un chemin.
+          </p>
+        </div>
 
         {options.liveScore && state.scoreHistory[0].length > 1 && (
           <div className="panel">
@@ -510,7 +558,17 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
  * La tuile qu'un bot vient de prendre traverse l'écran, de la pioche vers son
  * plateau : on comprend ce qu'il a joué sans quitter son propre plateau.
  */
-function FlyingTile({ tileId, from, to }: { tileId: number; from: DOMRect; to: DOMRect }) {
+function FlyingTile({
+  tileId,
+  from,
+  to,
+  showStar = false,
+}: {
+  tileId: number
+  from: DOMRect
+  to: DOMRect
+  showStar?: boolean
+}) {
   const [arrived, setArrived] = useState(false)
   useEffect(() => {
     const id = requestAnimationFrame(() => setArrived(true))
@@ -534,7 +592,7 @@ function FlyingTile({ tileId, from, to }: { tileId: number; from: DOMRect; to: D
       }}
       aria-hidden
     >
-      <TileGlyph tileId={tileId} size={size} />
+      <TileGlyph tileId={tileId} size={size} showStar={showStar} />
     </div>
   )
 }

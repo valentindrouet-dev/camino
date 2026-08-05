@@ -15,6 +15,18 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.20',
+    date: '2026-08-05',
+    changes: [
+      'Les plateaux multicolores retrouvent leur cadre de couleur : les carrés de bordure sont dessinés dessus, comme au verso des plateaux.',
+      'Les étoiles magiques n’apparaissent — en pioche comme sur les plateaux — que si la variante est cochée.',
+      'Les étoiles comptent par simple adjacence : trois étoiles côte à côte font 6 points, sans besoin d’un chemin commun.',
+      'Les groupes d’étoiles sont soulignés discrètement, en pointillés dorés, avec leur bonus.',
+      'Le barème (chemins, noir, étoiles) s’affiche dans la colonne de droite au-dessus du journal.',
+      'Deux variantes de cartes : « Cartes missions multiples » (2 à 4 cartes cumulées) et « Cartes missions persos » (une carte propre à chaque joueur).',
+    ],
+  },
+  {
     version: '1.19',
     date: '2026-08-05',
     changes: [

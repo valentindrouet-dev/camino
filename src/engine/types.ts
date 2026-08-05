@@ -176,6 +176,8 @@ export interface Player {
   /** Tuile personnelle (variante) : jouable une fois, à tout moment. */
   personalTileId?: number
   personalUsed?: boolean
+  /** Carte mission personnelle (variante Cartes missions persos). */
+  cardId?: string
 }
 
 export interface PoolTile {
@@ -194,9 +196,13 @@ export interface GameOptions {
   showZones: boolean
   /** Affiche le meilleur coup possible (aide au playtest). */
   showHints: boolean
-  /** Une carte mission est tirée pour la table. */
+  /** Une (ou plusieurs) carte mission est tirée pour la table. */
   useCards: boolean
-  /** Carte imposée ; sinon elle est tirée au hasard selon la graine. */
+  /** Variante Cartes missions multiples : nombre de cartes de la table. */
+  cardCount?: number
+  /** Variante Cartes missions persos : une carte propre à chaque joueur. */
+  personalCards?: boolean
+  /** Première carte imposée ; sinon tirage au hasard selon la graine. */
   cardId?: string
   /**
    * La graine est saisie à la main : elle est conservée d'une partie à
@@ -225,6 +231,8 @@ export interface GameState {
   options: GameOptions
   /** Carte mission de la table (identique pour tout le monde). */
   cardId?: string
+  /** Cartes de la table (variante Cartes missions multiples : plusieurs). */
+  cardIds?: string[]
   /** Le dernier joueur du tour a déjà repioché (variante Dernier choix). */
   redrawUsed?: boolean
   players: Player[]

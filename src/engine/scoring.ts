@@ -173,32 +173,61 @@ export function computeZones(board: Board, ruleset: Ruleset): Zone[] {
   return zones
 }
 
+/** Groupe d'étoiles adjacentes sur un plateau. */
+export interface StarCluster {
+  /** Index des quarts étoilés (grille 2N x 2N). */
+  cells: number[]
+  count: number
+  points: number
+}
+
 /**
- * Groupes d'étoiles par zone : chaque quart étoilé est rattaché à la zone de
- * SA couleur qui le contient. Les compteurs sont écrits dans zone.stars.
+ * Les étoiles se groupent par simple ADJACENCE de leurs quarts (orthogonale,
+ * frontières de tuiles comprises) — pas besoin d'être reliées par un chemin.
  */
-function countStars(board: Board, zones: Zone[]): number {
-  if (!board.borders && !zones.length) return 0
+export function starClusters(board: Board): StarCluster[] {
   const qs = board.size * 2
-  let total = 0
-  const perZone = new Map<Zone, number>()
+  const starred = new Set<number>()
   for (let i = 0; i < board.cells.length; i++) {
     const placed = board.cells[i]
     if (!placed) continue
     const starQuad = starQuadIndex(placed.tileId, placed.rot, placed.flipped)
     if (starQuad === null) continue
-    // index du quart étoilé dans la grille 2N x 2N
     const r = Math.floor(i / board.size) * 2 + (starQuad >= 2 ? 1 : 0)
     const c = (i % board.size) * 2 + (starQuad === 1 || starQuad === 2 ? 1 : 0)
-    const qi = r * qs + c
-    const zone = zones.find((z) => z.color !== BLACK && z.cells.includes(qi))
-    if (!zone) continue
-    perZone.set(zone, (perZone.get(zone) ?? 0) + 1)
+    starred.add(r * qs + c)
   }
-  for (const [zone, n] of perZone) {
-    zone.stars = n
-    total += starClusterPoints(n)
+  const seen = new Set<number>()
+  const clusters: StarCluster[] = []
+  for (const start of starred) {
+    if (seen.has(start)) continue
+    const cells: number[] = []
+    const stack = [start]
+    seen.add(start)
+    while (stack.length) {
+      const cur = stack.pop() as number
+      cells.push(cur)
+      const r = Math.floor(cur / qs)
+      const c = cur % qs
+      for (const n of [r > 0 ? cur - qs : -1, r < qs - 1 ? cur + qs : -1, c > 0 ? cur - 1 : -1, c < qs - 1 ? cur + 1 : -1]) {
+        if (n >= 0 && starred.has(n) && !seen.has(n)) {
+          seen.add(n)
+          stack.push(n)
+        }
+      }
+    }
+    clusters.push({
+      cells: cells.sort((a, b) => a - b),
+      count: cells.length,
+      points: starClusterPoints(cells.length),
+    })
   }
+  return clusters
+}
+
+function countStars(board: Board): number {
+  let total = 0
+  for (const c of starClusters(board)) total += c.points
   return total
 }
 
@@ -223,7 +252,7 @@ export function scoreBoard(board: Board, ruleset: Ruleset): ScoreBreakdown {
     }
   }
 
-  const starPoints = ruleset.variants?.magicStars ? countStars(board, zones) : 0
+  const starPoints = ruleset.variants?.magicStars ? countStars(board) : 0
   const blackPoints = blackZones * ruleset.blackPenalty
   return {
     total: colorPoints + blackPoints + starPoints,
@@ -242,7 +271,7 @@ export function scoreOf(board: Board, ruleset: Ruleset): number {
   const zones = computeZones(board, ruleset)
   let total = 0
   for (const z of zones) total += z.points
-  if (ruleset.variants?.magicStars) total += countStars(board, zones)
+  if (ruleset.variants?.magicStars) total += countStars(board)
   return total
 }
 
@@ -267,10 +296,9 @@ export function zoneLabel(zone: Zone, ruleset: Ruleset): string {
       Math.abs(ruleset.blackPenalty) > 1 ? 's' : ''
     }`
   }
-  const extras: string[] = []
-  if (zone.borders) extras.push(`dont ${zone.borders} bordure${zone.borders > 1 ? 's' : ''}`)
-  if (zone.stars) extras.push(`${zone.stars} étoile${zone.stars > 1 ? 's' : ''} ${signed(starClusterPoints(zone.stars))}`)
-  const suffix = extras.length ? ` (${extras.join(', ')})` : ''
+  const suffix = zone.borders
+    ? ` (dont ${zone.borders} bordure${zone.borders > 1 ? 's' : ''})`
+    : ''
   const t = `${zone.span} tuile${zone.span > 1 ? 's' : ''}`
   return zone.points > 0
     ? `${t} — ${signed(zone.points)} pts${suffix}`

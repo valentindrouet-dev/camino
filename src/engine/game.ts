@@ -1,5 +1,5 @@
 import { createBoard, isFull, legalCells, placeTile } from './board.ts'
-import { activeRuleset, applyCard, cardTable, CARDS } from './cards.ts'
+import { activeRuleset, applyCards, cardTable, CARDS, playerCardIds, rulesetForPlayer } from './cards.ts'
 import { Rng } from './rng.ts'
 import { scoreBoard, scoreOf } from './scoring.ts'
 import { MONO_TILE_IDS, TILE_COUNT, TILES, WHITE_TILE_IDS } from './tiles.ts'
@@ -107,6 +107,9 @@ export function configError(config: GameConfig): string | null {
   if (v?.coloredBorders && v?.multiBorders) {
     return 'Bordures colorées et Bordures multicolores ne peuvent pas être activées en même temps.'
   }
+  if (config.options.personalCards && config.options.useCards) {
+    return 'Cartes missions persos et cartes de la table ne peuvent pas être activées en même temps.'
+  }
   const needed = tilesNeeded(config.options.ruleset, n)
   const available = bagSize(config.options.ruleset)
   if (needed > available) {
@@ -159,10 +162,22 @@ export function createGame(config: GameConfig): GameState {
     board: { ...createBoard(size), borders: bordersFor(ruleset, p.boardColor) },
   }))
 
-  // Une seule carte mission pour toute la table.
-  const cardId = config.options.useCards
-    ? (config.options.cardId ?? rng.pick(CARDS).id)
-    : undefined
+  // Cartes missions : une ou plusieurs pour la table, ou une par joueur.
+  let cardId: string | undefined
+  let cardIds: string[] | undefined
+  if (config.options.personalCards) {
+    const deck = rng.shuffle(CARDS.map((c) => c.id))
+    players.forEach((p, i) => {
+      p.cardId = deck[i % deck.length]
+    })
+  } else if (config.options.useCards) {
+    const count = Math.max(1, Math.min(config.options.cardCount ?? 1, CARDS.length))
+    const rest = rng.shuffle(
+      CARDS.map((c) => c.id).filter((id) => id !== config.options.cardId),
+    )
+    cardIds = [...(config.options.cardId ? [config.options.cardId] : []), ...rest].slice(0, count)
+    cardId = cardIds[0]
+  }
 
   const ids = Array.from({ length: TILE_COUNT }, (_, i) => i)
   if (ruleset.variants?.monoTiles) ids.push(...MONO_TILE_IDS)
@@ -183,6 +198,7 @@ export function createGame(config: GameConfig): GameState {
     phase: 'playing',
     options: config.options,
     cardId,
+    cardIds,
     players,
     bag,
     pool: [],
@@ -352,20 +368,20 @@ export function applyMove(state: GameState, move: Move): GameState {
   return next
 }
 
-/** Score complet de chaque joueur à cet instant, carte mission comprise. */
-function roundTotals(state: GameState, ruleset: Ruleset): number[] {
-  if (!state.options.useCards || !state.cardId) {
-    return state.players.map((p) => scoreOf(p.board, ruleset))
+/** Score complet de chaque joueur à cet instant, cartes missions comprises. */
+function roundTotals(state: GameState, baseRuleset: Ruleset): number[] {
+  if (!state.options.useCards && !state.options.personalCards) {
+    return state.players.map((p) => scoreOf(p.board, baseRuleset))
   }
-  const table = cardTable(state.players, ruleset)
-  return state.players.map(
-    (p) =>
-      applyCard(
-        scoreBoard(p.board, ruleset),
-        { playerId: p.id, board: p.board, ruleset, table },
-        state.cardId,
-      ).total,
-  )
+  return state.players.map((p) => {
+    const ruleset = rulesetForPlayer(state, p.id)
+    const table = cardTable(state.players, ruleset)
+    return applyCards(
+      scoreBoard(p.board, ruleset),
+      { playerId: p.id, board: p.board, ruleset, table },
+      playerCardIds(state, p.id),
+    ).total
+  })
 }
 
 export function isBot(player: Player): boolean {

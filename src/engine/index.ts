@@ -1,4 +1,5 @@
-import { activeRuleset, applyCard, cardTable } from './cards.ts'
+import { applyCards, cardById, cardTable, playerCardIds, rulesetForPlayer } from './cards.ts'
+import type { MissionCard } from './cards.ts'
 import { scoreBoard } from './scoring.ts'
 import type { GameState, Player, ScoreBreakdown } from './types.ts'
 
@@ -18,10 +19,11 @@ export * from './rng.ts'
  * chemin violet »), d'où le passage de l'état complet.
  */
 export function scorePlayer(player: Player, state: GameState): ScoreBreakdown {
-  const ruleset = activeRuleset(state)
+  const ruleset = rulesetForPlayer(state, player.id)
   const breakdown = scoreBoard(player.board, ruleset)
-  if (!state.options.useCards || !state.cardId) return breakdown
-  return applyCard(
+  const cards = playerCardIds(state, player.id)
+  if (!cards.length) return breakdown
+  return applyCards(
     breakdown,
     {
       playerId: player.id,
@@ -29,21 +31,31 @@ export function scorePlayer(player: Player, state: GameState): ScoreBreakdown {
       ruleset,
       table: cardTable(state.players, ruleset),
     },
-    state.cardId,
+    cards,
   )
 }
 
-/** Décompte de tous les joueurs (le contexte des cartes n'est calculé qu'une fois). */
+/** Décompte de tous les joueurs. */
 export function scoreAll(state: GameState): ScoreBreakdown[] {
-  const ruleset = activeRuleset(state)
-  const table = state.options.useCards && state.cardId ? cardTable(state.players, ruleset) : []
-  return state.players.map((player) => {
-    const breakdown = scoreBoard(player.board, ruleset)
-    if (!table.length) return breakdown
-    return applyCard(
-      breakdown,
-      { playerId: player.id, board: player.board, ruleset, table },
-      state.cardId,
-    )
+  return state.players.map((player) => scorePlayer(player, state))
+}
+
+/** Résultat détaillé de chaque carte mission d'un joueur (pour l'affichage). */
+export function cardResults(
+  state: GameState,
+  playerId: number,
+): { card: MissionCard; points: number; detail: string; structural?: boolean }[] {
+  const ids = playerCardIds(state, playerId)
+  if (!ids.length) return []
+  const player = state.players.find((p) => p.id === playerId)
+  if (!player) return []
+  const ruleset = rulesetForPlayer(state, playerId)
+  const breakdown = scoreBoard(player.board, ruleset)
+  const table = cardTable(state.players, ruleset)
+  return ids.flatMap((id) => {
+    const card = cardById(id)
+    if (!card) return []
+    const r = card.evaluate({ playerId, board: player.board, breakdown, ruleset, table })
+    return [{ card, points: r.points, detail: r.detail, structural: r.structural }]
   })
 }

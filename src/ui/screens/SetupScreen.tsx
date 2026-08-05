@@ -293,9 +293,41 @@ export function SetupScreen({
           <div className="row wrap">
             <VariantToggle
               label="Cartes missions"
-              on={options.useCards}
-              onChange={(v) => setOptions((o) => ({ ...o, useCards: v }))}
+              on={options.useCards && (options.cardCount ?? 1) <= 1}
+              onChange={(v) =>
+                setOptions((o) => ({
+                  ...o,
+                  useCards: v,
+                  cardCount: 1,
+                  ...(v ? { personalCards: false } : {}),
+                }))
+              }
               description="Une carte tirée pour la table, la même mission pour tout le monde."
+            />
+            <VariantToggle
+              label="Cartes missions multiples"
+              on={options.useCards && (options.cardCount ?? 1) > 1}
+              onChange={(v) =>
+                setOptions((o) => ({
+                  ...o,
+                  useCards: v,
+                  cardCount: v ? Math.max(2, o.cardCount ?? 2) : 1,
+                  ...(v ? { personalCards: false } : {}),
+                }))
+              }
+              description="Plusieurs cartes pour la table, leurs bonus se cumulent."
+            />
+            <VariantToggle
+              label="Cartes missions persos"
+              on={!!options.personalCards}
+              onChange={(v) =>
+                setOptions((o) => ({
+                  ...o,
+                  personalCards: v,
+                  ...(v ? { useCards: false, cardCount: 1 } : {}),
+                }))
+              }
+              description="Chaque joueur reçoit sa propre carte, qu’il est seul à pouvoir accomplir. Exclusif avec les cartes de la table."
             />
             <VariantToggle
               label="Pose libre"
@@ -357,7 +389,25 @@ export function SetupScreen({
             />
           </div>
 
-          {options.useCards && (
+          {options.useCards && (options.cardCount ?? 1) > 1 && (
+            <label className="field" style={{ maxWidth: 220 }}>
+              <span>Nombre de cartes de la table</span>
+              <select
+                value={options.cardCount ?? 2}
+                onChange={(e) =>
+                  setOptions((o) => ({ ...o, cardCount: Number(e.target.value) }))
+                }
+              >
+                {[2, 3, 4].map((n) => (
+                  <option key={n} value={n}>
+                    {n} cartes
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {options.useCards && (options.cardCount ?? 1) <= 1 && (
             <div className="field">
               <span>Carte de la partie</span>
               <select

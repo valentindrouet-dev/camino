@@ -284,3 +284,32 @@ test('une partie complète se joue avec toutes les variantes cumulables', () => 
     assert.ok(st.breakdown.starPoints >= 0)
   }
 })
+
+test('étoiles magiques : groupées par simple adjacence, pas par chemin', () => {
+  // Trois tuiles factices de couleurs différentes : leurs quarts étoilés se
+  // touchent, mais aucun chemin ne les relie — l'adjacence doit suffire.
+  const mk = (quads, star) => {
+    const id = E.TILES.length
+    E.TILES.push({ id, quads })
+    E.STARS.set(id, star)
+    return id
+  }
+  const a = mk(['R', 'R', 'R', 'R'], 2) // bas-droite de la case 0 → quart (1,1)
+  const b = mk(['B', 'B', 'B', 'B'], 3) // bas-gauche de la case 1 → quart (1,2)
+  const c = mk(['G', 'G', 'G', 'G'], 0) // haut-gauche de la case 5 → quart (2,2)
+  const board = E.createBoard(4)
+  board.cells[0] = { tileId: a, rot: 0, round: 0 }
+  board.cells[1] = { tileId: b, rot: 0, round: 0 }
+  board.cells[5] = { tileId: c, rot: 0, round: 0 }
+  const clusters = E.starClusters(board)
+  assert.equal(clusters.length, 1, 'un seul groupe de 3 étoiles adjacentes')
+  assert.equal(clusters[0].count, 3)
+  assert.equal(clusters[0].points, 6, '3 étoiles côte à côte = 6 points')
+  assert.equal(E.scoreBoard(board, withVariants({ magicStars: true })).starPoints, 6)
+
+  // Une étoile isolée sur le même plateau reste un groupe à part : 6 + 1.
+  const d = mk(['Y', 'Y', 'Y', 'Y'], 1) // haut-droite de la case 3 → quart (0,7)
+  board.cells[3] = { tileId: d, rot: 0, round: 0 }
+  assert.equal(E.starClusters(board).length, 2)
+  assert.equal(E.scoreBoard(board, withVariants({ magicStars: true })).starPoints, 7)
+})

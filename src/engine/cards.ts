@@ -314,13 +314,81 @@ export function effectiveRuleset(ruleset: Ruleset, cardId?: string): Ruleset {
   return { ...ruleset, blackPenalty: Math.abs(ruleset.blackPenalty) }
 }
 
-/** Barème en vigueur dans une partie, carte mission comprise. */
+/** Cartes qui s'appliquent à un joueur donné (table ou perso). */
+export function playerCardIds(
+  state: {
+    options: { useCards: boolean; personalCards?: boolean }
+    cardId?: string
+    cardIds?: string[]
+    players: { id: number; cardId?: string }[]
+  },
+  playerId: number,
+): string[] {
+  if (state.options.personalCards) {
+    const own = state.players.find((p) => p.id === playerId)?.cardId
+    return own ? [own] : []
+  }
+  if (!state.options.useCards) return []
+  if (state.cardIds?.length) return state.cardIds
+  return state.cardId ? [state.cardId] : []
+}
+
+/** Barème en vigueur pour UN joueur, cartes structurelles comprises. */
+export function rulesetForPlayer(
+  state: {
+    options: { ruleset: Ruleset; useCards: boolean; personalCards?: boolean }
+    cardId?: string
+    cardIds?: string[]
+    players: { id: number; cardId?: string }[]
+  },
+  playerId: number,
+): Ruleset {
+  let r = state.options.ruleset
+  for (const id of playerCardIds(state, playerId)) r = effectiveRuleset(r, id)
+  return r
+}
+
+/** Barème en vigueur du point de vue général (cartes de la table). */
 export function activeRuleset(state: {
-  options: { ruleset: Ruleset; useCards: boolean }
+  options: { ruleset: Ruleset; useCards: boolean; personalCards?: boolean }
   cardId?: string
+  cardIds?: string[]
+  players?: { id: number; cardId?: string }[]
 }): Ruleset {
+  if (state.options.personalCards) return state.options.ruleset
   if (!state.options.useCards) return state.options.ruleset
-  return effectiveRuleset(state.options.ruleset, state.cardId)
+  let r = state.options.ruleset
+  for (const id of state.cardIds?.length ? state.cardIds : state.cardId ? [state.cardId] : []) {
+    r = effectiveRuleset(r, id)
+  }
+  return r
+}
+
+/** Applique une LISTE de cartes : les bonus se cumulent. */
+export function applyCards(
+  breakdown: ScoreBreakdown,
+  ctx: Omit<CardContext, 'breakdown'>,
+  cardIds: string[],
+): ScoreBreakdown {
+  let out = breakdown
+  let points = 0
+  const labels: string[] = []
+  let structural: boolean | undefined
+  for (const id of cardIds) {
+    const card = cardById(id)
+    if (!card) continue
+    const r = card.evaluate({ ...ctx, breakdown: out })
+    points += r.points
+    labels.push(cardIds.length > 1 ? `${card.name} : ${r.detail}` : r.detail)
+    if (r.structural) structural = true
+    out = { ...out, total: out.total + r.points }
+  }
+  return {
+    ...out,
+    cardPoints: points,
+    cardLabel: labels.length ? labels.join(' · ') : undefined,
+    cardStructural: structural,
+  }
 }
 
 /** Décompte enrichi de la carte mission de la table. */

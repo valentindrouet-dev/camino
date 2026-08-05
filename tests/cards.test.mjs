@@ -229,3 +229,76 @@ test('enfermer une couleur ou du noir (+10)', () => {
   ]
   assert.equal(evalCard('enclose', open).points, 0, 'le noir touche un bord')
 })
+
+test('cartes missions multiples : x cartes tirées, cumulées pour tout le monde', () => {
+  const mkGame = (options) =>
+    E.createGame({
+      players: [
+        { name: 'A', kind: 'human', boardColor: 'O' },
+        { name: 'B', kind: 'human', boardColor: 'B' },
+      ],
+      options: { ...E.defaultOptions('multi-cartes'), ...options },
+    })
+  const s = mkGame({ useCards: true, cardCount: 3 })
+  assert.equal(s.cardIds.length, 3)
+  assert.equal(new Set(s.cardIds).size, 3, 'trois cartes distinctes')
+  // Les mêmes cartes s'appliquent à tous les joueurs.
+  assert.deepEqual(E.playerCardIds(s, 0), s.cardIds)
+  assert.deepEqual(E.playerCardIds(s, 1), s.cardIds)
+
+  // Le cumul : la somme des cartes prises une à une = le total des cartes.
+  const board = boardFrom(EXAMPLE.map((x) => x.split('')))
+  const state = { ...s, players: s.players.map((p) => ({ ...p, board })) }
+  const ids = ['exact-4', 'exact-5', 'orange-paths'] // +5, +8, +16 sur l'exemple
+  const withCards = { ...state, cardId: ids[0], cardIds: ids }
+  const total = E.scorePlayer(withCards.players[0], withCards)
+  assert.equal(total.cardPoints, 5 + 8 + 16, 'les bonus se cumulent')
+  const sans = E.scoreBoard(board, R)
+  assert.equal(total.total, sans.total + 29)
+  // Le détail nomme chaque carte.
+  for (const id of ids) assert.match(total.cardLabel, new RegExp(E.cardById(id).name))
+  assert.equal(E.cardResults(withCards, 0).length, 3)
+})
+
+test('cartes missions persos : chacun la sienne, jamais celle du voisin', () => {
+  const s = E.createGame({
+    players: [
+      { name: 'A', kind: 'human', boardColor: 'O' },
+      { name: 'B', kind: 'human', boardColor: 'B' },
+      { name: 'C', kind: 'human', boardColor: 'G' },
+    ],
+    options: { ...E.defaultOptions('persos'), useCards: false, personalCards: true },
+  })
+  const own = s.players.map((p) => p.cardId)
+  assert.ok(own.every(Boolean), 'chaque joueur a une carte')
+  assert.equal(new Set(own).size, 3, 'trois cartes différentes')
+  assert.equal(s.cardIds, undefined, 'pas de cartes de table')
+  for (const p of s.players) {
+    assert.deepEqual(E.playerCardIds(s, p.id), [p.cardId])
+  }
+
+  // Un joueur qui tient « zones noires positives » a son propre barème.
+  const board = boardFrom(EXAMPLE.map((x) => x.split('')))
+  const state = {
+    ...s,
+    players: s.players.map((p, i) => ({
+      ...p,
+      board,
+      cardId: i === 0 ? 'black-positive' : 'exact-4',
+    })),
+  }
+  assert.equal(E.rulesetForPlayer(state, 0).blackPenalty, 2)
+  assert.equal(E.rulesetForPlayer(state, 1).blackPenalty, R.blackPenalty)
+  const [a, b] = [E.scorePlayer(state.players[0], state), E.scorePlayer(state.players[1], state)]
+  assert.equal(a.blackPoints, 8, 'le noir rapporte pour lui seul')
+  assert.equal(b.blackPoints, 4 * R.blackPenalty)
+  assert.equal(b.cardPoints, 5, 'l’autre marque sa propre carte')
+})
+
+test('cartes persos et cartes de table sont exclusives', () => {
+  const cfg = {
+    players: [{ name: 'A', kind: 'human', boardColor: 'O' }],
+    options: { ...E.defaultOptions('exclu'), useCards: true, personalCards: true },
+  }
+  assert.match(E.configError(cfg), /persos/)
+})
