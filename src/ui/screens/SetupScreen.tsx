@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState } from "react";
 import {
   BOARD_COLOR_HEX,
   BOARD_COLOR_NAMES,
@@ -13,97 +13,116 @@ import {
   TILE_COUNT,
   tilesNeeded,
   tilesPerRound,
-} from '../../engine/index.ts'
+} from "../../engine/index.ts";
 import type {
   BoardColor,
   GameConfig,
   PlayerConfig,
   PlayerKind,
   Ruleset,
-} from '../../engine/index.ts'
-import { loadLastConfig, saveLastConfig } from '../storage.ts'
-import { MaterialSection } from '../components/MaterialSection.tsx'
-import { MissionCardView } from '../components/MissionCard.tsx'
+} from "../../engine/index.ts";
+import { loadLastConfig, saveLastConfig } from "../storage.ts";
+import { MaterialSection } from "../components/MaterialSection.tsx";
+import { MissionCardView } from "../components/MissionCard.tsx";
+import { BUILD, VERSION } from "../../version.ts";
 
 const KIND_LABELS: Record<PlayerKind, string> = {
-  human: 'Humain',
-  'bot-random': 'Bot — Hasard',
-  'bot-greedy': 'Bot — Novice',
-  'bot-smart': 'Bot — Stratège',
-}
+  human: "Humain",
+  "bot-random": "Bot — Hasard",
+  "bot-greedy": "Bot — Novice",
+  "bot-smart": "Bot — Stratège",
+};
 
 /** Les six couleurs du jeu, assombries juste ce qu'il faut pour rester lisibles
  *  sur le fond crème. */
-const HERO_COLORS = ['#E0A200', '#F0801F', '#D1232A', '#2E9B45', '#0083C4', '#6850A1']
+const HERO_COLORS = [
+  "#E0A200",
+  "#F0801F",
+  "#D1232A",
+  "#2E9B45",
+  "#0083C4",
+  "#6850A1",
+];
 
 interface Props {
-  onStart: (config: GameConfig) => void
-  onOpenLab: () => void
+  onStart: (config: GameConfig) => void;
+  onOpenLab: () => void;
   /** Une partie est en cours : proposer de la reprendre. */
-  resumable?: boolean
-  onResume?: () => void
+  resumable?: boolean;
+  onResume?: () => void;
 }
 
-export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) {
-  const saved = useMemo(() => loadLastConfig<GameConfig>(), [])
+export function SetupScreen({
+  onStart,
+  onOpenLab,
+  resumable,
+  onResume,
+}: Props) {
+  const saved = useMemo(() => loadLastConfig<GameConfig>(), []);
   const [players, setPlayers] = useState<PlayerConfig[]>(
-    saved?.players?.every((p) => p.boardColor) ? saved.players : defaultPlayers(2),
-  )
-  const [options, setOptions] = useState(saved?.options ?? defaultOptions(randomSeed()))
-  const [showScale, setShowScale] = useState(false)
+    saved?.players?.every((p) => p.boardColor)
+      ? saved.players
+      : defaultPlayers(2),
+  );
+  const [options, setOptions] = useState(
+    saved?.options ?? defaultOptions(randomSeed()),
+  );
+  const [showScale, setShowScale] = useState(false);
 
-  const config: GameConfig = { players, options }
-  const error = configError(config)
-  const perRound = tilesPerRound(options.ruleset, players.length)
-  const needed = tilesNeeded(options.ruleset, players.length)
+  const config: GameConfig = { players, options };
+  const error = configError(config);
+  const perRound = tilesPerRound(options.ruleset, players.length);
+  const needed = tilesNeeded(options.ruleset, players.length);
 
   const setCount = (n: number) => {
     setPlayers((prev) => {
-      const next = prev.slice(0, n)
+      const next = prev.slice(0, n);
       while (next.length < n) {
         next.push({
           name: `Joueur ${next.length + 1}`,
-          kind: 'human',
+          kind: "human",
           boardColor: freeBoardColor(next.map((p) => p.boardColor)),
-        })
+        });
       }
-      return next
-    })
-  }
+      return next;
+    });
+  };
 
   /** Choisir une couleur déjà prise l'échange avec l'autre joueur. */
   const pickColor = (index: number, color: BoardColor) =>
     setPlayers((prev) => {
-      const owner = prev.findIndex((p) => p.boardColor === color)
+      const owner = prev.findIndex((p) => p.boardColor === color);
       return prev.map((p, i) => {
-        if (i === index) return { ...p, boardColor: color }
-        if (i === owner) return { ...p, boardColor: prev[index].boardColor }
-        return p
-      })
-    })
+        if (i === index) return { ...p, boardColor: color };
+        if (i === owner) return { ...p, boardColor: prev[index].boardColor };
+        return p;
+      });
+    });
 
   const patchRuleset = (patch: Partial<Ruleset>) =>
-    setOptions((o) => ({ ...o, ruleset: { ...o.ruleset, ...patch } }))
+    setOptions((o) => ({ ...o, ruleset: { ...o.ruleset, ...patch } }));
 
   const start = () => {
-    saveLastConfig(config)
-    onStart(config)
-  }
+    saveLastConfig(config);
+    onStart(config);
+  };
 
   return (
     <div className="sheet">
       <div className="hero">
         <h1 aria-label="Camino">
-          {[...'CAMINO'].map((c, i) => (
+          {[..."CAMINO"].map((c, i) => (
             <span key={i} style={{ color: HERO_COLORS[i] }} aria-hidden>
               {c}
             </span>
           ))}
         </h1>
         <p>
-          Table de jeu, playtest et équilibrage — 1 à 6 joueurs sur le même écran.
+          Table de jeu, playtest et équilibrage — 1 à 6 joueurs sur le même
+          écran.
           <br />
-          97 tuiles, plateaux {options.ruleset.boardSize}×{options.ruleset.boardSize},{' '}
+          97 tuiles, plateaux {options.ruleset.boardSize}×
+          {options.ruleset.boardSize},{" "}
           {options.ruleset.boardSize * options.ruleset.boardSize} manches.
         </p>
         {resumable && (
@@ -123,7 +142,7 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
               {[1, 2, 3, 4, 5, 6].map((n) => (
                 <button
                   key={n}
-                  className={players.length === n ? 'on' : ''}
+                  className={players.length === n ? "on" : ""}
                   onClick={() => setCount(n)}
                 >
                   {n}
@@ -131,7 +150,7 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
               ))}
             </div>
             <span className="note">
-              {players.length === 1 ? 'solo' : `${players.length} joueurs`}
+              {players.length === 1 ? "solo" : `${players.length} joueurs`}
             </span>
           </div>
 
@@ -145,7 +164,9 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
                   placeholder={`Joueur ${i + 1}`}
                   onChange={(e) =>
                     setPlayers((prev) =>
-                      prev.map((q, k) => (k === i ? { ...q, name: e.target.value } : q)),
+                      prev.map((q, k) =>
+                        k === i ? { ...q, name: e.target.value } : q,
+                      ),
                     )
                   }
                 />
@@ -153,7 +174,7 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
                   {BOARD_COLORS.map((c) => (
                     <button
                       key={c}
-                      className={`chip ${p.boardColor === c ? 'on' : ''}`}
+                      className={`chip ${p.boardColor === c ? "on" : ""}`}
                       style={{ background: BOARD_COLOR_HEX[c] }}
                       title={`Plateau ${BOARD_COLOR_NAMES[c].toLowerCase()}`}
                       onClick={() => pickColor(i, c)}
@@ -165,7 +186,9 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
                   onChange={(e) =>
                     setPlayers((prev) =>
                       prev.map((q, k) =>
-                        k === i ? { ...q, kind: e.target.value as PlayerKind } : q,
+                        k === i
+                          ? { ...q, kind: e.target.value as PlayerKind }
+                          : q,
                       ),
                     )
                   }
@@ -180,7 +203,9 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
                   className="btn small ghost"
                   disabled={players.length <= 1}
                   title="Retirer"
-                  onClick={() => setPlayers((prev) => prev.filter((_, k) => k !== i))}
+                  onClick={() =>
+                    setPlayers((prev) => prev.filter((_, k) => k !== i))
+                  }
                 >
                   ✕
                 </button>
@@ -188,9 +213,10 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
             ))}
           </div>
           <p className="note">
-            Chaque joueur prend un plateau : cliquez sur une pastille pour changer de couleur, deux
-            joueurs ne peuvent pas avoir la même. Les bots jouent tout seuls — le Novice joue le
-            meilleur coup immédiat, le Stratège construit ses couleurs sur la durée.
+            Chaque joueur prend un plateau : cliquez sur une pastille pour
+            changer de couleur, deux joueurs ne peuvent pas avoir la même. Les
+            bots jouent tout seuls — le Novice joue le meilleur coup immédiat,
+            le Stratège construit ses couleurs sur la durée.
           </p>
         </div>
 
@@ -212,7 +238,47 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
               on={options.showHints}
               onChange={(v) => setOptions((o) => ({ ...o, showHints: v }))}
             />
+            <Toggle
+              label="Graine manuelle"
+              on={!!options.manualSeed}
+              onChange={(v) =>
+                setOptions((o) => ({
+                  ...o,
+                  manualSeed: v,
+                  seed: v ? o.seed : randomSeed(),
+                }))
+              }
+            />
           </div>
+
+          {options.manualSeed && (
+            <div className="field">
+              <span>Graine de la partie (même graine = même pioche)</span>
+              <div className="row">
+                <input
+                  type="text"
+                  value={options.seed}
+                  placeholder="ex. oro-9594"
+                  onChange={(e) =>
+                    setOptions((o) => ({ ...o, seed: e.target.value }))
+                  }
+                />
+                <button
+                  className="btn icon"
+                  title="Tirer une graine au hasard"
+                  onClick={() =>
+                    setOptions((o) => ({ ...o, seed: randomSeed() }))
+                  }
+                >
+                  🎲
+                </button>
+              </div>
+              <span className="note">
+                Reprenez la graine affichée à la fin d’une partie pour rejouer
+                exactement la même pioche.
+              </span>
+            </div>
+          )}
 
           {/* ------------------------------------------------------ variantes */}
           <div className="section-head">Variantes</div>
@@ -227,53 +293,25 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
               on={!options.ruleset.requireAdjacency}
               onChange={(v) => patchRuleset({ requireAdjacency: !v })}
             />
-            <Toggle
-              label="Graine manuelle"
-              on={!!options.manualSeed}
-              onChange={(v) =>
-                setOptions((o) => ({ ...o, manualSeed: v, seed: v ? o.seed : randomSeed() }))
-              }
-            />
           </div>
 
-          {options.manualSeed && (
-            <div className="field">
-              <span>Graine de la partie (même graine = même pioche)</span>
-              <div className="row">
-                <input
-                  type="text"
-                  value={options.seed}
-                  placeholder="ex. oro-9594"
-                  onChange={(e) => setOptions((o) => ({ ...o, seed: e.target.value }))}
-                />
-                <button
-                  className="btn icon"
-                  title="Tirer une graine au hasard"
-                  onClick={() => setOptions((o) => ({ ...o, seed: randomSeed() }))}
-                >
-                  🎲
-                </button>
-              </div>
-              <span className="note">
-                Reprenez la graine affichée à la fin d’une partie pour rejouer exactement la même
-                pioche.
-              </span>
-            </div>
-          )}
           <p className="note">
-            <strong>Cartes missions :</strong> une carte est tirée pour la table, tout le monde joue
-            la même mission. <strong>Pose libre :</strong> les tuiles n’ont plus besoin de toucher
-            une tuile déjà posée. <strong>Graine manuelle :</strong> sans elle, chaque partie tire
-            une nouvelle pioche.
+            <strong>Cartes missions :</strong> une carte est tirée pour la
+            table, tout le monde joue la même mission.{" "}
+            <strong>Pose libre :</strong> les tuiles n’ont plus besoin de
+            toucher une tuile déjà posée.
           </p>
 
           {options.useCards && (
             <div className="field">
               <span>Carte de la partie</span>
               <select
-                value={options.cardId ?? ''}
+                value={options.cardId ?? ""}
                 onChange={(e) =>
-                  setOptions((o) => ({ ...o, cardId: e.target.value || undefined }))
+                  setOptions((o) => ({
+                    ...o,
+                    cardId: e.target.value || undefined,
+                  }))
                 }
               >
                 <option value="">Tirée au hasard</option>
@@ -285,30 +323,42 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
               </select>
               {options.cardId && (
                 <div style={{ marginTop: 8 }}>
-                  <MissionCardView card={CARDS.find((c) => c.id === options.cardId)!} compact />
+                  <MissionCardView
+                    card={CARDS.find((c) => c.id === options.cardId)!}
+                    compact
+                  />
                 </div>
               )}
             </div>
           )}
 
-          <div className="row" style={{ justifyContent: 'space-between' }}>
+          <div className="row" style={{ justifyContent: "space-between" }}>
             <span className="note">
-              {perRound} tuile{perRound > 1 ? 's' : ''} révélée{perRound > 1 ? 's' : ''} par manche
-              · {needed}/{TILE_COUNT} tuiles utilisées
+              {perRound} tuile{perRound > 1 ? "s" : ""} révélée
+              {perRound > 1 ? "s" : ""} par manche · {needed}/{TILE_COUNT}{" "}
+              tuiles utilisées
             </span>
-            <button className="btn small ghost" onClick={() => setShowScale((v) => !v)}>
-              {showScale ? 'Masquer le barème' : 'Barème'}
+            <button
+              className="btn small ghost"
+              onClick={() => setShowScale((v) => !v)}
+            >
+              {showScale ? "Masquer le barème" : "Barème"}
             </button>
           </div>
 
           {showScale && (
-            <div className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+            <div
+              className="stack"
+              style={{ borderTop: "1px solid var(--line)", paddingTop: 12 }}
+            >
               <div className="row wrap">
                 <label className="field" style={{ width: 130 }}>
                   <span>Côté du plateau</span>
                   <select
                     value={options.ruleset.boardSize}
-                    onChange={(e) => patchRuleset({ boardSize: Number(e.target.value) })}
+                    onChange={(e) =>
+                      patchRuleset({ boardSize: Number(e.target.value) })
+                    }
                   >
                     {[3, 4, 5].map((n) => (
                       <option key={n} value={n}>
@@ -321,7 +371,9 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
                   <span>Tuiles par manche</span>
                   <select
                     value={options.ruleset.tilesPerRound}
-                    onChange={(e) => patchRuleset({ tilesPerRound: Number(e.target.value) })}
+                    onChange={(e) =>
+                      patchRuleset({ tilesPerRound: Number(e.target.value) })
+                    }
                   >
                     <option value={0}>Auto (règle)</option>
                     {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
@@ -337,7 +389,9 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
                     type="number"
                     value={options.ruleset.blackPenalty}
                     max={0}
-                    onChange={(e) => patchRuleset({ blackPenalty: Number(e.target.value) })}
+                    onChange={(e) =>
+                      patchRuleset({ blackPenalty: Number(e.target.value) })
+                    }
                   />
                 </label>
                 <label className="field" style={{ width: 130 }}>
@@ -347,24 +401,28 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
                     min={2}
                     max={6}
                     value={options.ruleset.minSpan}
-                    onChange={(e) => patchRuleset({ minSpan: Number(e.target.value) })}
+                    onChange={(e) =>
+                      patchRuleset({ minSpan: Number(e.target.value) })
+                    }
                   />
                 </label>
               </div>
 
               <div>
-                <span className="note">Points selon le nombre de tuiles traversées</span>
+                <span className="note">
+                  Points selon le nombre de tuiles traversées
+                </span>
                 <div className="row wrap" style={{ marginTop: 6 }}>
                   {[3, 4, 5, 6, 7, 8, 9].map((span) => (
                     <label className="field" key={span} style={{ width: 74 }}>
-                      <span>{span === 9 ? '9 et +' : `${span} tuiles`}</span>
+                      <span>{span === 9 ? "9 et +" : `${span} tuiles`}</span>
                       <input
                         type="number"
                         value={options.ruleset.pointsBySpan[span] ?? 0}
                         onChange={(e) => {
-                          const table = options.ruleset.pointsBySpan.slice()
-                          table[span] = Number(e.target.value)
-                          patchRuleset({ pointsBySpan: table })
+                          const table = options.ruleset.pointsBySpan.slice();
+                          table[span] = Number(e.target.value);
+                          patchRuleset({ pointsBySpan: table });
                         }}
                       />
                     </label>
@@ -374,7 +432,7 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
 
               <button
                 className="btn small ghost"
-                style={{ alignSelf: 'flex-start' }}
+                style={{ alignSelf: "flex-start" }}
                 onClick={() => patchRuleset({ ...DEFAULT_RULESET })}
               >
                 Revenir au barème officiel
@@ -386,10 +444,13 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
         </div>
       </div>
 
-      <div className="row" style={{ marginTop: 18, justifyContent: 'center', gap: 12 }}>
+      <div
+        className="row"
+        style={{ marginTop: 18, justifyContent: "center", gap: 12 }}
+      >
         <button
           className="btn primary"
-          style={{ padding: '12px 30px' }}
+          style={{ padding: "12px 30px" }}
           disabled={!!error}
           onClick={start}
         >
@@ -403,47 +464,52 @@ export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) 
       <div className="panel" style={{ marginTop: 22 }}>
         <h3>Rappel des règles</h3>
         <p className="note" style={{ fontSize: 13.5, lineHeight: 1.6 }}>
-          Chaque manche, on révèle autant de tuiles que de joueurs. Le porteur du sac choisit en
-          premier, puis les autres dans le sens horaire ; chacun pose sa tuile sur son plateau dans
-          l’orientation de son choix. Toute tuile (sauf la première) doit toucher une tuile déjà
-          posée. Le sac passe ensuite au voisin de gauche. La partie s’arrête quand les plateaux
-          sont pleins.
+          Chaque manche, on révèle autant de tuiles que de joueurs. Le porteur
+          du sac choisit en premier, puis les autres dans le sens horaire ;
+          chacun pose sa tuile sur son plateau dans l’orientation de son choix.
+          Toute tuile (sauf la première) doit toucher une tuile déjà posée. Le
+          sac passe ensuite au voisin de gauche. La partie s’arrête quand les
+          plateaux sont pleins.
           <br />
           <br />
-          <strong>Décompte :</strong> un chemin est un groupe de quarts de même couleur reliés
-          orthogonalement — même à travers la frontière de deux tuiles. Ce qui compte, c’est le
-          nombre de <strong>tuiles différentes</strong> qu’il traverse : 3 → 3 pts, 4 → 5, 5 → 8,
-          6 → 12, 7 → 17, 8 → 23, 9 et + → 30. Chaque <strong>zone noire</strong>, quelle que soit
-          sa taille, coûte 2 points.
+          <strong>Décompte :</strong> un chemin est un groupe de quarts de même
+          couleur reliés orthogonalement — même à travers la frontière de deux
+          tuiles. Ce qui compte, c’est le nombre de{" "}
+          <strong>tuiles différentes</strong> qu’il traverse : 3 → 3 pts, 4 → 5,
+          5 → 8, 6 → 12, 7 → 17, 8 → 23, 9 et + → 30. Chaque{" "}
+          <strong>zone noire</strong>, quelle que soit sa taille, coûte 2
+          points.
         </p>
       </div>
 
       <MaterialSection />
 
-      <p className="note" style={{ textAlign: 'center', marginTop: 18 }}>
-        Version du {BUILD}
+      <p className="note" style={{ textAlign: "center", marginTop: 18 }}>
+        Version {VERSION} — compilée le {BUILD}
       </p>
     </div>
-  )
+  );
 }
 
-/** Injecté à la compilation (voir vite.config.ts). */
-declare const __BUILD__: string
-const BUILD = typeof __BUILD__ === 'string' ? __BUILD__ : 'développement'
+
 
 function Toggle({
   label,
   on,
   onChange,
 }: {
-  label: string
-  on: boolean
-  onChange: (v: boolean) => void
+  label: string;
+  on: boolean;
+  onChange: (v: boolean) => void;
 }) {
   return (
-    <label className={`toggle ${on ? 'on' : ''}`}>
-      <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} />
+    <label className={`toggle ${on ? "on" : ""}`}>
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={(e) => onChange(e.target.checked)}
+      />
       {label}
     </label>
-  )
+  );
 }

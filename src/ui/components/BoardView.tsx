@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import {
   BLACK,
   COLOR_HEX,
@@ -26,6 +26,8 @@ const PAD = 16 // épaisseur du contour coloré
 
 const GRID = '#A7A9AC'
 const SLOT = '#FFFFFF'
+/** Rouge clair des zones noires : contour et pastille. */
+const BLACK_ACCENT = '#FF6B6B'
 
 export interface Ghost {
   tileId: number
@@ -63,6 +65,7 @@ export function BoardView({
 }: Props) {
   const [hover, setHover] = useState<number | null>(null)
   const [hoverZone, setHoverZone] = useState<number | null>(null)
+  const uid = useId().replace(/:/g, '')
 
   const n = board.size
   const side = PAD * 2 + n * PITCH + GAP
@@ -198,7 +201,13 @@ export function BoardView({
       {!compact &&
         zones.map((z, i) =>
           (showZones && z.points !== 0) || hoverZone === i ? (
-            <ZoneOutline key={`z${i}`} zone={z} n={n} highlight={hoverZone === i} />
+            <ZoneOutline
+              key={`z${i}`}
+              zone={z}
+              n={n}
+              highlight={hoverZone === i}
+              clipId={`zc-${uid}-${i}`}
+            />
           ) : null,
         )}
 
@@ -302,10 +311,32 @@ function PreviewBadge({ x, y, delta }: { x: number; y: number; delta: number }) 
  * séparateur gris, on trace les deux bords du couloir pour que le contour
  * reste fermé.
  */
-function ZoneOutline({ zone, n, highlight }: { zone: Zone; n: number; highlight: boolean }) {
+function ZoneOutline({
+  zone,
+  n,
+  highlight,
+  clipId,
+}: {
+  zone: Zone
+  n: number
+  highlight: boolean
+  clipId: string
+}) {
   const qs = n * 2
   const set = new Set(zone.cells)
-  const segs: string[] = []
+  /*
+   * Segments du contour, comptés : une arête ajoutée deux fois est partagée
+   * par deux quarts de la zone, donc intérieure — c'est le cas des traits qui
+   * traversaient les couloirs entre deux tuiles voisines. On ne garde que les
+   * arêtes vues une seule fois.
+   */
+  const segs = new Map<string, number>()
+  const add = (key: string) => segs.set(key, (segs.get(key) ?? 0) + 1)
+  const hSeg = (x: number, y: number, len: number) => `M${x} ${y}h${len}`
+  const vSeg = (x: number, y: number, len: number) => `M${x} ${y}v${len}`
+  /** Rectangles couvrant la zone : ils découpent le trait pour qu'il reste
+   *  strictement à l'intérieur, sans jamais baver sur la grille grise. */
+  const clip: { x: number; y: number; w: number; h: number }[] = []
 
   for (const c of zone.cells) {
     const r = Math.floor(c / qs)
@@ -313,42 +344,77 @@ function ZoneOutline({ zone, n, highlight }: { zone: Zone; n: number; highlight:
     const { x, y } = quadXY(c, n)
     const gapRight = col % 2 === 1
     const gapBelow = r % 2 === 1
+    clip.push({ x, y, w: QUAD, h: QUAD })
 
     // haut
-    if (r === 0 || !set.has(c - qs)) segs.push(`M${x} ${y}h${QUAD}`)
+    if (r === 0 || !set.has(c - qs)) add(hSeg(x, y, QUAD))
     // bas
-    if (r === qs - 1 || !set.has(c + qs)) segs.push(`M${x} ${y + QUAD}h${QUAD}`)
+    if (r === qs - 1 || !set.has(c + qs)) add(hSeg(x, y + QUAD, QUAD))
     else if (gapBelow) {
-      segs.push(`M${x} ${y + QUAD}v${GAP}`)
-      segs.push(`M${x + QUAD} ${y + QUAD}v${GAP}`)
+      add(vSeg(x, y + QUAD, GAP))
+      add(vSeg(x + QUAD, y + QUAD, GAP))
+      clip.push({ x, y: y + QUAD, w: QUAD, h: GAP })
     }
     // gauche
-    if (col === 0 || !set.has(c - 1)) segs.push(`M${x} ${y}v${QUAD}`)
+    if (col === 0 || !set.has(c - 1)) add(vSeg(x, y, QUAD))
     // droite
-    if (col === qs - 1 || !set.has(c + 1)) segs.push(`M${x + QUAD} ${y}v${QUAD}`)
+    if (col === qs - 1 || !set.has(c + 1)) add(vSeg(x + QUAD, y, QUAD))
     else if (gapRight) {
-      segs.push(`M${x + QUAD} ${y}h${GAP}`)
-      segs.push(`M${x + QUAD} ${y + QUAD}h${GAP}`)
+      add(hSeg(x + QUAD, y, GAP))
+      add(hSeg(x + QUAD, y + QUAD, GAP))
+      clip.push({ x: x + QUAD, y, w: GAP, h: QUAD })
     }
   }
 
-  const d = segs.join(' ')
-  const top = zone.color === BLACK ? '#FFC168' : '#FFFFFF'
+  /*
+   * Croisement de quatre tuiles entièrement occupé par la zone : le petit
+   * carré central appartient à l'intérieur. Sans cela, les bords des deux
+   * couloirs l'encadrent et dessinent un carré parasite au milieu de la zone.
+   */
+  for (let r = 1; r < qs - 1; r += 2) {
+    for (let col = 1; col < qs - 1; col += 2) {
+      const a = r * qs + col
+      if (!set.has(a) || !set.has(a + 1) || !set.has(a + qs) || !set.has(a + qs + 1)) continue
+      const { x, y } = quadXY(a, n)
+      const cx = x + QUAD
+      const cy = y + QUAD
+      clip.push({ x: cx, y: cy, w: GAP, h: GAP })
+      segs.delete(hSeg(cx, cy, GAP))
+      segs.delete(hSeg(cx, cy + GAP, GAP))
+      segs.delete(vSeg(cx, cy, GAP))
+      segs.delete(vSeg(cx + GAP, cy, GAP))
+    }
+  }
+
+  const d = [...segs.entries()]
+    .filter(([, count]) => count === 1)
+    .map(([key]) => key)
+    .join(' ')
+  const color = zone.color === BLACK ? BLACK_ACCENT : '#FFFFFF'
+  const w = highlight ? 9 : 6
   return (
     <g pointerEvents="none">
-      <path d={d} fill="none" stroke="#2A1E12" strokeWidth={highlight ? 7 : 5} opacity="0.6" />
-      <path
-        d={d}
-        fill="none"
-        stroke={top}
-        strokeWidth={highlight ? 3.5 : 2.2}
-        opacity={highlight ? 1 : 0.9}
-      />
+      <defs>
+        <clipPath id={clipId}>
+          {clip.map((r, i) => (
+            <rect key={i} x={r.x} y={r.y} width={r.w} height={r.h} />
+          ))}
+        </clipPath>
+      </defs>
+      <g clipPath={`url(#${clipId})`}>
+        {/* Trait épais rogné par le découpage : seule la moitié intérieure
+            reste visible, ce qui donne un liseré net collé à la zone. */}
+        <path d={d} fill="none" stroke="#00000055" strokeWidth={w + 4} />
+        <path d={d} fill="none" stroke={color} strokeWidth={w} opacity={highlight ? 1 : 0.95} />
+      </g>
     </g>
   )
 }
 
-/** Pastille de points : anneau blanc, intérieur transparent, chiffre blanc. */
+/**
+ * Pastille de points : contour et chiffre seuls, intérieur transparent.
+ * La largeur suit le texte — « +23 » ne doit pas déborder.
+ */
 function ZoneBadge({ zone, n, ruleset }: { zone: Zone; n: number; ruleset: Ruleset }) {
   const qs = n * 2
   let bx = 0
@@ -372,11 +438,23 @@ function ZoneBadge({ zone, n, ruleset }: { zone: Zone; n: number; ruleset: Rules
   const cx = x + QUAD / 2
   const cy = y + QUAD / 2
   const label = signed(zone.points)
+  const color = zone.color === BLACK ? BLACK_ACCENT : '#FFFFFF'
+  const h = 27
+  const w = Math.max(h, 13 + label.length * 10)
   return (
     <g className="zone-badge" pointerEvents="none">
       <title>{zoneLabel(zone, ruleset)}</title>
-      <circle cx={cx} cy={cy} r="15" fill="none" stroke="#FFFFFF" strokeWidth="1.6" />
-      <text x={cx} y={cy + 5} textAnchor="middle" fill="#FFFFFF">
+      <rect
+        x={cx - w / 2}
+        y={cy - h / 2}
+        width={w}
+        height={h}
+        rx={h / 2}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.8"
+      />
+      <text x={cx} y={cy + 5} textAnchor="middle" fill={color}>
         {label}
       </text>
     </g>

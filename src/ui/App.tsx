@@ -7,8 +7,10 @@ import { GameScreen } from './screens/GameScreen.tsx'
 import { ResultsScreen } from './screens/ResultsScreen.tsx'
 import { LabScreen } from './screens/LabScreen.tsx'
 import { HistoryScreen } from './screens/HistoryScreen.tsx'
+import { VersionsScreen } from './screens/VersionsScreen.tsx'
+import { VERSION } from '../version.ts'
 
-type Screen = 'setup' | 'game' | 'results' | 'lab' | 'archive' | 'history'
+type Screen = 'setup' | 'game' | 'results' | 'lab' | 'archive' | 'history' | 'versions'
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('setup')
@@ -104,6 +106,13 @@ export default function App() {
           </span>
           Camino
         </button>
+        <button
+          className="version-tag"
+          onClick={() => setScreen('versions')}
+          title="Historique des versions"
+        >
+          v{VERSION}
+        </button>
 
         {state && (screen === 'game' || screen === 'results') && (
           <>
@@ -168,6 +177,11 @@ export default function App() {
             Laboratoire
           </button>
         )}
+        {screen !== 'versions' && (
+          <button className="btn small ghost" onClick={() => setScreen('versions')}>
+            Versions
+          </button>
+        )}
       </header>
 
       {screen === 'setup' && (
@@ -200,6 +214,8 @@ export default function App() {
       )}
 
       {screen === 'history' && <HistoryScreen onBack={goHome} />}
+
+      {screen === 'versions' && <VersionsScreen onBack={goHome} />}
 
       {(screen === 'lab' || screen === 'archive') && (
         <LabScreen
