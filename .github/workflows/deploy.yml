@@ -26,7 +26,23 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+
+      # Bascule la source Pages sur « GitHub Actions ». Sans cela, l'ancien
+      # déploiement « depuis la branche » republie le code source brut à chaque
+      # push et écrase le site construit quelques secondes après ce workflow.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Forcer la source Pages sur « GitHub Actions »
+        run: |
+          curl -sS -X PUT \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pages" \
+            -d '{"build_type":"workflow"}' \
+            -o /tmp/pages.json -w "HTTP %{http_code}\n" || true
+          cat /tmp/pages.json || true
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
@@ -40,3 +56,24 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+      # Vérité terrain : on relit le site publié depuis l'extérieur et on
+      # échoue si ce n'est pas le build qui est servi. Couvre aussi le délai
+      # de propagation du CDN (10 minutes maximum).
+      - name: Vérifier que le site en ligne sert bien le build
+        run: |
+          URL="${{ steps.deployment.outputs.page_url }}"
+          echo "Vérification de $URL"
+          for i in $(seq 1 60); do
+            HTML=$(curl -fsSL -H 'Cache-Control: no-cache' "${URL}?ci=${GITHUB_RUN_ID}-${i}" || true)
+            if echo "$HTML" | grep -q 'assets/camino\.js' && ! echo "$HTML" | grep -q 'src/main\.tsx'; then
+              if curl -fsS -o /dev/null "${URL}assets/camino.js?ci=${GITHUB_RUN_ID}-${i}"; then
+                echo "OK : le site sert le build (tentative $i)."
+                exit 0
+              fi
+            fi
+            echo "Tentative $i/60 : le CDN sert encore autre chose, nouvel essai dans 10 s…"
+            sleep 10
+          done
+          echo "ÉCHEC : le site en ligne ne sert toujours pas le build après 10 minutes."
+          exit 1
