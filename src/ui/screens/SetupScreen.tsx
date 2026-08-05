@@ -1,0 +1,330 @@
+import { useMemo, useState } from 'react'
+import {
+  configError,
+  defaultOptions,
+  DEFAULT_RULESET,
+  PLAYER_COLORS,
+  randomSeed,
+  TILE_COUNT,
+  tilesNeeded,
+  tilesPerRound,
+} from '../../engine/index.ts'
+import type { GameConfig, PlayerConfig, PlayerKind, Ruleset } from '../../engine/index.ts'
+import { loadLastConfig, saveLastConfig } from '../storage.ts'
+
+const KIND_LABELS: Record<PlayerKind, string> = {
+  human: 'Humain',
+  'bot-random': 'Bot — hasard',
+  'bot-greedy': 'Bot — glouton',
+  'bot-smart': 'Bot — stratège',
+}
+
+const DEFAULT_NAMES = ['Joueur 1', 'Joueur 2', 'Joueur 3', 'Joueur 4', 'Joueur 5', 'Joueur 6']
+
+interface Props {
+  onStart: (config: GameConfig) => void
+  onOpenLab: () => void
+}
+
+export function SetupScreen({ onStart, onOpenLab }: Props) {
+  const saved = useMemo(() => loadLastConfig<GameConfig>(), [])
+  const [players, setPlayers] = useState<PlayerConfig[]>(
+    saved?.players ?? [
+      { name: 'Joueur 1', kind: 'human' },
+      { name: 'Joueur 2', kind: 'human' },
+    ],
+  )
+  const [options, setOptions] = useState(saved?.options ?? defaultOptions(randomSeed()))
+  const [advanced, setAdvanced] = useState(false)
+
+  const config: GameConfig = { players, options }
+  const error = configError(config)
+  const perRound = tilesPerRound(options.ruleset, players.length)
+  const needed = tilesNeeded(options.ruleset, players.length)
+
+  const setCount = (n: number) => {
+    setPlayers((prev) => {
+      const next = prev.slice(0, n)
+      while (next.length < n) {
+        next.push({ name: DEFAULT_NAMES[next.length], kind: 'human' })
+      }
+      return next
+    })
+  }
+
+  const patchRuleset = (patch: Partial<Ruleset>) =>
+    setOptions((o) => ({ ...o, ruleset: { ...o.ruleset, ...patch } }))
+
+  const start = () => {
+    saveLastConfig(config)
+    onStart(config)
+  }
+
+  return (
+    <div className="sheet">
+      <div className="hero">
+        <h1>Camino</h1>
+        <p>
+          Table de jeu, playtest et équilibrage — 1 à 6 joueurs sur le même écran.
+          <br />
+          97 tuiles, plateaux {options.ruleset.boardSize}×{options.ruleset.boardSize},{' '}
+          {options.ruleset.boardSize * options.ruleset.boardSize} manches.
+        </p>
+      </div>
+
+      <div className="grid-2">
+        <div className="panel stack">
+          <h3>Joueurs</h3>
+          <div className="row wrap">
+            <div className="seg">
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <button key={n} className={players.length === n ? 'on' : ''} onClick={() => setCount(n)}>
+                  {n}
+                </button>
+              ))}
+            </div>
+            <span className="note">{players.length === 1 ? 'solo' : `${players.length} joueurs`}</span>
+          </div>
+
+          <div className="stack" style={{ gap: 8 }}>
+            {players.map((p, i) => (
+              <div className="player-row" key={i}>
+                <span className="dot" style={{ background: PLAYER_COLORS[i] }} />
+                <input
+                  type="text"
+                  value={p.name}
+                  maxLength={18}
+                  placeholder={DEFAULT_NAMES[i]}
+                  onChange={(e) =>
+                    setPlayers((prev) =>
+                      prev.map((q, k) => (k === i ? { ...q, name: e.target.value } : q)),
+                    )
+                  }
+                />
+                <select
+                  value={p.kind}
+                  onChange={(e) =>
+                    setPlayers((prev) =>
+                      prev.map((q, k) =>
+                        k === i ? { ...q, kind: e.target.value as PlayerKind } : q,
+                      ),
+                    )
+                  }
+                >
+                  {(Object.keys(KIND_LABELS) as PlayerKind[]).map((k) => (
+                    <option key={k} value={k}>
+                      {KIND_LABELS[k]}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="btn small ghost"
+                  disabled={players.length <= 1}
+                  title="Retirer"
+                  onClick={() => setPlayers((prev) => prev.filter((_, k) => k !== i))}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="note">
+            Les bots jouent tout seuls : pratique pour tester une configuration ou compléter une
+            table. Le « stratège » anticipe les chemins et regroupe ses zones noires.
+          </p>
+        </div>
+
+        <div className="panel stack">
+          <h3>Options de partie</h3>
+          <div className="row wrap">
+            <Toggle
+              label="Score en direct"
+              on={options.liveScore}
+              onChange={(v) => setOptions((o) => ({ ...o, liveScore: v }))}
+            />
+            <Toggle
+              label="Contours des zones"
+              on={options.showZones}
+              onChange={(v) => setOptions((o) => ({ ...o, showZones: v }))}
+            />
+            <Toggle
+              label="Indices"
+              on={options.showHints}
+              onChange={(v) => setOptions((o) => ({ ...o, showHints: v }))}
+            />
+            <Toggle
+              label="Cartes missions"
+              on={options.useCards}
+              onChange={(v) => setOptions((o) => ({ ...o, useCards: v }))}
+            />
+          </div>
+          <p className="note">
+            Les cartes missions sont des <strong>propositions</strong> à valider : la mécanique est
+            branchée, le texte des 12 vraies cartes reste à intégrer.
+          </p>
+
+          <div className="field">
+            <span>Graine aléatoire (même graine = même pioche)</span>
+            <div className="row">
+              <input
+                type="text"
+                value={options.seed}
+                onChange={(e) => setOptions((o) => ({ ...o, seed: e.target.value }))}
+              />
+              <button
+                className="btn icon"
+                title="Nouvelle graine"
+                onClick={() => setOptions((o) => ({ ...o, seed: randomSeed() }))}
+              >
+                🎲
+              </button>
+            </div>
+          </div>
+
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <span className="note">
+              {perRound} tuile{perRound > 1 ? 's' : ''} révélée{perRound > 1 ? 's' : ''} par manche
+              · {needed}/{TILE_COUNT} tuiles utilisées
+            </span>
+            <button className="btn small ghost" onClick={() => setAdvanced((v) => !v)}>
+              {advanced ? 'Masquer' : 'Barème & variantes'}
+            </button>
+          </div>
+
+          {advanced && (
+            <div className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+              <div className="row wrap">
+                <label className="field" style={{ width: 130 }}>
+                  <span>Côté du plateau</span>
+                  <select
+                    value={options.ruleset.boardSize}
+                    onChange={(e) => patchRuleset({ boardSize: Number(e.target.value) })}
+                  >
+                    {[3, 4, 5].map((n) => (
+                      <option key={n} value={n}>
+                        {n} × {n} ({n * n} manches)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field" style={{ width: 150 }}>
+                  <span>Tuiles par manche</span>
+                  <select
+                    value={options.ruleset.tilesPerRound}
+                    onChange={(e) => patchRuleset({ tilesPerRound: Number(e.target.value) })}
+                  >
+                    <option value={0}>Auto (règle)</option>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field" style={{ width: 120 }}>
+                  <span>Malus zone noire</span>
+                  <input
+                    type="number"
+                    value={options.ruleset.blackPenalty}
+                    max={0}
+                    onChange={(e) => patchRuleset({ blackPenalty: Number(e.target.value) })}
+                  />
+                </label>
+                <label className="field" style={{ width: 130 }}>
+                  <span>Chemin minimum</span>
+                  <input
+                    type="number"
+                    min={2}
+                    max={6}
+                    value={options.ruleset.minSpan}
+                    onChange={(e) => patchRuleset({ minSpan: Number(e.target.value) })}
+                  />
+                </label>
+              </div>
+
+              <div>
+                <span className="note">Barème (points selon le nombre de tuiles traversées)</span>
+                <div className="row wrap" style={{ marginTop: 6 }}>
+                  {[3, 4, 5, 6, 7, 8, 9].map((span) => (
+                    <label className="field" key={span} style={{ width: 74 }}>
+                      <span>{span === 9 ? '9 et +' : `${span} tuiles`}</span>
+                      <input
+                        type="number"
+                        value={options.ruleset.pointsBySpan[span] ?? 0}
+                        onChange={(e) => {
+                          const table = options.ruleset.pointsBySpan.slice()
+                          table[span] = Number(e.target.value)
+                          patchRuleset({ pointsBySpan: table })
+                        }}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="row wrap">
+                <Toggle
+                  label="Pose obligatoirement adjacente"
+                  on={options.ruleset.requireAdjacency}
+                  onChange={(v) => patchRuleset({ requireAdjacency: v })}
+                />
+                <button
+                  className="btn small ghost"
+                  onClick={() => patchRuleset({ ...DEFAULT_RULESET })}
+                >
+                  Revenir au barème officiel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {error && <div className="warn">{error}</div>}
+        </div>
+      </div>
+
+      <div className="row" style={{ marginTop: 18, justifyContent: 'center', gap: 12 }}>
+        <button className="btn primary" style={{ padding: '12px 30px' }} disabled={!!error} onClick={start}>
+          Commencer la partie
+        </button>
+        <button className="btn" onClick={onOpenLab}>
+          Laboratoire d’équilibrage
+        </button>
+      </div>
+
+      <div className="panel" style={{ marginTop: 22 }}>
+        <h3>Rappel des règles</h3>
+        <p className="note" style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+          Chaque manche, on révèle autant de tuiles que de joueurs. Le porteur du sac choisit en
+          premier, puis les autres dans le sens horaire ; chacun pose sa tuile sur son plateau dans
+          l’orientation de son choix. Toute tuile (sauf la première) doit toucher une tuile déjà
+          posée. Le sac passe ensuite au voisin de gauche. La partie s’arrête quand les plateaux
+          sont pleins.
+          <br />
+          <br />
+          <strong>Décompte :</strong> un chemin est un groupe de quarts de même couleur reliés
+          orthogonalement — même à travers la frontière de deux tuiles. Ce qui compte, c’est le
+          nombre de <strong>tuiles différentes</strong> qu’il traverse : 3 → 3 pts, 4 → 5, 5 → 8,
+          6 → 12, 7 → 17, 8 → 23, 9 et + → 30. Chaque <strong>zone noire</strong>, quelle que soit
+          sa taille, coûte 2 points.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function Toggle({
+  label,
+  on,
+  onChange,
+}: {
+  label: string
+  on: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <label className={`toggle ${on ? 'on' : ''}`}>
+      <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} />
+      {label}
+    </label>
+  )
+}
