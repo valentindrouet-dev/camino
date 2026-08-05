@@ -394,9 +394,17 @@ export function SetupScreen({ onStart, onOpenLab }: Props) {
       </div>
 
       <MaterialSection />
+
+      <p className="note" style={{ textAlign: 'center', marginTop: 18 }}>
+        Version du {BUILD}
+      </p>
     </div>
   )
 }
+
+/** Injecté à la compilation (voir vite.config.ts). */
+declare const __BUILD__: string
+const BUILD = typeof __BUILD__ === 'string' ? __BUILD__ : 'développement'
 
 function Toggle({
   label,

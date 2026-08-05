@@ -6,9 +6,147 @@
     <title>CAMINO — table de jeu &amp; laboratoire</title>
     <meta name="description" content="Interface de jeu, de playtest et d'équilibrage pour CAMINO." />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='16' height='16' fill='%23F7931D'/><rect x='16' width='16' height='16' fill='%230095D9'/><rect y='16' width='16' height='16' fill='%2340AE49'/><rect x='16' y='16' width='16' height='16' fill='%23D1232A'/></svg>" />
+    <style>
+      /* Écran d'attente : le fond et le message existent avant même que la
+         feuille de style de l'application ne soit chargée. */
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        background: #fffdf5;
+      }
+      #boot {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        gap: 14px;
+        justify-items: center;
+        text-align: center;
+        padding: 24px;
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        color: #7d7161;
+      }
+      #boot .logo {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        overflow: hidden;
+        animation: boot-spin 1.8s ease-in-out infinite;
+      }
+      #boot .logo i {
+        display: block;
+      }
+      @keyframes boot-spin {
+        50% {
+          transform: rotate(180deg);
+        }
+      }
+      #boot h1 {
+        font-size: 15px;
+        color: #33291f;
+        margin: 0;
+        letter-spacing: 0.22em;
+      }
+      #boot button {
+        font: inherit;
+        cursor: pointer;
+        padding: 9px 18px;
+        border-radius: 11px;
+        border: 1px solid #eb8a12;
+        background: #f7931d;
+        color: #4a2a00;
+        font-weight: 700;
+      }
+      #boot .fail {
+        display: none;
+      }
+      #boot.failed .wait {
+        display: none;
+      }
+      #boot.failed .fail {
+        display: grid;
+        gap: 12px;
+        justify-items: center;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="boot">
+        <span class="logo">
+          <i style="background: #f7931d"></i><i style="background: #0095d9"></i>
+          <i style="background: #40ae49"></i><i style="background: #d1232a"></i>
+        </span>
+        <div class="wait"><h1>CAMINO</h1></div>
+        <div class="fail">
+          <h1>CAMINO</h1>
+          <p style="max-width: 30em; margin: 0">
+            L’application n’a pas réussi à se charger. C’est presque toujours une version restée en
+            cache dans le navigateur.
+          </p>
+          <button onclick="location.replace(location.pathname + '?v=' + Date.now())">
+            Recharger
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      /*
+       * Filet de sécurité contre l'écran blanc.
+       *
+       * GitHub Pages peut servir un index.html encore en cache alors que les
+       * fichiers de l'application ont été renommés par un déploiement plus
+       * récent : le script renvoie une 404 et rien ne s'affiche. Si
+       * l'application n'a pas démarré au bout de quelques secondes, on recharge
+       * une seule fois avec un paramètre anti-cache ; si ça échoue encore, on
+       * affiche un message plutôt qu'une page vide.
+       */
+      ;(function () {
+        var KEY = 'camino.boot-retry'
+        var done = false
+        function started() {
+          return document.documentElement.getAttribute('data-app') === 'ready'
+        }
+        function giveUp() {
+          var boot = document.getElementById('boot')
+          if (boot) boot.className = 'failed'
+        }
+        function recover() {
+          if (done || started()) return
+          done = true
+          try {
+            if (sessionStorage.getItem(KEY)) return giveUp()
+            sessionStorage.setItem(KEY, '1')
+          } catch (e) {
+            return giveUp()
+          }
+          location.replace(location.pathname + '?v=' + Date.now())
+        }
+        // Un module qui ne se charge pas déclenche un « error » de ressource.
+        window.addEventListener(
+          'error',
+          function (e) {
+            if (e.target && e.target !== window && e.target.tagName === 'SCRIPT') recover()
+          },
+          true,
+        )
+        setTimeout(recover, 6000)
+        window.addEventListener('load', function () {
+          setTimeout(function () {
+            if (!started()) return
+            try {
+              sessionStorage.removeItem(KEY)
+            } catch (e) {
+              /* navigation privée : sans importance */
+            }
+          }, 100)
+        })
+      })()
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
