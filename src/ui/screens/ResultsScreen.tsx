@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from "react";
 import {
   cardById,
   COLOR_HEX,
@@ -6,19 +6,19 @@ import {
   PATH_COLORS,
   playerStats,
   ranking,
-} from '../../engine/index.ts'
-import type { Color, GameState } from '../../engine/index.ts'
-import { BoardView } from '../components/BoardView.tsx'
-import { ScoreDetail } from '../components/ScoreDetail.tsx'
-import { Bars, ScoreLines } from '../components/Charts.tsx'
-import { archiveGame } from '../storage.ts'
+} from "../../engine/index.ts";
+import type { Color, GameState } from "../../engine/index.ts";
+import { BoardView } from "../components/BoardView.tsx";
+import { ScoreDetail } from "../components/ScoreDetail.tsx";
+import { Bars, ScoreLines } from "../components/Charts.tsx";
+import { archiveGame } from "../storage.ts";
 
 interface Props {
-  state: GameState
-  onReplaySameSeed: () => void
-  onNewGame: () => void
-  onBackToGame: () => void
-  onOpenArchive: () => void
+  state: GameState;
+  onReplaySameSeed: () => void;
+  onNewGame: () => void;
+  onBackToGame: () => void;
+  onOpenArchive: () => void;
 }
 
 export function ResultsScreen({
@@ -28,27 +28,32 @@ export function ResultsScreen({
   onBackToGame,
   onOpenArchive,
 }: Props) {
-  const stats = useMemo(() => playerStats(state), [state])
-  const ranked = useMemo(() => ranking(stats), [stats])
-  const [focus, setFocus] = useState(ranked[0]?.player.id ?? 0)
+  const stats = useMemo(() => playerStats(state), [state]);
+  const ranked = useMemo(() => ranking(stats), [stats]);
+  const [focus, setFocus] = useState(ranked[0]?.player.id ?? 0);
 
   // La partie est archivée une seule fois, pour alimenter les statistiques
   // cumulées entre les sessions.
   useEffect(() => {
-    archiveGame(state)
+    archiveGame(state);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, []);
 
-  const focused = stats[focus]
+  const focused = stats[focus];
   const colorTotals = PATH_COLORS.map((c) => ({
     label: COLOR_NAMES[c],
-    value: stats.reduce((n, s) => n + s.breakdown.byColor[c as Color].points, 0) / stats.length,
+    value:
+      stats.reduce((n, s) => n + s.breakdown.byColor[c as Color].points, 0) /
+      stats.length,
     color: COLOR_HEX[c],
-  }))
+  }));
 
   return (
     <div className="sheet">
-      <div className="row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
+      <div
+        className="row"
+        style={{ justifyContent: "space-between", marginBottom: 16 }}
+      >
         <h2 style={{ fontSize: 26 }}>Fin de partie</h2>
         <div className="row wrap">
           <button className="btn small" onClick={onBackToGame}>
@@ -68,23 +73,30 @@ export function ResultsScreen({
 
       <div className="podium" style={{ marginBottom: 18 }}>
         {ranked.map((s) => (
-          <div key={s.player.id} className={`podium-row ${s.rank === 1 ? 'win' : ''}`}>
-            <span className="rank">{s.rank === 1 ? '🏆' : s.rank}</span>
+          <div
+            key={s.player.id}
+            className={`podium-row ${s.rank === 1 ? "win" : ""}`}
+          >
+            <span className="rank">{s.rank === 1 ? "🏆" : s.rank}</span>
             <div>
               <div className="row">
                 <span className="dot" style={{ background: s.player.color }} />
                 <strong>{s.player.name}</strong>
-                {s.player.kind !== 'human' && <span className="tag">bot</span>}
+                {s.player.kind !== "human" && <span className="tag">bot</span>}
               </div>
               <div className="note">
-                {s.scoringPaths} chemin{s.scoringPaths > 1 ? 's' : ''} · plus long{' '}
-                {s.longestPath || '—'} tuiles · {s.breakdown.blackZones} zone
-                {s.breakdown.blackZones > 1 ? 's' : ''} noire{s.breakdown.blackZones > 1 ? 's' : ''}
+                {s.scoringPaths} chemin{s.scoringPaths > 1 ? "s" : ""} · plus
+                long {s.longestPath || "—"} tuiles · {s.breakdown.blackZones}{" "}
+                zone
+                {s.breakdown.blackZones > 1 ? "s" : ""} noire
+                {s.breakdown.blackZones > 1 ? "s" : ""}
                 {state.options.useCards && s.player.cardId
                   ? ` · ${cardById(s.player.cardId)?.name} ${
-                      s.breakdown.cardPoints > 0 ? `+${s.breakdown.cardPoints}` : '+0'
+                      s.breakdown.cardPoints > 0
+                        ? `+${s.breakdown.cardPoints}`
+                        : "+0"
                     }`
-                  : ''}
+                  : ""}
               </div>
             </div>
             <span className="score-big" style={{ fontSize: 28 }}>
@@ -95,45 +107,48 @@ export function ResultsScreen({
       </div>
 
       <div className="grid-2">
-        <div className="panel">
-          <h3>Détail par joueur</h3>
-          <div className="tabs">
-            {stats.map((s) => (
-              <button
-                key={s.player.id}
-                className={focus === s.player.id ? 'on' : ''}
-                onClick={() => setFocus(s.player.id)}
-              >
-                {s.player.name}
-              </button>
-            ))}
-          </div>
-          <div className="row" style={{ alignItems: 'flex-start', gap: 14 }}>
-            <div style={{ flex: '1 1 240px', minWidth: 200 }}>
-              <BoardView
-                board={focused.player.board}
-                ruleset={state.options.ruleset}
-                showZones
-                showGrid
-              />
-            </div>
-            <div style={{ flex: '1 1 200px', minWidth: 180 }}>
-              <ScoreDetail breakdown={focused.breakdown} />
-              {state.options.useCards && focused.player.cardId && (
-                <div className="card-mission" style={{ marginTop: 10 }}>
-                  <div className="t">{cardById(focused.player.cardId)?.name}</div>
-                  <div className="note">{focused.breakdown.cardLabel}</div>
-                </div>
-              )}
-            </div>
-          </div>
-          <p className="note" style={{ marginTop: 10 }}>
-            Survole une zone du plateau pour voir sa valeur ; les pastilles indiquent les points de
-            chaque chemin qui marque et les −2 des zones noires.
-          </p>
-        </div>
-
         <div className="stack">
+          <div className="panel">
+            <h3>Détail par joueur</h3>
+            <div className="tabs">
+              {stats.map((s) => (
+                <button
+                  key={s.player.id}
+                  className={focus === s.player.id ? "on" : ""}
+                  onClick={() => setFocus(s.player.id)}
+                >
+                  {s.player.name}
+                </button>
+              ))}
+            </div>
+            <div className="row" style={{ alignItems: "flex-start", gap: 14 }}>
+              <div style={{ flex: "1 1 240px", minWidth: 200 }}>
+                <BoardView
+                  board={focused.player.board}
+                  ruleset={state.options.ruleset}
+                  showZones
+                  showGrid
+                />
+              </div>
+              <div style={{ flex: "1 1 200px", minWidth: 180 }}>
+                <ScoreDetail breakdown={focused.breakdown} />
+                {state.options.useCards && focused.player.cardId && (
+                  <div className="card-mission" style={{ marginTop: 10 }}>
+                    <div className="t">
+                      {cardById(focused.player.cardId)?.name}
+                    </div>
+                    <div className="note">{focused.breakdown.cardLabel}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <p className="note" style={{ marginTop: 10 }}>
+              Survole une zone du plateau pour voir sa valeur ; les pastilles
+              indiquent les points de chaque chemin qui marque et les −2 des
+              zones noires.
+            </p>
+          </div>
+
           <div className="panel">
             <h3>Comparatif</h3>
             <table className="data">
@@ -144,7 +159,10 @@ export function ResultsScreen({
                     <th key={c} title={COLOR_NAMES[c]}>
                       <span
                         className="swatch"
-                        style={{ background: COLOR_HEX[c], display: 'inline-block' }}
+                        style={{
+                          background: COLOR_HEX[c],
+                          display: "inline-block",
+                        }}
                       />
                     </th>
                   ))}
@@ -157,12 +175,21 @@ export function ResultsScreen({
                   <tr key={s.player.id}>
                     <td>{s.player.name}</td>
                     {PATH_COLORS.map((c) => (
-                      <td key={c} style={{ opacity: s.breakdown.byColor[c].points ? 1 : 0.35 }}>
-                        {s.breakdown.byColor[c].points || '·'}
+                      <td
+                        key={c}
+                        style={{
+                          opacity: s.breakdown.byColor[c].points ? 1 : 0.35,
+                        }}
+                      >
+                        {s.breakdown.byColor[c].points || "·"}
                       </td>
                     ))}
-                    <td style={{ color: s.breakdown.blackPoints ? '#ff7a7a' : undefined }}>
-                      {s.breakdown.blackPoints || '·'}
+                    <td
+                      style={{
+                        color: s.breakdown.blackPoints ? "#ff7a7a" : undefined,
+                      }}
+                    >
+                      {s.breakdown.blackPoints || "·"}
                     </td>
                     <td>
                       <strong>{s.breakdown.total}</strong>
@@ -172,7 +199,9 @@ export function ResultsScreen({
               </tbody>
             </table>
           </div>
+        </div>
 
+        <div className="stack">
           <div className="panel">
             <h3>Évolution des scores</h3>
             <ScoreLines
@@ -200,17 +229,26 @@ export function ResultsScreen({
               />
               <Kpi
                 k="Moyenne"
-                v={(stats.reduce((n, s) => n + s.breakdown.total, 0) / stats.length).toFixed(1)}
+                v={(
+                  stats.reduce((n, s) => n + s.breakdown.total, 0) /
+                  stats.length
+                ).toFixed(1)}
                 s="points par joueur"
               />
               <Kpi
                 k="Noir"
-                v={(stats.reduce((n, s) => n + s.breakdown.blackZones, 0) / stats.length).toFixed(1)}
+                v={(
+                  stats.reduce((n, s) => n + s.breakdown.blackZones, 0) /
+                  stats.length
+                ).toFixed(1)}
                 s="zones par joueur"
               />
               <Kpi
                 k="Gâchis"
-                v={(stats.reduce((n, s) => n + s.wastedPotential, 0) / stats.length).toFixed(1)}
+                v={(
+                  stats.reduce((n, s) => n + s.wastedPotential, 0) /
+                  stats.length
+                ).toFixed(1)}
                 s="tuiles en chemins trop courts"
               />
             </div>
@@ -221,7 +259,7 @@ export function ResultsScreen({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function Kpi({ k, v, s }: { k: string; v: string; s: string }) {
@@ -231,5 +269,5 @@ function Kpi({ k, v, s }: { k: string; v: string; s: string }) {
       <div className="v">{v}</div>
       <div className="s">{s}</div>
     </div>
-  )
+  );
 }

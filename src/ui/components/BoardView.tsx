@@ -101,14 +101,14 @@ export function BoardView({
       }}
     >
       {/* cadre du plateau */}
-      <rect x="0" y="0" width={side} height={side} rx={compact ? 8 : 16} fill="#F7931D" />
+      <rect x="0" y="0" width={side} height={side} rx={compact ? 8 : 18} fill="#F7931D" />
       <rect
         x={PAD - 3}
         y={PAD - 3}
         width={n * TILE + 6}
         height={n * TILE + 6}
-        rx="4"
-        fill="#231F20"
+        rx="5"
+        fill="#E7D6B4"
       />
 
       {/* emplacements vides */}
@@ -119,9 +119,9 @@ export function BoardView({
             {...cellXY(i)}
             width={TILE}
             height={TILE}
-            fill="#171412"
-            stroke="#000"
-            strokeWidth="1"
+            fill="#FFFCF2"
+            stroke="#D9C7A4"
+            strokeWidth="1.5"
           />
         ),
       )}
@@ -159,9 +159,9 @@ export function BoardView({
           width={TILE}
           height={TILE}
           fill="none"
-          stroke="#fff"
-          strokeWidth="2.5"
-          opacity="0.9"
+          stroke="#FFFFFF"
+          strokeWidth="3"
+          opacity="0.95"
         />
       )}
 
@@ -195,7 +195,7 @@ export function BoardView({
                 width={QUAD}
                 height={QUAD}
                 fill={COLOR_HEX[c]}
-                opacity="0.75"
+                opacity="0.88"
               />
             )
           })}
@@ -276,8 +276,15 @@ function ZoneTooltip({ zone, n, ruleset }: { zone: Zone; n: number; ruleset: Rul
   x = Math.max(2, Math.min(x, PAD * 2 + n * TILE - w - 2))
   return (
     <g pointerEvents="none">
-      <rect x={x} y={y - 14} width={w} height="26" rx="13" fill="#000000e6" stroke="#F7931D" />
-      <text x={x + w / 2} y={y + 4} textAnchor="middle" fontSize="14" fill="#fff" fontWeight="600">
+      <rect x={x} y={y - 14} width={w} height="26" rx="13" fill="#FFFFFF" stroke="#F7931D" />
+      <text
+        x={x + w / 2}
+        y={y + 4}
+        textAnchor="middle"
+        fontSize="14"
+        fill="#33291F"
+        fontWeight="600"
+      >
         {text}
       </text>
     </g>
@@ -286,10 +293,19 @@ function ZoneTooltip({ zone, n, ruleset }: { zone: Zone; n: number; ruleset: Rul
 
 function PreviewBadge({ x, y, delta }: { x: number; y: number; delta: number }) {
   const txt = delta > 0 ? `+${delta}` : `${delta}`
-  const fill = delta > 0 ? '#40AE49' : delta < 0 ? '#D1232A' : '#4a443e'
+  const fill = delta > 0 ? '#2F8F3C' : delta < 0 ? '#CF3A33' : '#8A7C6C'
   return (
     <g>
-      <rect x={x + TILE - 40} y={y - 12} width="46" height="26" rx="13" fill={fill} stroke="#000" />
+      <rect
+        x={x + TILE - 40}
+        y={y - 12}
+        width="46"
+        height="26"
+        rx="13"
+        fill={fill}
+        stroke="#FFFFFF"
+        strokeWidth="1.5"
+      />
       <text
         x={x + TILE - 17}
         y={y + 6}
@@ -320,10 +336,10 @@ function ZoneOutline({ zone, n, highlight }: { zone: Zone; n: number; highlight:
     if (col === qs - 1 || !set.has(c + 1)) segs.push(`M${x + QUAD} ${y}v${QUAD}`)
   }
   const d = segs.join(' ')
-  const top = zone.color === BLACK ? '#F7931D' : '#FFFFFF'
+  const top = zone.color === BLACK ? '#FFC168' : '#FFFFFF'
   return (
     <g pointerEvents="none">
-      <path d={d} fill="none" stroke="#000" strokeWidth={highlight ? 7 : 5} opacity="0.75" />
+      <path d={d} fill="none" stroke="#2A1E12" strokeWidth={highlight ? 7 : 5} opacity="0.7" />
       <path
         d={d}
         fill="none"
@@ -357,12 +373,19 @@ function ZoneBadge({ zone, n, ruleset }: { zone: Zone; n: number; ruleset: Rules
   }
   const x = PAD + (best % qs) * QUAD + QUAD / 2
   const y = PAD + Math.floor(best / qs) * QUAD + QUAD / 2
-  const label = zone.color === BLACK ? `${zone.points}` : `+${zone.points}`
+  const black = zone.color === BLACK
+  const label = black ? `${zone.points}` : `+${zone.points}`
   return (
     <g pointerEvents="none">
       <title>{zoneLabel(zone, ruleset)}</title>
-      <circle cx={x} cy={y} r="17" fill="#000000cc" />
-      <text className="zone-badge" x={x} y={y + 5} textAnchor="middle">
+      <circle cx={x} cy={y} r="17" fill="#FFFFFF" stroke="#00000026" strokeWidth="1.5" />
+      <text
+        className="zone-badge"
+        x={x}
+        y={y + 5}
+        textAnchor="middle"
+        fill={black ? '#CF3A33' : '#2F8F3C'}
+      >
         {label}
       </text>
     </g>

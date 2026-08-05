@@ -21,6 +21,10 @@ const KIND_LABELS: Record<PlayerKind, string> = {
 
 const DEFAULT_NAMES = ['Joueur 1', 'Joueur 2', 'Joueur 3', 'Joueur 4', 'Joueur 5', 'Joueur 6']
 
+/** Les six couleurs du jeu, assombries juste ce qu'il faut pour rester lisibles
+ *  sur le fond crème. */
+const HERO_COLORS = ['#E0A200', '#F0801F', '#D1232A', '#2E9B45', '#0083C4', '#6850A1']
+
 interface Props {
   onStart: (config: GameConfig) => void
   onOpenLab: () => void
@@ -63,7 +67,13 @@ export function SetupScreen({ onStart, onOpenLab }: Props) {
   return (
     <div className="sheet">
       <div className="hero">
-        <h1>Camino</h1>
+        <h1 aria-label="Camino">
+          {[...'CAMINO'].map((c, i) => (
+            <span key={i} style={{ color: HERO_COLORS[i] }} aria-hidden>
+              {c}
+            </span>
+          ))}
+        </h1>
         <p>
           Table de jeu, playtest et équilibrage — 1 à 6 joueurs sur le même écran.
           <br />

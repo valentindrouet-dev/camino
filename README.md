@@ -5,6 +5,9 @@ et Alexandre Droit). 1 à 6 joueurs sur le même ordinateur, calcul automatique 
 scores, statistiques pendant et après la partie, et un laboratoire de simulation pour régler le
 barème.
 
+**En ligne :** https://valentindrouet-dev.github.io/camino/ — chaque push sur la branche
+reconstruit et republie le site via l'action `.github/workflows/deploy.yml` (tests inclus).
+
 ```bash
 npm install
 npm run dev       # http://localhost:5173

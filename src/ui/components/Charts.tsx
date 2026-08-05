@@ -21,8 +21,8 @@ export function ScoreLines({ series, height = 130, length }: SparkProps) {
     <svg className="chart" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
       {[min, (min + max) / 2, max].map((v, i) => (
         <g key={i}>
-          <line x1="26" x2={W} y1={py(v)} y2={py(v)} stroke="#ffffff14" strokeWidth="1" />
-          <text x="2" y={py(v) + 4} fontSize="9" fill="#6f6459">
+          <line x1="26" x2={W} y1={py(v)} y2={py(v)} stroke="#00000012" strokeWidth="1" />
+          <text x="2" y={py(v) + 4} fontSize="9" fill="#A89B88">
             {Math.round(v)}
           </text>
         </g>
@@ -83,7 +83,7 @@ export function Histogram({ buckets, color = '#F7931D', suffix = '' }: HistoProp
                 x={20 + i * bw + bw / 2}
                 y={H - 7}
                 fontSize="9"
-                fill="#6f6459"
+                fill="#A89B88"
                 textAnchor="middle"
               >
                 {b.x}
@@ -92,7 +92,7 @@ export function Histogram({ buckets, color = '#F7931D', suffix = '' }: HistoProp
           </g>
         )
       })}
-      <line x1="18" x2={W - 2} y1={H - 20} y2={H - 20} stroke="#ffffff22" />
+      <line x1="18" x2={W - 2} y1={H - 20} y2={H - 20} stroke="#00000018" />
     </svg>
   )
 }
