@@ -3,6 +3,12 @@ name: Publier sur GitHub Pages
 on:
   push:
     branches: [claude/camino-web-interface-a7765d, main]
+    # Le commit automatique des fichiers construits ne doit pas relancer ce
+    # workflow (sinon boucle infinie) : on ignore les pushes qui ne touchent
+    # que le dossier assets/.
+    paths-ignore:
+      - 'assets/**'
+      - '.nojekyll'
   workflow_dispatch:
 
 permissions:
@@ -43,7 +49,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "Aucun changement d'assets à publier."
           else
-            git commit -m "[skip ci] Publication des fichiers construits sur la branche"
+            git commit -m "Publication automatique des fichiers construits sur la branche"
             git push origin "HEAD:${GITHUB_REF_NAME}" ||
               (git pull --rebase origin "${GITHUB_REF_NAME}" &&
                git push origin "HEAD:${GITHUB_REF_NAME}")
