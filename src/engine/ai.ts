@@ -1,9 +1,9 @@
 import { legalCells, neighbours, placeTile, quadGrid, tileOfQuad } from './board.ts'
 import { Rng } from './rng.ts'
 import { computeZones, pointsForSpan, scoreOf } from './scoring.ts'
-import { distinctRotations } from './tiles.ts'
-import type { Board, GameState, PlayerKind, Rotation, Ruleset } from './types.ts'
-import { BLACK } from './types.ts'
+import { distinctRotations, tileQuads } from './tiles.ts'
+import type { Board, Color, GameState, PlayerKind, Rotation, Ruleset } from './types.ts'
+import { BLACK, PATH_COLORS } from './types.ts'
 import { availableTiles, currentPlayer, type Move } from './game.ts'
 
 export interface ScoredMove extends Move {
@@ -14,21 +14,40 @@ export interface ScoredMove extends Move {
   delta: number
 }
 
-/** Poids de l'évaluation — exposés pour pouvoir régler les bots au playtest. */
+/**
+ * Poids de l'évaluation du Stratège — exposés pour pouvoir régler les bots.
+ *
+ * La stratégie voulue :
+ *  1. maximiser une ou deux couleurs (le barème est convexe : un chemin de
+ *     9 tuiles vaut dix fois un chemin de 3) — quitte à poser du noir si cela
+ *     fait grandir la meilleure couleur ;
+ *  2. regrouper les zones noires (une grande zone coûte autant qu'une petite) ;
+ *  3. relier plusieurs couleurs en une seule pose.
+ */
 export const AI_WEIGHTS = {
   /** Valeur d'un chemin encore trop court mais extensible. */
   seedPotential: 0.9,
   /** Valeur de l'extension possible d'un chemin déjà payant. */
   growthPotential: 0.45,
-  /** Bonus quand un quart noir touche une zone noire existante (fusion). */
-  blackMerge: 0.8,
+  /** Prime aux deux couleurs les plus fortes du plateau (concentration). */
+  focus: 0.55,
+  /** Bonus quand une pose réduit ou évite de multiplier les zones noires. */
+  blackMerge: 1.2,
+  /** Bonus par couleur supplémentaire raccordée par la pose. */
+  multiColor: 1.1,
   /** Préférence pour les poses au centre (plus de voisins = plus d'options). */
   centrality: 0.05,
 }
 
+interface ColorPotential {
+  color: Color
+  /** Points actuels + progression encore accessible. */
+  potential: number
+}
+
 /**
- * Évaluation heuristique d'un plateau : score réel + potentiel de progression.
- * Sert au bot « malin » et au bouton « indice » de l'interface.
+ * Évaluation d'un plateau : points réels + potentiel de progression, avec une
+ * prime de concentration sur les deux meilleures couleurs.
  */
 export function evaluateBoard(board: Board, ruleset: Ruleset): number {
   const zones = computeZones(board, ruleset)
@@ -36,13 +55,14 @@ export function evaluateBoard(board: Board, ruleset: Ruleset): number {
   const qs = grid.size
   let value = 0
   let blackZones = 0
+  const perColor = new Map<Color, number>()
 
   for (const z of zones) {
     if (z.color === BLACK) {
       blackZones++
       continue
     }
-    value += z.points
+    let zoneValue = z.points
 
     // Une zone ne peut grandir que si elle touche un quart encore vide.
     let openings = 0
@@ -54,19 +74,71 @@ export function evaluateBoard(board: Board, ruleset: Ruleset): number {
       if (col > 0 && grid.cells[c - 1] === null) openings++
       if (col < qs - 1 && grid.cells[c + 1] === null) openings++
     }
-    if (openings === 0) continue
-
-    if (z.span < ruleset.minSpan) {
-      const target = pointsForSpan(ruleset.minSpan, ruleset)
-      value += AI_WEIGHTS.seedPotential * target * (z.span / ruleset.minSpan)
-    } else {
-      const gain = pointsForSpan(z.span + 1, ruleset) - z.points
-      value += AI_WEIGHTS.growthPotential * gain
+    if (openings > 0) {
+      if (z.span < ruleset.minSpan) {
+        const target = pointsForSpan(ruleset.minSpan, ruleset)
+        zoneValue += AI_WEIGHTS.seedPotential * target * (z.span / ruleset.minSpan)
+      } else {
+        // Le barème accélère : viser le palier suivant vaut de plus en plus cher.
+        const gain = pointsForSpan(z.span + 1, ruleset) - z.points
+        zoneValue += AI_WEIGHTS.growthPotential * gain
+      }
     }
+
+    value += zoneValue
+    perColor.set(z.color, (perColor.get(z.color) ?? 0) + zoneValue)
   }
+
+  // Concentration : les deux couleurs les plus prometteuses comptent double.
+  const potentials: ColorPotential[] = PATH_COLORS.map((c) => ({
+    color: c,
+    potential: perColor.get(c) ?? 0,
+  })).sort((a, b) => b.potential - a.potential)
+  value += AI_WEIGHTS.focus * (potentials[0].potential + 0.6 * (potentials[1]?.potential ?? 0))
 
   value += blackZones * ruleset.blackPenalty
   return value
+}
+
+/**
+ * Couleurs (hors noir) que la tuile posée raccorde à des quarts déjà en place
+ * dans d'autres tuiles : c'est le « réunir plusieurs couleurs en une pose ».
+ */
+function connectedColors(board: Board, cell: number, tileId: number, rot: Rotation): number {
+  const grid = quadGrid(board)
+  const qs = grid.size
+  const n = board.size
+  const r0 = Math.floor(cell / n) * 2
+  const c0 = (cell % n) * 2
+  const quads = tileQuads(tileId, rot)
+  const offsets: [number, number][] = [
+    [0, 0],
+    [0, 1],
+    [1, 1],
+    [1, 0],
+  ]
+  const colors = new Set<Color>()
+  offsets.forEach(([dr, dc], k) => {
+    const color = quads[k]
+    if (color === BLACK) return
+    const qr = r0 + dr
+    const qc = c0 + dc
+    for (const [nr, nc] of [
+      [qr - 1, qc],
+      [qr + 1, qc],
+      [qr, qc - 1],
+      [qr, qc + 1],
+    ]) {
+      if (nr < 0 || nc < 0 || nr >= qs || nc >= qs) continue
+      // uniquement les quarts d'autres tuiles
+      if (tileOfQuad(n, nr * qs + nc) === cell) continue
+      if (grid.cells[nr * qs + nc] === color) {
+        colors.add(color)
+        return
+      }
+    }
+  })
+  return colors.size
 }
 
 /** Tous les coups possibles pour le joueur courant, évalués. */
@@ -75,6 +147,7 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
   const ruleset = state.options.ruleset
   const cells = legalCells(player.board, ruleset.requireAdjacency)
   const base = scoreOf(player.board, ruleset)
+  const blackBefore = computeZones(player.board, ruleset).filter((z) => z.color === BLACK).length
   const out: ScoredMove[] = []
 
   for (const pool of availableTiles(state)) {
@@ -84,7 +157,19 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
         const score = scoreOf(board, ruleset)
         let value = evaluateBoard(board, ruleset)
         value += AI_WEIGHTS.centrality * neighbours(player.board.size, cell).length
-        value += blackMergeBonus(player.board, board, cell, ruleset)
+
+        // Regrouper le noir : pénalise chaque zone noire créée en plus,
+        // récompense les fusions.
+        const blackAfter = computeZones(board, ruleset).filter((z) => z.color === BLACK).length
+        value -= AI_WEIGHTS.blackMerge * Math.max(0, blackAfter - blackBefore)
+        if (blackAfter < blackBefore + countBlackQuads(pool.tileId) && blackAfter <= blackBefore) {
+          value += AI_WEIGHTS.blackMerge
+        }
+
+        // Relier plusieurs couleurs d'un coup.
+        const linked = connectedColors(player.board, cell, pool.tileId, rot)
+        if (linked > 1) value += AI_WEIGHTS.multiColor * (linked - 1)
+
         out.push({ tileId: pool.tileId, cell, rot, score, value, delta: score - base })
       }
     }
@@ -92,18 +177,8 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
   return out
 }
 
-/**
- * Fusionner ses zones noires est payant (une grande zone noire coûte autant
- * qu'une petite). On récompense donc explicitement les poses qui réduisent le
- * nombre de zones noires par rapport à une pose « isolée ».
- */
-function blackMergeBonus(before: Board, after: Board, cell: number, ruleset: Ruleset): number {
-  const zonesBefore = computeZones(before, ruleset).filter((z) => z.color === BLACK).length
-  const zonesAfter = computeZones(after, ruleset).filter((z) => z.color === BLACK)
-  const touching = zonesAfter.filter((z) => z.tiles.includes(cell)).length
-  const created = zonesAfter.length - zonesBefore
-  if (touching > 0 && created <= 0) return AI_WEIGHTS.blackMerge * Math.abs(ruleset.blackPenalty)
-  return 0
+function countBlackQuads(tileId: number): number {
+  return tileQuads(tileId, 0).filter((q) => q === BLACK).length
 }
 
 export function bestMove(state: GameState, kind: PlayerKind = 'bot-smart', rng?: Rng): Move | null {
@@ -113,6 +188,7 @@ export function bestMove(state: GameState, kind: PlayerKind = 'bot-smart', rng?:
 
   if (kind === 'bot-random') return r.pick(moves)
 
+  // Novice : le meilleur coup immédiat, sans anticipation.
   const key = (m: ScoredMove) => (kind === 'bot-greedy' ? m.score : m.value)
   let best = -Infinity
   let bests: ScoredMove[] = []
@@ -137,19 +213,4 @@ export function topMoves(state: GameState, n = 3): ScoredMove[] {
 
 export function moveKey(m: Move): string {
   return `${m.tileId}:${m.cell}:${m.rot as Rotation}`
-}
-
-/** Ordre de préférence du bot pour choisir sa tuile dans le centre. */
-export function tilePreference(state: GameState, kind: PlayerKind): Map<number, number> {
-  const moves = enumerateMoves(state)
-  const best = new Map<number, number>()
-  for (const m of moves) {
-    const v = kind === 'bot-greedy' ? m.score : m.value
-    if (!best.has(m.tileId) || (best.get(m.tileId) as number) < v) best.set(m.tileId, v)
-  }
-  return best
-}
-
-export function tileOfCell(boardSize: number, quadIndex: number): number {
-  return tileOfQuad(boardSize, quadIndex)
 }

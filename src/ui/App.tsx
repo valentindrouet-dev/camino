@@ -6,8 +6,9 @@ import { SetupScreen } from './screens/SetupScreen.tsx'
 import { GameScreen } from './screens/GameScreen.tsx'
 import { ResultsScreen } from './screens/ResultsScreen.tsx'
 import { LabScreen } from './screens/LabScreen.tsx'
+import { HistoryScreen } from './screens/HistoryScreen.tsx'
 
-type Screen = 'setup' | 'game' | 'results' | 'lab' | 'archive'
+type Screen = 'setup' | 'game' | 'results' | 'lab' | 'archive' | 'history'
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('setup')
@@ -15,6 +16,8 @@ export default function App() {
   const [history, setHistory] = useState<GameState[]>([])
 
   const state = history[history.length - 1] ?? null
+  const running = state?.phase === 'playing'
+  const finished = state?.phase === 'finished'
 
   // Une partie terminée n'est archivée qu'une fois, et le passage à l'écran de
   // résultats ne doit pas se redéclencher quand on revient voir les plateaux.
@@ -40,6 +43,34 @@ export default function App() {
     setScreen('results')
   }, [])
 
+  /** Ferme définitivement la partie : on n'y revient plus par inadvertance. */
+  const quitGame = useCallback((to: Screen = 'setup') => {
+    setHistory([])
+    settled.current = false
+    setScreen(to)
+  }, [])
+
+  /** Quitter depuis l'écran de jeu : on confirme si la partie est entamée. */
+  const quitFromGame = useCallback(() => {
+    const cur = historyRef.current[historyRef.current.length - 1]
+    if (
+      cur?.phase === 'playing' &&
+      cur.log.length > 0 &&
+      !confirm('Abandonner la partie en cours ? Elle ne sera pas comptée dans les statistiques.')
+    ) {
+      return
+    }
+    quitGame('setup')
+  }, [quitGame])
+
+  /** Le logo et « Accueil » ramènent à l'accueil sans fermer une partie en
+   *  cours ; une partie terminée, déjà archivée, est refermée au passage. */
+  const goHome = useCallback(() => {
+    const cur = historyRef.current[historyRef.current.length - 1]
+    if (cur?.phase === 'finished') quitGame('setup')
+    else setScreen('setup')
+  }, [quitGame])
+
   const onHistory = useCallback(
     (updater: (h: GameState[]) => GameState[]) => setHistory((h) => updater(h)),
     [],
@@ -49,15 +80,13 @@ export default function App() {
     key: K,
     value: GameState['options'][K],
   ) => {
-    setHistory((h) =>
-      h.map((s) => ({ ...s, options: { ...s.options, [key]: value } })),
-    )
+    setHistory((h) => h.map((s) => ({ ...s, options: { ...s.options, [key]: value } })))
   }
 
   return (
     <div className="app">
       <header className="topbar">
-        <div className="wordmark">
+        <button className="wordmark" onClick={goHome} title="Revenir à l’accueil">
           <span className="mark">
             <i style={{ background: '#F7931D' }} />
             <i style={{ background: '#0095D9' }} />
@@ -65,7 +94,7 @@ export default function App() {
             <i style={{ background: '#D1232A' }} />
           </span>
           Camino
-        </div>
+        </button>
 
         {state && (screen === 'game' || screen === 'results') && (
           <>
@@ -110,9 +139,19 @@ export default function App() {
           </>
         )}
 
+        {running && screen !== 'game' && (
+          <button className="btn small primary" onClick={() => setScreen('game')}>
+            ⏵ Partie en cours
+          </button>
+        )}
         {screen !== 'setup' && (
-          <button className="btn small ghost" onClick={() => setScreen('setup')}>
+          <button className="btn small ghost" onClick={goHome}>
             Accueil
+          </button>
+        )}
+        {screen !== 'history' && (
+          <button className="btn small ghost" onClick={() => setScreen('history')}>
+            Historique
           </button>
         )}
         {screen !== 'lab' && screen !== 'archive' && (
@@ -122,14 +161,21 @@ export default function App() {
         )}
       </header>
 
-      {screen === 'setup' && <SetupScreen onStart={start} onOpenLab={() => setScreen('lab')} />}
+      {screen === 'setup' && (
+        <SetupScreen
+          onStart={start}
+          onOpenLab={() => setScreen('lab')}
+          resumable={running}
+          onResume={() => setScreen('game')}
+        />
+      )}
 
       {screen === 'game' && state && (
         <GameScreen
           history={history}
           onHistory={onHistory}
           onFinish={finish}
-          onQuit={() => setScreen('setup')}
+          onQuit={quitFromGame}
         />
       )}
 
@@ -138,15 +184,22 @@ export default function App() {
           state={state}
           onBackToGame={() => setScreen('game')}
           onReplaySameSeed={() => config && start(config)}
-          onNewGame={() => setScreen('setup')}
+          onNewGame={() => quitGame('setup')}
+          onQuit={() => quitGame('setup')}
           onOpenArchive={() => setScreen('archive')}
         />
       )}
 
+      {screen === 'history' && <HistoryScreen onBack={goHome} />}
+
       {(screen === 'lab' || screen === 'archive') && (
         <LabScreen
           initialTab={screen === 'archive' ? 'archive' : 'sim'}
-          onBack={() => setScreen(state ? 'game' : 'setup')}
+          onBack={() => {
+            if (running) setScreen('game')
+            else if (finished) setScreen('results')
+            else setScreen('setup')
+          }}
         />
       )}
     </div>

@@ -34,7 +34,7 @@ const KINDS: PlayerKind[] = ['bot-smart', 'bot-greedy', 'bot-random']
 const KIND_LABEL: Record<string, string> = {
   human: 'humain',
   'bot-random': 'hasard',
-  'bot-greedy': 'glouton',
+  'bot-greedy': 'novice',
   'bot-smart': 'stratège',
 }
 /** Nombre de parties jouées entre deux rafraîchissements de l'écran. */

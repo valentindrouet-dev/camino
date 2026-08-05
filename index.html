@@ -80,7 +80,10 @@
           <i style="background: #f7931d"></i><i style="background: #0095d9"></i>
           <i style="background: #40ae49"></i><i style="background: #d1232a"></i>
         </span>
-        <div class="wait"><h1>CAMINO</h1></div>
+        <div class="wait">
+          <h1>CAMINO</h1>
+          <p id="boot-note" style="margin: 0; font-size: 13px"></p>
+        </div>
         <div class="fail">
           <h1>CAMINO</h1>
           <p style="max-width: 30em; margin: 0">
@@ -107,24 +110,43 @@
        */
       ;(function () {
         var KEY = 'camino.boot-retry'
+        var MAX_TRIES = 6
         var done = false
         function started() {
           return document.documentElement.getAttribute('data-app') === 'ready'
+        }
+        function tries() {
+          try {
+            return parseInt(sessionStorage.getItem(KEY) || '0', 10) || 0
+          } catch (e) {
+            return MAX_TRIES
+          }
         }
         function giveUp() {
           var boot = document.getElementById('boot')
           if (boot) boot.className = 'failed'
         }
+        function reloadFresh() {
+          location.replace(location.pathname + '?v=' + Date.now())
+        }
         function recover() {
           if (done || started()) return
           done = true
+          var n = tries()
+          if (n >= MAX_TRIES) return giveUp()
           try {
-            if (sessionStorage.getItem(KEY)) return giveUp()
-            sessionStorage.setItem(KEY, '1')
+            sessionStorage.setItem(KEY, String(n + 1))
           } catch (e) {
             return giveUp()
           }
-          location.replace(location.pathname + '?v=' + Date.now())
+          // Un déploiement met quelques minutes à se propager sur le CDN :
+          // on réessaie tout seul, de plus en plus espacé (~0s, 5s, 15s, 30s…).
+          var delay = n === 0 ? 0 : Math.min(n * n * 5000, 60000)
+          if (delay > 0) {
+            var note = document.getElementById('boot-note')
+            if (note) note.textContent = 'Nouvelle tentative dans ' + Math.round(delay / 1000) + ' s…'
+          }
+          setTimeout(reloadFresh, delay)
         }
         // Un module qui ne se charge pas déclenche un « error » de ressource.
         window.addEventListener(

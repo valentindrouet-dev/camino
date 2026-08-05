@@ -18,6 +18,7 @@ interface Props {
   onReplaySameSeed: () => void;
   onNewGame: () => void;
   onBackToGame: () => void;
+  onQuit: () => void;
   onOpenArchive: () => void;
 }
 
@@ -26,6 +27,7 @@ export function ResultsScreen({
   onReplaySameSeed,
   onNewGame,
   onBackToGame,
+  onQuit,
   onOpenArchive,
 }: Props) {
   const card = cardById(state.cardId)
@@ -58,6 +60,9 @@ export function ResultsScreen({
           </button>
           <button className="btn small" onClick={onReplaySameSeed}>
             Rejouer cette pioche
+          </button>
+          <button className="btn small" onClick={onQuit}>
+            Quitter la partie
           </button>
           <button className="btn primary small" onClick={onNewGame}>
             Nouvelle partie

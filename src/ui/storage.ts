@@ -1,5 +1,12 @@
 import { playerStats } from '../engine/index.ts'
-import type { Color, GameState, PlayerKind, Ruleset } from '../engine/index.ts'
+import type {
+  Board,
+  BoardColor,
+  Color,
+  GameState,
+  PlayerKind,
+  Ruleset,
+} from '../engine/index.ts'
 import { PATH_COLORS } from '../engine/index.ts'
 
 const KEY = 'camino.archive.v1'
@@ -19,6 +26,13 @@ export interface ArchivedResult {
   byColor: Record<string, number>
 }
 
+/** Plateau final d'un joueur, pour pouvoir revoir la partie. */
+export interface ArchivedBoard {
+  name: string
+  boardColor: BoardColor
+  board: Board
+}
+
 export interface ArchivedGame {
   id: string
   date: number
@@ -26,7 +40,11 @@ export interface ArchivedGame {
   playerCount: number
   boardSize: number
   ruleset: Ruleset
+  /** Carte mission de la table, si la variante était active. */
+  cardId?: string
   results: ArchivedResult[]
+  /** Absent des parties archivées par les toutes premières versions. */
+  boards?: ArchivedBoard[]
 }
 
 export function loadArchive(): ArchivedGame[] {
@@ -47,6 +65,12 @@ export function archiveGame(state: GameState): ArchivedGame {
     playerCount: state.players.length,
     boardSize: state.options.ruleset.boardSize,
     ruleset: state.options.ruleset,
+    cardId: state.options.useCards ? state.cardId : undefined,
+    boards: state.players.map((p) => ({
+      name: p.name,
+      boardColor: p.boardColor,
+      board: p.board,
+    })),
     results: stats.map((s) => ({
       name: s.player.name,
       kind: s.player.kind,
@@ -75,6 +99,16 @@ export function archiveGame(state: GameState): ArchivedGame {
 
 export function clearArchive() {
   localStorage.removeItem(KEY)
+}
+
+export function deleteArchivedGame(id: string): ArchivedGame[] {
+  const kept = loadArchive().filter((g) => g.id !== id)
+  try {
+    localStorage.setItem(KEY, JSON.stringify(kept))
+  } catch {
+    /* quota : on garde au moins la version en mémoire */
+  }
+  return kept
 }
 
 export interface ArchiveSummary {

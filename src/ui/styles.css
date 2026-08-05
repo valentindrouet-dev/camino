@@ -101,6 +101,10 @@ code {
 }
 
 .wordmark {
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1117,4 +1121,71 @@ button.mission-card.selected {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 10px;
+}
+
+/* ---------------------------------------------------------- historique */
+
+.history-row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto 20px;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 13px 15px;
+  text-align: left;
+  font: inherit;
+}
+
+.history-row:hover {
+  background: var(--bg-2);
+}
+
+.history-row .when {
+  display: grid;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.history-row .when em {
+  font-style: normal;
+  font-weight: 500;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+.history-row .who {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+@media (max-width: 760px) {
+  .history-row {
+    grid-template-columns: 64px 1fr 20px;
+  }
+  .history-row .meta {
+    display: none;
+  }
+}
+
+.history-detail {
+  border-top: 1px solid var(--line-soft);
+  padding: 14px 15px;
+}
+
+.history-boards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 14px;
+}
+
+.history-boards figure {
+  margin: 0;
+}
+
+.history-boards figcaption {
+  font-size: 12.5px;
+  margin-top: 6px;
 }

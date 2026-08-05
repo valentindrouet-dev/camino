@@ -27,9 +27,9 @@ import { MissionCardView } from '../components/MissionCard.tsx'
 
 const KIND_LABELS: Record<PlayerKind, string> = {
   human: 'Humain',
-  'bot-random': 'Bot — hasard',
-  'bot-greedy': 'Bot — glouton',
-  'bot-smart': 'Bot — stratège',
+  'bot-random': 'Bot — Hasard',
+  'bot-greedy': 'Bot — Novice',
+  'bot-smart': 'Bot — Stratège',
 }
 
 /** Les six couleurs du jeu, assombries juste ce qu'il faut pour rester lisibles
@@ -39,9 +39,12 @@ const HERO_COLORS = ['#E0A200', '#F0801F', '#D1232A', '#2E9B45', '#0083C4', '#68
 interface Props {
   onStart: (config: GameConfig) => void
   onOpenLab: () => void
+  /** Une partie est en cours : proposer de la reprendre. */
+  resumable?: boolean
+  onResume?: () => void
 }
 
-export function SetupScreen({ onStart, onOpenLab }: Props) {
+export function SetupScreen({ onStart, onOpenLab, resumable, onResume }: Props) {
   const saved = useMemo(() => loadLastConfig<GameConfig>(), [])
   const [players, setPlayers] = useState<PlayerConfig[]>(
     saved?.players?.every((p) => p.boardColor) ? saved.players : defaultPlayers(2),
@@ -103,6 +106,13 @@ export function SetupScreen({ onStart, onOpenLab }: Props) {
           97 tuiles, plateaux {options.ruleset.boardSize}×{options.ruleset.boardSize},{' '}
           {options.ruleset.boardSize * options.ruleset.boardSize} manches.
         </p>
+        {resumable && (
+          <p style={{ marginTop: 14 }}>
+            <button className="btn primary" onClick={onResume}>
+              ⏵ Reprendre la partie en cours
+            </button>
+          </p>
+        )}
       </div>
 
       <div className="grid-2">
@@ -179,8 +189,8 @@ export function SetupScreen({ onStart, onOpenLab }: Props) {
           </div>
           <p className="note">
             Chaque joueur prend un plateau : cliquez sur une pastille pour changer de couleur, deux
-            joueurs ne peuvent pas avoir la même. Les bots jouent tout seuls — pratique pour tester
-            une configuration ou compléter une table.
+            joueurs ne peuvent pas avoir la même. Les bots jouent tout seuls — le Novice joue le
+            meilleur coup immédiat, le Stratège construit ses couleurs sur la durée.
           </p>
         </div>
 
