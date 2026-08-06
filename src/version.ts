@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.22',
+    date: '2026-08-06',
+    changes: [
+      'Un fil doré lumineux relie les étoiles adjacentes ; les étoiles reliées deviennent dorées, les isolées restent blanches.',
+      'Plus de pointillés autour des étoiles seules.',
+      'Les bonus des groupes d’étoiles sont dessinés au-dessus de tout, dans une pastille dorée à liseré blanc, toujours lisibles.',
+    ],
+  },
+  {
     version: '1.21',
     date: '2026-08-06',
     changes: [

@@ -82,9 +82,15 @@ export function BoardView({
     [board, ruleset, compact],
   )
   const starGroups = useMemo(
-    () => (compact || !ruleset.variants?.magicStars ? [] : starClusters(board)),
-    [board, ruleset.variants?.magicStars, compact],
+    () => (ruleset.variants?.magicStars ? starClusters(board) : []),
+    [board, ruleset.variants?.magicStars],
   )
+  /** Quarts dont l'étoile est reliée à au moins une autre : elle devient dorée. */
+  const goldQuads = useMemo(() => {
+    const s = new Set<number>()
+    for (const g of starGroups) if (g.count > 1) for (const c of g.cells) s.add(c)
+    return s
+  }, [starGroups])
   const legalSet = useMemo(
     () => new Set(legal ?? (interactive ? computeLegalCells(board, ruleset.requireAdjacency) : [])),
     [legal, interactive, board, ruleset.requireAdjacency],
@@ -146,7 +152,22 @@ export function BoardView({
         ),
       )}
 
-      {/* étoiles magiques (variante) */}
+      {/* trait magique : un fil doré lumineux relie les étoiles adjacentes */}
+      {ruleset.variants?.magicStars &&
+        starGroups
+          .filter((g) => g.count > 1)
+          .map((g, i) => {
+            const d = magicLinkPath(g.cells, n, bw)
+            return (
+              <g key={`ml${i}`} pointerEvents="none">
+                <path d={d} fill="none" stroke="#FFD23F" strokeWidth="12" strokeLinecap="round" opacity="0.35" />
+                <path d={d} fill="none" stroke="#FFD23F" strokeWidth="4.5" strokeLinecap="round" />
+                <path d={d} fill="none" stroke="#FFF3C2" strokeWidth="1.6" strokeLinecap="round" />
+              </g>
+            )
+          })}
+
+      {/* étoiles magiques : blanches quand isolées, dorées quand reliées */}
       {ruleset.variants?.magicStars &&
         board.cells.map((placed, i) => {
           if (!placed) return null
@@ -154,6 +175,9 @@ export function BoardView({
           if (sq === null) return null
           const { x, y } = cellXY(i)
           const [dx, dy] = QUAD_OFFSETS[sq]
+          const r = Math.floor(i / n) * 2 + (sq >= 2 ? 1 : 0)
+          const c = (i % n) * 2 + (sq === 1 || sq === 2 ? 1 : 0)
+          const linked = goldQuads.has(r * n * 2 + c)
           return (
             <text
               key={`s${i}`}
@@ -162,33 +186,14 @@ export function BoardView({
               textAnchor="middle"
               fontSize="21"
               pointerEvents="none"
-              fill="#FFFFFF"
-              stroke="#00000088"
+              fill={linked ? '#FFD23F' : '#FFFFFF'}
+              stroke={linked ? '#7A5200' : '#00000088'}
               strokeWidth="1"
             >
               ★
             </text>
           )
         })}
-
-      {/* groupes d'étoiles adjacentes : liseré doré discret + points du groupe */}
-      {!compact &&
-        showZones &&
-        ruleset.variants?.magicStars &&
-        starGroups.map((g, i) => (
-          <g key={`sg${i}`} pointerEvents="none">
-            <path
-              d={zoneOutlinePath({ cells: g.cells } as Zone, n, bw)}
-              fill="none"
-              stroke="#FFD23F"
-              strokeWidth="2.2"
-              strokeDasharray="7 5"
-              strokeLinejoin="round"
-              opacity="0.9"
-            />
-            {g.count > 1 && <StarBadge cluster={g} n={n} bw={bw} />}
-          </g>
-        ))}
 
       {/* dernière tuile posée : équerres dans les séparateurs, pour ne pas
           être confondue avec le contour blanc d'une zone qui marque */}
@@ -290,6 +295,14 @@ export function BoardView({
         zones
           .filter((z) => z.points !== 0)
           .map((z, i) => <ZoneBadge key={`b${i}`} zone={z} n={n} bw={bw} ruleset={ruleset} />)}
+
+      {/* bonus des groupes d'étoiles : dessinés en dernier, toujours lisibles */}
+      {!compact &&
+        showZones &&
+        ruleset.variants?.magicStars &&
+        starGroups
+          .filter((g) => g.count > 1)
+          .map((g, i) => <StarBadge key={`sb${i}`} cluster={g} n={n} bw={bw} />)}
 
       {/* meilleur coup (aide) */}
       {hint && board.cells[hint.cell] === null && (
@@ -825,7 +838,31 @@ function ZoneBadge({
   )
 }
 
-/** Petite pastille dorée : points d'un groupe d'étoiles adjacentes. */
+/**
+ * Fil magique d'un groupe d'étoiles : un segment entre les centres de chaque
+ * paire de quarts étoilés adjacents.
+ */
+function magicLinkPath(cells: number[], n: number, bw: number): string {
+  const qs = n * 2
+  const set = new Set(cells)
+  const center = (c: number) => {
+    const { x, y } = quadXY(c, n, bw)
+    return { x: x + QUAD / 2, y: y + QUAD / 2 }
+  }
+  const segs: string[] = []
+  for (const c of cells) {
+    for (const nb of [c + 1, c + qs]) {
+      if (!set.has(nb)) continue
+      if (nb === c + 1 && nb % qs === 0) continue // passage à la ligne
+      const a = center(c)
+      const b = center(nb)
+      segs.push(`M${a.x} ${a.y}L${b.x} ${b.y}`)
+    }
+  }
+  return segs.join(' ')
+}
+
+/** Pastille dorée : points d'un groupe d'étoiles reliées. Toujours lisible. */
 function StarBadge({
   cluster,
   n,
@@ -835,14 +872,47 @@ function StarBadge({
   n: number
   bw: number
 }) {
-  const first = cluster.cells[0]
-  const { x, y } = quadXY(first, n, bw)
+  // ancrée sur le quart le plus proche du centre du groupe, en haut à droite
+  const qs = n * 2
+  let mx = 0
+  let my = 0
+  for (const c of cluster.cells) {
+    mx += c % qs
+    my += Math.floor(c / qs)
+  }
+  mx /= cluster.cells.length
+  my /= cluster.cells.length
+  let best = cluster.cells[0]
+  let bestD = Infinity
+  for (const c of cluster.cells) {
+    const d = ((c % qs) - mx) ** 2 + (Math.floor(c / qs) - my) ** 2
+    if (d < bestD) {
+      bestD = d
+      best = c
+    }
+  }
+  const { x, y } = quadXY(best, n, bw)
   const label = `+${cluster.points}`
   return (
-    <g className="zone-badge">
-      <title>{`${cluster.count} étoiles adjacentes — +${cluster.points} pts`}</title>
-      <circle cx={x + QUAD - 4} cy={y + 6} r="11" fill="#FFD23F" stroke="#00000033" />
-      <text x={x + QUAD - 4} y={y + 10} textAnchor="middle" fontSize="11" fill="#5c4500">
+    <g className="zone-badge" pointerEvents="none">
+      <title>{`${cluster.count} étoiles reliées — +${cluster.points} pts`}</title>
+      <circle
+        cx={x + QUAD}
+        cy={y}
+        r="13"
+        fill="#FFD23F"
+        stroke="#FFFFFF"
+        strokeWidth="2.5"
+      />
+      <circle cx={x + QUAD} cy={y} r="14.5" fill="none" stroke="#00000022" strokeWidth="1" />
+      <text
+        x={x + QUAD}
+        y={y + 4.5}
+        textAnchor="middle"
+        fontSize="13"
+        fontWeight="800"
+        fill="#5C4500"
+      >
         {label}
       </text>
     </g>
