@@ -4,15 +4,12 @@ import {
   BOARD_COLOR_NAMES,
   BOARD_COLORS,
   CARDS,
-  bagSize,
   configError,
   defaultOptions,
   defaultPlayers,
   DEFAULT_RULESET,
   freeBoardColor,
   randomSeed,
-  tilesNeeded,
-  tilesPerRound,
 } from "../../engine/index.ts";
 import type {
   BoardColor,
@@ -72,8 +69,6 @@ export function SetupScreen({
 
   const config: GameConfig = { players, options };
   const error = configError(config);
-  const perRound = tilesPerRound(options.ruleset, players.length);
-  const needed = tilesNeeded(options.ruleset, players.length);
 
   const setCount = (n: number) => {
     setPlayers((prev) => {
@@ -109,6 +104,19 @@ export function SetupScreen({
       ...o,
       ruleset: { ...o.ruleset, variants: { ...o.ruleset.variants, ...patch } },
     }));
+
+  /** Tout décocher : variantes, cartes, pose libre et barème perso. */
+  const resetVariants = () => {
+    setShowScale(false);
+    setOptions((o) => ({
+      ...o,
+      useCards: false,
+      cardCount: 1,
+      cardId: undefined,
+      personalCards: false,
+      ruleset: { ...o.ruleset, requireAdjacency: true, variants: {} },
+    }));
+  };
 
   const start = () => {
     saveLastConfig(config);
@@ -320,7 +328,23 @@ export function SetupScreen({
                 }))
               }
               description="Plusieurs cartes pour la table, leurs bonus se cumulent."
-            />
+            >
+              <label className="field variant-field">
+                <span>Nombre de cartes</span>
+                <select
+                  value={options.cardCount ?? 2}
+                  onChange={(e) =>
+                    setOptions((o) => ({ ...o, cardCount: Number(e.target.value) }))
+                  }
+                >
+                  {[2, 3, 4].map((n) => (
+                    <option key={n} value={n}>
+                      {n} cartes
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </VariantToggle>
             <VariantToggle
               label="Cartes missions persos"
               on={!!options.personalCards}
@@ -391,25 +415,21 @@ export function SetupScreen({
               onChange={(v) => patchVariants({ mirrorTiles: v })}
               description="Chaque tuile peut se retourner sur sa face miroir (touche F) : couleurs inversées gauche-droite."
             />
+            <VariantToggle
+              label="Barème perso"
+              on={showScale}
+              onChange={setShowScale}
+              description="Taille du plateau, tuiles par manche, malus des zones noires et points par chemin, à votre main."
+            />
+            <button
+              className="btn icon ghost variant-reset"
+              title="Tout décocher"
+              aria-label="Réinitialiser les variantes"
+              onClick={resetVariants}
+            >
+              ↺
+            </button>
           </div>
-
-          {options.useCards && (options.cardCount ?? 1) > 1 && (
-            <label className="field" style={{ maxWidth: 220 }}>
-              <span>Nombre de cartes de la table</span>
-              <select
-                value={options.cardCount ?? 2}
-                onChange={(e) =>
-                  setOptions((o) => ({ ...o, cardCount: Number(e.target.value) }))
-                }
-              >
-                {[2, 3, 4].map((n) => (
-                  <option key={n} value={n}>
-                    {n} cartes
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
 
           {options.useCards && (options.cardCount ?? 1) <= 1 && (
             <div className="field">
@@ -440,20 +460,6 @@ export function SetupScreen({
               )}
             </div>
           )}
-
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <span className="note">
-              {perRound} tuile{perRound > 1 ? "s" : ""} révélée
-              {perRound > 1 ? "s" : ""} par manche · {needed}/
-              {bagSize(options.ruleset)} tuiles utilisées
-            </span>
-            <button
-              className="btn small ghost"
-              onClick={() => setShowScale((v) => !v)}
-            >
-              {showScale ? "Masquer le barème" : "Barème"}
-            </button>
-          </div>
 
           {showScale && (
             <div
@@ -629,16 +635,20 @@ function VariantToggle({
   on,
   onChange,
   description,
+  children,
 }: {
   label: string;
   on: boolean;
   onChange: (v: boolean) => void;
   description: string;
+  /** Réglages propres à la variante, dépliés juste sous le bouton. */
+  children?: React.ReactNode;
 }) {
   return (
     <div className={`variant ${on ? "on" : ""}`}>
       <Toggle label={label} on={on} onChange={onChange} />
       {on && <p className="variant-desc">{description}</p>}
+      {on && children}
     </div>
   );
 }

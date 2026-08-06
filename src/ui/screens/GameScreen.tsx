@@ -173,6 +173,9 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return
       if (e.key === 'r' || e.key === 'R') rotate(e.shiftKey ? -1 : 1)
       else if (e.key === 'f' || e.key === 'F') flip()
+      else if (e.key === 's' || e.key === 'S') {
+        if (redrawPossible && !isBot(active) && state.phase === 'playing') redraw()
+      }
       else if (e.key === 'Escape') setSelected(null)
       else if (e.key >= '1' && e.key <= '9') {
         const t = pool[Number(e.key) - 1]
@@ -184,7 +187,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [pool, rotate, undo, flip])
+  }, [pool, rotate, undo, flip, redraw, redrawPossible, active, state.phase])
 
   // Molette au-dessus du plateau = rotation (sans faire défiler la page).
   const stageRef = useRef<HTMLDivElement>(null)
@@ -360,8 +363,8 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
         </div>
 
         {redrawPossible && humanTurn && (
-          <button className="btn small" onClick={redraw}>
-            🎲 Refuser la tuile restante et piocher au hasard (définitif)
+          <button className="btn small" onClick={redraw} title="Raccourci : S">
+            🎲 Refuser la tuile restante et piocher au hasard (S) — définitif
           </button>
         )}
 
@@ -390,8 +393,13 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                   <span className="kbd">F</span> miroir ·{' '}
                 </>
               )}
-              <span className="kbd">1-9</span> choisir · molette sur le plateau ·{' '}
-              <span className="kbd">Échap</span> annuler
+              <span className="kbd">1-9</span> choisir ·{' '}
+              {redrawPossible && (
+                <>
+                  <span className="kbd">S</span> repiocher ·{' '}
+                </>
+              )}
+              molette sur le plateau · <span className="kbd">Échap</span> annuler
             </span>
           </div>
         )}

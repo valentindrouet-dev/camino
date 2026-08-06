@@ -15,6 +15,18 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.25',
+    date: '2026-08-06',
+    changes: [
+      'Les réglages d’une variante se déplient sous son propre bouton : le nombre de cartes missions ne s’égare plus en bas du panneau.',
+      'Les tuiles blanches deviennent irisées — une nacre arc-en-ciel — au lieu d’un blanc confondu avec un emplacement vide.',
+      'Bouton « ↺ » pour décocher toutes les variantes d’un coup.',
+      'Le barème modifiable rejoint les variantes sous le nom « Barème perso ».',
+      'La ligne « tuiles révélées par manche » disparaît de l’écran de configuration.',
+      'Touche S pour refuser la tuile restante et repiocher au hasard.',
+    ],
+  },
+  {
     version: '1.24',
     date: '2026-08-06',
     changes: [

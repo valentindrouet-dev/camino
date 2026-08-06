@@ -2,6 +2,7 @@ import { useId, useMemo, useState } from 'react'
 import {
   BLACK,
   COLOR_HEX,
+  WHITE,
   computeZones,
   legalCells as computeLegalCells,
   placeTile,
@@ -14,6 +15,7 @@ import {
   zoneLabel,
 } from '../../engine/index.ts'
 import type { Board, Rotation, Ruleset, Zone } from '../../engine/index.ts'
+import { IridescentDefs, quadFill, Sheen } from './Iridescent.tsx'
 
 /**
  * Reproduction du plateau de la boîte : un contour de couleur propre à chaque
@@ -70,6 +72,7 @@ export function BoardView({
 }: Props) {
   const [hover, setHover] = useState<number | null>(null)
   const [hoverZone, setHoverZone] = useState<number | null>(null)
+  const irisId = useId()
 
   const n = board.size
   // Bordures colorées : le cadre du plateau EST la bordure, rien à ajouter.
@@ -121,6 +124,8 @@ export function BoardView({
         setHoverZone(null)
       }}
     >
+      <IridescentDefs id={irisId} />
+
       {/* contour coloré du plateau */}
       <rect x="0" y="0" width={side} height={side} rx={compact ? 10 : 20} fill={frameColor} />
       {board.borders && <BorderRing spec={board.borders} n={n} rx={compact ? 10 : 20} />}
@@ -141,14 +146,18 @@ export function BoardView({
       {/* quarts posés */}
       {grid.cells.map((color, qi) =>
         color === null ? null : (
-          <rect
-            key={`q${qi}`}
-            className="quad"
-            {...quadXY(qi, n, bw)}
-            width={QUAD}
-            height={QUAD}
-            fill={COLOR_HEX[color]}
-          />
+          <g key={`q${qi}`}>
+            <rect
+              className="quad"
+              {...quadXY(qi, n, bw)}
+              width={QUAD}
+              height={QUAD}
+              fill={quadFill(color, irisId)}
+            />
+            {color === WHITE && (
+              <Sheen {...quadXY(qi, n, bw)} size={QUAD} irisId={irisId} />
+            )}
+          </g>
         ),
       )}
 
@@ -230,7 +239,7 @@ export function BoardView({
                 y={y + dy}
                 width={QUAD}
                 height={QUAD}
-                fill={COLOR_HEX[c]}
+                fill={quadFill(c, irisId)}
                 opacity="0.88"
               />
             )

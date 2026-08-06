@@ -1293,6 +1293,25 @@ button.mission-card.selected {
   padding-left: 9px;
 }
 
+/* réglages propres à une variante, dépliés sous son bouton */
+
+.variant-field {
+  margin: 0 0 2px 9px;
+  max-width: 200px;
+}
+
+.variant-field span {
+  font-size: 12px;
+}
+
+/* bouton de remise à zéro des variantes */
+
+.btn.variant-reset {
+  align-self: flex-start;
+  font-size: 17px;
+  line-height: 1;
+}
+
 /* tuile personnelle dans le centre de table */
 
 .pool-tile.personal .frame {

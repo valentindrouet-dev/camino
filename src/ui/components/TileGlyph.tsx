@@ -1,5 +1,7 @@
-import { COLOR_HEX, STARS, tileQuads } from '../../engine/index.ts'
+import { useId } from 'react'
+import { STARS, tileQuads, WHITE } from '../../engine/index.ts'
 import type { Rotation } from '../../engine/index.ts'
+import { IridescentDefs, quadFill, Sheen } from './Iridescent.tsx'
 
 interface Props {
   tileId: number
@@ -32,6 +34,7 @@ export function TileGlyph({
   size = 64,
   className,
 }: Props) {
+  const irisId = useId()
   const quads = tileQuads(tileId, 0, flipped)
   const deg = angle ?? rot * 90
   const starQuad = showStar ? (STARS.get(tileId) ?? null) : null
@@ -52,11 +55,21 @@ export function TileGlyph({
       role="img"
       aria-label={`Tuile ${tileId + 1}`}
     >
+      <IridescentDefs id={irisId} />
       <g className="spin" style={{ transform: `rotate(${deg}deg)`, transformOrigin: '50px 50px' }}>
-        <rect className="quad" x="0" y="0" width="50" height="50" fill={COLOR_HEX[quads[0]]} />
-        <rect className="quad" x="50" y="0" width="50" height="50" fill={COLOR_HEX[quads[1]]} />
-        <rect className="quad" x="50" y="50" width="50" height="50" fill={COLOR_HEX[quads[2]]} />
-        <rect className="quad" x="0" y="50" width="50" height="50" fill={COLOR_HEX[quads[3]]} />
+        {([[0, 0], [50, 0], [50, 50], [0, 50]] as [number, number][]).map(([qx, qy], k) => (
+          <g key={k}>
+            <rect
+              className="quad"
+              x={qx}
+              y={qy}
+              width="50"
+              height="50"
+              fill={quadFill(quads[k], irisId)}
+            />
+            {quads[k] === WHITE && <Sheen x={qx} y={qy} size={50} irisId={irisId} />}
+          </g>
+        ))}
         {starAt !== null && (
           <text
             x={STAR_XY[starAt][0]}
