@@ -37,9 +37,8 @@ function borderNeighbours(board: Board, qi: number): { id: number; color: Color 
   const out: { id: number; color: Color }[] = []
   const touch = (side: Side, index: number) => {
     if (spec.kind === 'uniform') {
-      // le bord est découpé en 2N carrés par côté, tous de la couleur du
-      // joueur : chaque carré touché compte pour une case, comme en multicolore
-      out.push({ id: -(1 + side * 100 + index), color: spec.color })
+      // un bloc par côté : le côté touché compte pour une case, une seule fois
+      out.push({ id: -(side + 1), color: spec.color })
     } else {
       const color = spec.squares[side][index]
       if (color !== WHITE) out.push({ id: -(1 + side * 100 + index), color })

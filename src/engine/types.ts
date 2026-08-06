@@ -201,6 +201,8 @@ export interface GameOptions {
   showZones: boolean
   /** Affiche le meilleur coup possible (aide au playtest). */
   showHints: boolean
+  /** Signale la dernière tuile posée par des équerres sur le plateau. */
+  showLastPlaced?: boolean
   /** Une (ou plusieurs) carte mission est tirée pour la table. */
   useCards: boolean
   /** Variante Cartes missions multiples : nombre de cartes de la table. */

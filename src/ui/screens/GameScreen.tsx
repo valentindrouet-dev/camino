@@ -78,11 +78,12 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
   const missions = useMemo(() => cardResults(state, viewId), [state, viewId])
 
   const lastPlaced = useMemo(() => {
+    if (!options.showLastPlaced) return null
     for (let i = state.log.length - 1; i >= 0; i--) {
       if (state.log[i].playerId === viewId) return state.log[i].cell
     }
     return null
-  }, [state.log, viewId])
+  }, [state.log, viewId, options.showLastPlaced])
 
   const hint = useMemo(() => {
     if (!options.showHints || isBot(active) || state.phase !== 'playing') return null

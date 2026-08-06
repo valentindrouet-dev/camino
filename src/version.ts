@@ -15,6 +15,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.24',
+    date: '2026-08-06',
+    changes: [
+      'Bordures colorées : quatre blocs, un par côté. Un côté touché ajoute une case au chemin et s’entoure entièrement avec lui.',
+      'Correction : avec plusieurs cartes missions, l’écran de fin n’affichait qu’une carte et fusionnait leurs détails ; chacune a désormais sa carte et ses points.',
+      'Les bots visent les cartes missions en plus de leurs priorités, et suivent leur carte personnelle quand elle change le barème.',
+      'Le repère de la dernière tuile posée devient l’option de partie « Dernière tuile posée », désactivée par défaut.',
+    ],
+  },
+  {
     version: '1.23',
     date: '2026-08-06',
     changes: [

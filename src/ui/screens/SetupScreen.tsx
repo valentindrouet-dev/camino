@@ -246,6 +246,11 @@ export function SetupScreen({
               onChange={(v) => setOptions((o) => ({ ...o, showHints: v }))}
             />
             <Toggle
+              label="Dernière tuile posée"
+              on={!!options.showLastPlaced}
+              onChange={(v) => setOptions((o) => ({ ...o, showLastPlaced: v }))}
+            />
+            <Toggle
               label="Graine manuelle"
               on={!!options.manualSeed}
               onChange={(v) =>
@@ -346,7 +351,7 @@ export function SetupScreen({
               onChange={(v) =>
                 patchVariants({ coloredBorders: v, ...(v ? { multiBorders: false } : {}) })
               }
-              description="Le bord du plateau, à la couleur du joueur, est découpé en 8 carrés par côté : chaque carré touché par un chemin de cette couleur lui ajoute une case, sans relier les chemins entre eux. Exclusif avec Bordures multicolores."
+              description="Le bord du plateau, à la couleur du joueur, forme quatre blocs — un par côté. Chaque côté touché par un chemin de cette couleur lui ajoute une case (4 au plus) et s’entoure avec lui, sans relier les chemins entre eux. Exclusif avec Bordures multicolores."
             />
             <VariantToggle
               label="Bordures multicolores"

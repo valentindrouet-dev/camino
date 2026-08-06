@@ -405,10 +405,20 @@ function borderSquareRect(side4: number, k: number, g: BandGeom) {
   return { x: far, y: along, w: g.depth, h: QUAD }
 }
 
+/** Emprise du bloc entier d'un côté (bordure colorée : un bloc par côté). */
+function borderBlockRect(side4: number, n: number, g: BandGeom) {
+  const start = PAD + g.bw + GAP
+  const len = n * PITCH - GAP
+  const far = g.side - g.outer - g.depth
+  if (side4 === 0) return { x: start, y: g.outer, w: len, h: g.depth }
+  if (side4 === 2) return { x: start, y: far, w: len, h: g.depth }
+  if (side4 === 3) return { x: g.outer, y: start, w: g.depth, h: len }
+  return { x: far, y: start, w: g.depth, h: len }
+}
+
 /**
- * Bande de bordure : 2N carrés par côté et des coins blancs, pour les deux
- * variantes. En bordure colorée les carrés reprennent la couleur du cadre :
- * ce sont les séparateurs blancs qui les rendent lisibles un à un.
+ * Bande de bordure, avec ses coins blancs. Bordure colorée : un seul bloc par
+ * côté, à la couleur du joueur. Multicolore : 2N carrés par côté.
  */
 function BorderRing({
   spec,
@@ -427,8 +437,24 @@ function BorderRing({
   const sepW = uniform ? 1.6 : 1
   const rects: React.ReactNode[] = []
   for (let side4 = 0; side4 < 4; side4++) {
+    if (uniform) {
+      const { x, y, w, h } = borderBlockRect(side4, n, g)
+      rects.push(
+        <rect
+          key={`b${side4}`}
+          x={x}
+          y={y}
+          width={w}
+          height={h}
+          fill={COLOR_HEX[spec.color]}
+          stroke={sep}
+          strokeWidth={sepW}
+        />,
+      )
+      continue
+    }
     for (let k = 0; k < qs; k++) {
-      const color = uniform ? spec.color : spec.squares[side4 as 0 | 1 | 2 | 3][k]
+      const color = spec.squares[side4 as 0 | 1 | 2 | 3][k]
       const { x, y, w, h } = borderSquareRect(side4, k, g)
       rects.push(
         <rect
@@ -601,55 +627,78 @@ function zoneOutlinePath(
     edges.set(k, (edges.get(k) ?? 0) + 1)
   }
 
-  // Bordures : les carrés reliés font partie du chemin, donc du contour.
-  // Chaque carré s'annexe avec le couloir gris qui le sépare de son quart ;
-  // les arêtes communes de deux carrés voisins s'annulent d'elles-mêmes.
-  const attached: [Set<number>, Set<number>, Set<number>, Set<number>] = [
-    new Set(),
-    new Set(),
-    new Set(),
-    new Set(),
-  ]
+  // Bordures : les blocs (ou carrés) reliés font partie du chemin, donc de son
+  // contour. On annexe chaque morceau ainsi que le couloir gris qui le sépare
+  // de son quart ; les arêtes communes de deux morceaux s'annulent d'elles-mêmes.
   if (spec && zone.borderIds?.length) {
     const g = bandGeom(spec, n)
+    /** Quart du plateau qui touche le carré k du côté side4. */
+    const quadOnSide = (side4: number, k: number) =>
+      side4 === 0 ? k : side4 === 2 ? (qs - 1) * qs + k : side4 === 3 ? k * qs : k * qs + qs - 1
+    /** Couloir gris entre le carré k et son quart. */
+    const bridge = (side4: number, k: number) => {
+      const S = borderSquareRect(side4, k, g)
+      if (side4 === 0) return { x: S.x, y: S.y + S.h, w: QUAD, h: GAP }
+      if (side4 === 2) return { x: S.x, y: S.y - GAP, w: QUAD, h: GAP }
+      if (side4 === 3) return { x: S.x + S.w, y: S.y, w: GAP, h: QUAD }
+      return { x: S.x - GAP, y: S.y, w: GAP, h: QUAD }
+    }
+    /** Jeu entre les carrés des tuiles t-1 et t, pour combler un bloc entier. */
+    const filler = (side4: number, t: number) => {
+      const along = PAD + g.bw + GAP + t * PITCH - GAP
+      const far = g.side - g.outer - g.depth
+      if (side4 === 0) return { x: along, y: g.outer, w: GAP, h: g.depth }
+      if (side4 === 2) return { x: along, y: far, w: GAP, h: g.depth }
+      if (side4 === 3) return { x: g.outer, y: along, w: g.depth, h: GAP }
+      return { x: far, y: along, w: g.depth, h: GAP }
+    }
+    /**
+     * Petit carré au croisement du couloir gris et du jeu entre tuiles : sans
+     * lui, deux ponts voisins enferment un trou et le contour y dessine un rond.
+     */
+    const joint = (side4: number, t: number) => {
+      const along = PAD + g.bw + GAP + t * PITCH - GAP
+      const inner = g.outer + g.depth
+      const far = g.side - g.outer - g.depth
+      if (side4 === 0) return { x: along, y: inner, w: GAP, h: GAP }
+      if (side4 === 2) return { x: along, y: far - GAP, w: GAP, h: GAP }
+      if (side4 === 3) return { x: inner, y: along, w: GAP, h: GAP }
+      return { x: far - GAP, y: along, w: GAP, h: GAP }
+    }
+
+    const pieces: { x: number; y: number; w: number; h: number }[] = []
     for (const id of zone.borderIds) {
       const v = -id - 1
-      const side4 = Math.floor(v / 100)
-      const k = v % 100
-      const S = borderSquareRect(side4, k, g)
-      let C: { x: number; y: number; w: number; h: number }
-      let qi: number
-      if (side4 === 0) {
-        C = { x: S.x, y: S.y + S.h, w: QUAD, h: GAP }
-        qi = k
-      } else if (side4 === 2) {
-        C = { x: S.x, y: S.y - GAP, w: QUAD, h: GAP }
-        qi = (qs - 1) * qs + k
-      } else if (side4 === 3) {
-        C = { x: S.x + S.w, y: S.y, w: GAP, h: QUAD }
-        qi = k * qs
+      if (spec.kind === 'uniform') {
+        // un bloc par côté : il est entièrement annexé dès qu'il est relié
+        const side4 = v
+        for (let k = 0; k < qs; k++) {
+          pieces.push(borderSquareRect(side4, k, g))
+          if (set.has(quadOnSide(side4, k))) pieces.push(bridge(side4, k))
+        }
+        for (let t = 1; t < n; t++) {
+          pieces.push(filler(side4, t))
+          // les deux quarts de part et d'autre du jeu sont dans la zone :
+          // leurs ponts se rejoignent, il n'y a pas de trou entre eux
+          if (set.has(quadOnSide(side4, 2 * t - 1)) && set.has(quadOnSide(side4, 2 * t))) {
+            pieces.push(joint(side4, t))
+          }
+        }
       } else {
-        C = { x: S.x - GAP, y: S.y, w: GAP, h: QUAD }
-        qi = k * qs + (qs - 1)
+        const side4 = Math.floor(v / 100)
+        const k = v % 100
+        if (!set.has(quadOnSide(side4, k))) continue
+        pieces.push(borderSquareRect(side4, k, g), bridge(side4, k))
       }
-      if (!set.has(qi)) continue
-      attached[side4].add(qi)
-      inside.push(S, C)
-      if (side4 === 0 || side4 === 2) {
-        const outerY = side4 === 0 ? S.y : S.y + S.h
-        add(S.x, outerY, S.x + S.w, outerY)
-        add(S.x, S.y, S.x, S.y + S.h)
-        add(S.x + S.w, S.y, S.x + S.w, S.y + S.h)
-        add(C.x, C.y, C.x, C.y + C.h)
-        add(C.x + C.w, C.y, C.x + C.w, C.y + C.h)
-      } else {
-        const outerX = side4 === 3 ? S.x : S.x + S.w
-        add(outerX, S.y, outerX, S.y + S.h)
-        add(S.x, S.y, S.x + S.w, S.y)
-        add(S.x, S.y + S.h, S.x + S.w, S.y + S.h)
-        add(C.x, C.y, C.x + C.w, C.y)
-        add(C.x, C.y + C.h, C.x + C.w, C.y + C.h)
-      }
+    }
+    // Les quatre arêtes de chaque morceau : celles partagées se neutralisent,
+    // y compris celle qui touche le quart du chemin.
+    for (const r of pieces) {
+      inside.push(r)
+      add(r.x, r.y, r.x + r.w, r.y)
+      add(r.x, r.y + r.h, r.x + r.w, r.y + r.h)
+      add(r.x, r.y, r.x, r.y + r.h)
+      add(r.x + r.w, r.y, r.x + r.w, r.y + r.h)
     }
   }
 
@@ -659,12 +708,8 @@ function zoneOutlinePath(
     const { x, y } = quadXY(c, n, bw)
     inside.push({ x, y, w: QUAD, h: QUAD })
 
-    if (r === 0) {
-      if (!attached[0].has(c)) add(x, y, x + QUAD, y)
-    } else if (!set.has(c - qs)) add(x, y, x + QUAD, y)
-    if (r === qs - 1) {
-      if (!attached[2].has(c)) add(x, y + QUAD, x + QUAD, y + QUAD)
-    } else if (!set.has(c + qs)) {
+    if (r === 0 || !set.has(c - qs)) add(x, y, x + QUAD, y)
+    if (r === qs - 1 || !set.has(c + qs)) {
       add(x, y + QUAD, x + QUAD, y + QUAD)
     } else if (r % 2 === 1) {
       // couloir vertical entre deux tuiles : ses deux bords ferment le contour
@@ -672,12 +717,8 @@ function zoneOutlinePath(
       add(x + QUAD, y + QUAD, x + QUAD, y + QUAD + GAP)
       inside.push({ x, y: y + QUAD, w: QUAD, h: GAP })
     }
-    if (col === 0) {
-      if (!attached[3].has(c)) add(x, y, x, y + QUAD)
-    } else if (!set.has(c - 1)) add(x, y, x, y + QUAD)
-    if (col === qs - 1) {
-      if (!attached[1].has(c)) add(x + QUAD, y, x + QUAD, y + QUAD)
-    } else if (!set.has(c + 1)) {
+    if (col === 0 || !set.has(c - 1)) add(x, y, x, y + QUAD)
+    if (col === qs - 1 || !set.has(c + 1)) {
       add(x + QUAD, y, x + QUAD, y + QUAD)
     } else if (col % 2 === 1) {
       add(x + QUAD, y, x + QUAD + GAP, y)

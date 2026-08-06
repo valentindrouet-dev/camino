@@ -1,7 +1,7 @@
 import { legalCells, neighbours, placeTile, quadGrid, tileOfQuad } from './board.ts'
-import { activeRuleset } from './cards.ts'
+import { applyCards, cardTable, playerCardIds, rulesetForPlayer } from './cards.ts'
 import { Rng } from './rng.ts'
-import { computeZones, pointsForSpan, scoreOf } from './scoring.ts'
+import { computeZones, pointsForSpan, scoreBoard } from './scoring.ts'
 import { distinctOrientations, tileQuads } from './tiles.ts'
 import type { Board, Color, GameState, PlayerKind, Rotation, Ruleset } from './types.ts'
 import { BLACK, PATH_COLORS } from './types.ts'
@@ -10,6 +10,8 @@ import { availableTiles, currentPlayer, type Move } from './game.ts'
 export interface ScoredMove extends Move {
   /** Score réel du plateau après le coup. */
   score: number
+  /** Points de cartes missions acquis après le coup. */
+  missionPoints: number
   /** Score + potentiel (ce que l'IA cherche à maximiser). */
   value: number
   delta: number
@@ -40,6 +42,10 @@ export const AI_WEIGHTS = {
   centrality: 0.05,
   /** Décote de la tuile personnelle : on la garde pour un vrai bon coup. */
   personalReserve: 3,
+  /** Poids des points de cartes missions déjà acquis par la pose. */
+  mission: 1,
+  /** Prime au progrès vers une mission encore inachevée. */
+  missionProgress: 0.35,
 }
 
 interface ColorPotential {
@@ -147,11 +153,39 @@ function connectedColors(board: Board, cell: number, tileId: number, rot: Rotati
 /** Tous les coups possibles pour le joueur courant, évalués. */
 export function enumerateMoves(state: GameState): ScoredMove[] {
   const player = currentPlayer(state)
-  const ruleset = activeRuleset(state)
+  // Barème du joueur : une carte structurelle (zones noires positives) change
+  // ce qu'il a intérêt à faire, y compris quand elle est personnelle.
+  const ruleset = rulesetForPlayer(state, player.id)
   const cells = legalCells(player.board, ruleset.requireAdjacency)
-  const base = scoreOf(player.board, ruleset)
-  const blackBefore = computeZones(player.board, ruleset).filter((z) => z.color === BLACK).length
+  const before = scoreBoard(player.board, ruleset)
+  const base = before.total
+  const blackBefore = before.blackZones
   const out: ScoredMove[] = []
+
+  // Cartes missions du joueur : les bots essaient de les accomplir. Les
+  // plateaux des autres (cartes comparatives) ne bougent pas pendant son tour.
+  const cards = playerCardIds(state, player.id)
+  const others = cards.length
+    ? cardTable(
+        state.players.filter((p) => p.id !== player.id),
+        ruleset,
+      )
+    : []
+  const missionBefore = cards.length
+    ? applyCards(
+        before,
+        {
+          playerId: player.id,
+          board: player.board,
+          ruleset,
+          table: [
+            { playerId: player.id, zones: computeZones(player.board, ruleset) },
+            ...others,
+          ],
+        },
+        cards,
+      ).cardPoints
+    : 0
 
   const allowFlip = Boolean(ruleset.variants?.mirrorTiles)
   const candidates: { tileId: number; personal: boolean }[] = availableTiles(state).map((p) => ({
@@ -172,13 +206,33 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
     for (const { rot, flipped } of distinctOrientations(cand.tileId, allowFlip)) {
       for (const cell of cells) {
         const board = placeTile(player.board, cell, cand.tileId, rot, state.round, flipped)
-        const score = scoreOf(board, ruleset)
+        const breakdown = scoreBoard(board, ruleset)
+        const score = breakdown.total
         let value = evaluateBoard(board, ruleset)
         value += AI_WEIGHTS.centrality * neighbours(player.board.size, cell).length
 
+        // Missions : ce que la pose rapporte déjà, plus une prime au progrès
+        // (une carte qui reste à 0 mais dont on se rapproche vaut mieux que rien).
+        let missionPoints = 0
+        if (cards.length) {
+          const table = [
+            { playerId: player.id, zones: computeZones(board, ruleset) },
+            ...others,
+          ]
+          missionPoints = applyCards(
+            breakdown,
+            { playerId: player.id, board, ruleset, table },
+            cards,
+          ).cardPoints
+          value += AI_WEIGHTS.mission * missionPoints
+          if (missionPoints > missionBefore) {
+            value += AI_WEIGHTS.missionProgress * (missionPoints - missionBefore)
+          }
+        }
+
         // Regrouper le noir : pénalise chaque zone noire créée en plus,
         // récompense les fusions.
-        const blackAfter = computeZones(board, ruleset).filter((z) => z.color === BLACK).length
+        const blackAfter = breakdown.blackZones
         value -= AI_WEIGHTS.blackMerge * Math.max(0, blackAfter - blackBefore)
         if (blackAfter < blackBefore + countBlackQuads(cand.tileId) && blackAfter <= blackBefore) {
           value += AI_WEIGHTS.blackMerge
@@ -197,6 +251,7 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
           ...(flipped ? { flipped } : {}),
           ...(cand.personal ? { personal: true } : {}),
           score,
+          missionPoints,
           value,
           delta: score - base,
         })
@@ -230,7 +285,7 @@ export function bestMove(state: GameState, kind: PlayerKind = 'bot-smart', rng?:
   if (kind === 'bot-random') return r.pick(moves)
 
   // Novice : le meilleur coup immédiat, sans anticipation.
-  const key = (m: ScoredMove) => (kind === 'bot-greedy' ? m.score : m.value)
+  const key = (m: ScoredMove) => (kind === 'bot-greedy' ? m.score + m.missionPoints : m.value)
   let best = -Infinity
   let bests: ScoredMove[] = []
   for (const m of moves) {

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   activeRuleset,
-  cardById,
+  cardResults,
   COLOR_HEX,
   COLOR_NAMES,
   PATH_COLORS,
@@ -32,12 +32,13 @@ export function ResultsScreen({
   onQuit,
   onOpenArchive,
 }: Props) {
-  const card = cardById(state.cardId)
   const stats = useMemo(() => playerStats(state), [state]);
   const ranked = useMemo(() => ranking(stats), [stats]);
   const [focus, setFocus] = useState(ranked[0]?.player.id ?? 0);
 
   const focused = stats[focus];
+  // Toutes les cartes du joueur affiché : chacune avec ses propres points.
+  const missions = useMemo(() => cardResults(state, focus), [state, focus]);
   const colorTotals = PATH_COLORS.map((c) => ({
     label: COLOR_NAMES[c],
     value:
@@ -91,8 +92,8 @@ export function ResultsScreen({
                 zone
                 {s.breakdown.blackZones > 1 ? "s" : ""} noire
                 {s.breakdown.blackZones > 1 ? "s" : ""}
-                {card
-                  ? ` · ${card.name} ${
+                {s.breakdown.cardLabel
+                  ? ` · missions ${
                       s.breakdown.cardPoints > 0
                         ? `+${s.breakdown.cardPoints}`
                         : "+0"
@@ -133,15 +134,18 @@ export function ResultsScreen({
               </div>
               <div style={{ flex: "1 1 200px", minWidth: 180 }}>
                 <ScoreDetail breakdown={focused.breakdown} />
-                {card && (
-                  <div style={{ marginTop: 10 }}>
-                    <MissionCardView
-                      card={card}
-                      compact
-                      points={focused.breakdown.cardPoints}
-                      detail={focused.breakdown.cardLabel}
-                      structural={focused.breakdown.cardStructural}
-                    />
+                {missions.length > 0 && (
+                  <div className="stack" style={{ marginTop: 10, gap: 8 }}>
+                    {missions.map((m) => (
+                      <MissionCardView
+                        key={m.card.id}
+                        card={m.card}
+                        compact
+                        points={m.points}
+                        detail={m.detail}
+                        structural={m.structural}
+                      />
+                    ))}
                   </div>
                 )}
               </div>

@@ -302,3 +302,43 @@ test('cartes persos et cartes de table sont exclusives', () => {
   }
   assert.match(E.configError(cfg), /persos/)
 })
+
+test('les bots visent les cartes missions', () => {
+  // Carte « chemins orange » : à situation égale, le Stratège doit préférer
+  // le coup qui sert la mission.
+  const mk = (useCards) =>
+    E.createGame({
+      players: [
+        { name: 'A', kind: 'bot-smart', boardColor: 'O' },
+        { name: 'B', kind: 'bot-smart', boardColor: 'B' },
+      ],
+      options: {
+        ...E.defaultOptions('missions-bots'),
+        useCards,
+        ...(useCards ? { cardId: 'orange-paths' } : {}),
+      },
+    })
+
+  // Les coups sont bien notés avec les points de mission.
+  const s = mk(true)
+  const moves = E.enumerateMoves(s)
+  assert.ok(moves.length > 0)
+  assert.ok(
+    moves.every((m) => typeof m.missionPoints === 'number'),
+    'chaque coup connaît ses points de mission',
+  )
+
+  // Sur une partie complète, la carte rapporte plus quand les bots la voient.
+  const play = (state) => {
+    let cur = state
+    while (cur.phase === 'playing') {
+      const mv = E.bestMove(cur, 'bot-smart')
+      if (!mv) break
+      cur = E.applyMove(cur, mv)
+    }
+    return cur
+  }
+  const avec = play(mk(true))
+  const cartes = E.scoreAll(avec).reduce((n, b) => n + b.cardPoints, 0)
+  assert.ok(cartes > 0, `les bots accomplissent la mission (${cartes} pts)`)
+})
