@@ -15,6 +15,17 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.21',
+    date: '2026-08-06',
+    changes: [
+      'Bordures colorées : plus de couronne ajoutée — le cadre du plateau est la bordure.',
+      'Les bordures ne relient plus jamais deux chemins : chaque côté (ou carré) touché ajoute simplement une case au chemin qui le touche.',
+      'Bordures multicolores alignées sur les quarts de tuile, avec les mêmes jeux que la grille.',
+      'Les carrés de bordure reliés sont inclus dans le contour blanc du chemin.',
+      'Accueil : crédits du jeu — Claude Clément, Marie-Laure Clément, Alexandre Droit, édité par Big Budi Games.',
+    ],
+  },
+  {
     version: '1.20',
     date: '2026-08-05',
     changes: [

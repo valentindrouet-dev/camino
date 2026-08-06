@@ -126,12 +126,11 @@ export function SetupScreen({
           ))}
         </h1>
         <p>
-          Table de jeu, playtest et équilibrage — 1 à 6 joueurs sur le même
-          écran.
+          Un jeu de <strong>Claude Clément</strong>,{" "}
+          <strong>Marie-Laure Clément</strong> et{" "}
+          <strong>Alexandre Droit</strong>
           <br />
-          97 tuiles, plateaux {options.ruleset.boardSize}×
-          {options.ruleset.boardSize},{" "}
-          {options.ruleset.boardSize * options.ruleset.boardSize} manches.
+          Édité par <strong>Big Budi Games</strong>
         </p>
         {resumable && (
           <p style={{ marginTop: 14 }}>
@@ -347,7 +346,7 @@ export function SetupScreen({
               onChange={(v) =>
                 patchVariants({ coloredBorders: v, ...(v ? { multiBorders: false } : {}) })
               }
-              description="Le bord du plateau score dans la couleur du joueur : chaque côté relié compte comme une case (max 4). Exclusif avec Bordures multicolores."
+              description="Le bord du plateau est de la couleur du joueur : chaque côté touché ajoute une case au chemin (max 4), sans relier les chemins entre eux. Exclusif avec Bordures multicolores."
             />
             <VariantToggle
               label="Bordures multicolores"
@@ -355,7 +354,7 @@ export function SetupScreen({
               onChange={(v) =>
                 patchVariants({ multiBorders: v, ...(v ? { coloredBorders: false } : {}) })
               }
-              description="Plateaux bordés de 8 carrés colorés par côté (coins blancs) : chaque carré relié à sa couleur compte comme une case. Exclusif avec Bordures colorées."
+              description="Plateaux bordés de 8 carrés colorés par côté (coins blancs) : chaque carré touché par un chemin de sa couleur ajoute une case, sans relier les chemins entre eux. Exclusif avec Bordures colorées."
             />
             <VariantToggle
               label="Tuiles monochromes"

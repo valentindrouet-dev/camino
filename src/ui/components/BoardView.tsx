@@ -72,7 +72,9 @@ export function BoardView({
   const [hoverZone, setHoverZone] = useState<number | null>(null)
 
   const n = board.size
-  const bw = board.borders ? BORDER_W : 0
+  // Bordures colorées : le cadre du plateau EST la bordure, rien à ajouter.
+  // Seules les bordures multicolores réservent une couronne de carrés.
+  const bw = board.borders?.kind === 'multi' ? BORDER_W : 0
   const side = PAD * 2 + 2 * bw + n * PITCH + GAP
   const grid = useMemo(() => quadGrid(board), [board])
   const zones = useMemo(
@@ -115,7 +117,7 @@ export function BoardView({
     >
       {/* contour coloré du plateau */}
       <rect x="0" y="0" width={side} height={side} rx={compact ? 10 : 20} fill={frameColor} />
-      {board.borders && <BorderRing spec={board.borders} n={n} side={side} />}
+      {board.borders?.kind === 'multi' && <BorderRing spec={board.borders} n={n} />}
       <rect
         x={PAD + bw}
         y={PAD + bw}
@@ -271,7 +273,14 @@ export function BoardView({
       {!compact &&
         zones.map((z, i) =>
           (showZones && z.points !== 0) || hoverZone === i ? (
-            <ZoneOutline key={`z${i}`} zone={z} n={n} bw={bw} highlight={hoverZone === i} />
+            <ZoneOutline
+              key={`z${i}`}
+              zone={z}
+              n={n}
+              bw={bw}
+              spec={board.borders}
+              highlight={hoverZone === i}
+            />
           ) : null,
         )}
 
@@ -340,62 +349,39 @@ function quadXY(qi: number, n: number, bw = 0) {
   }
 }
 
-/** Couronne de bordure scorante (variantes Bordures colorées / multicolores). */
-function BorderRing({
-  spec,
-  n,
-  side,
-}: {
-  spec: NonNullable<Board['borders']>
-  n: number
-  side: number
-}) {
-  const inner = side - PAD * 2 - 2 * BORDER_W // côté de la grille grise
-  const x0 = PAD
-  const y0 = PAD
-  if (spec.kind === 'uniform') {
-    return (
-      <g>
-        <rect
-          x={x0}
-          y={y0}
-          width={side - PAD * 2}
-          height={side - PAD * 2}
-          rx="10"
-          fill={COLOR_HEX[spec.color]}
-          stroke="#00000022"
-        />
-      </g>
-    )
-  }
-  // multicolore : 2N carrés par côté, coins blancs, posés sur le cadre coloré
+/**
+ * Emprise d'un carré de bordure multicolore : chaque carré est ALIGNÉ sur le
+ * quart de tuile qu'il prolonge (même largeur, mêmes jeux entre tuiles).
+ */
+function borderSquareRect(side4: number, k: number, n: number) {
+  const bw = BORDER_W
+  // position « le long du bord », identique à celle du quart k (cf. quadXY)
+  const along = PAD + bw + GAP + Math.floor(k / 2) * PITCH + (k % 2) * QUAD
+  // début du bord opposé : juste après le dernier quart et le jeu gris
+  const far = PAD + bw + GAP + n * PITCH
+  if (side4 === 0) return { x: along, y: PAD, w: QUAD, h: bw }
+  if (side4 === 2) return { x: along, y: far, w: QUAD, h: bw }
+  if (side4 === 3) return { x: PAD, y: along, w: bw, h: QUAD }
+  return { x: far, y: along, w: bw, h: QUAD }
+}
+
+/** Couronne de la variante Bordures multicolores, posée sur le cadre coloré. */
+function BorderRing({ spec, n }: { spec: NonNullable<Board['borders']>; n: number }) {
+  if (spec.kind !== 'multi') return null
   const qs = n * 2
-  const cellW = (inner + GAP) / qs
+  const bw = BORDER_W
   const rects: React.ReactNode[] = []
   for (let side4 = 0; side4 < 4; side4++) {
     for (let k = 0; k < qs; k++) {
       const color = spec.squares[side4 as 0 | 1 | 2 | 3][k]
-      const along = BORDER_W + (k * (inner + GAP)) / qs + GAP / 2
-      const w = cellW - GAP / 2
-      let x = 0
-      let y = 0
-      let rw = w
-      let rh = BORDER_W
-      if (side4 === 0) [x, y] = [x0 + along, y0]
-      else if (side4 === 2) [x, y] = [x0 + along, y0 + BORDER_W + inner]
-      else {
-        rw = BORDER_W
-        rh = w
-        x = side4 === 3 ? x0 : x0 + BORDER_W + inner
-        y = y0 + along
-      }
+      const { x, y, w, h } = borderSquareRect(side4, k, n)
       rects.push(
         <rect
           key={`${side4}-${k}`}
           x={x}
           y={y}
-          width={rw}
-          height={rh}
+          width={w}
+          height={h}
           fill={COLOR_HEX[color]}
           stroke="#00000026"
           strokeWidth="1"
@@ -403,22 +389,24 @@ function BorderRing({
       )
     }
   }
-  const corner = BORDER_W
+  // coins blancs, dans le prolongement des carrés des deux côtés adjacents
+  const near = PAD
+  const far = PAD + bw + GAP + n * PITCH
   return (
     <g>
       {rects}
       {[
-        [x0, y0],
-        [x0 + BORDER_W + inner, y0],
-        [x0, y0 + BORDER_W + inner],
-        [x0 + BORDER_W + inner, y0 + BORDER_W + inner],
+        [near, near],
+        [far, near],
+        [near, far],
+        [far, far],
       ].map(([cx, cy], i) => (
         <rect
           key={`c${i}`}
           x={cx}
           y={cy}
-          width={corner}
-          height={corner}
+          width={bw}
+          height={bw}
           fill="#FFFFFF"
           stroke="#00000026"
           strokeWidth="1"
@@ -538,7 +526,12 @@ function roundedPolygon(points: { x: number; y: number }[], radius: number): str
   return d + 'Z'
 }
 
-function zoneOutlinePath(zone: Zone, n: number, bw: number): string {
+function zoneOutlinePath(
+  zone: Zone,
+  n: number,
+  bw: number,
+  spec?: Board['borders'],
+): string {
   const qs = n * 2
   const set = new Set(zone.cells)
   const inside: { x: number; y: number; w: number; h: number }[] = []
@@ -550,23 +543,84 @@ function zoneOutlinePath(zone: Zone, n: number, bw: number): string {
     edges.set(k, (edges.get(k) ?? 0) + 1)
   }
 
+  // Bordures multicolores : les carrés reliés font partie du chemin, donc du
+  // contour. Chaque carré s'annexe avec le couloir gris qui le sépare de son
+  // quart ; les arêtes communes de deux carrés voisins s'annulent d'elles-mêmes.
+  const attached: [Set<number>, Set<number>, Set<number>, Set<number>] = [
+    new Set(),
+    new Set(),
+    new Set(),
+    new Set(),
+  ]
+  if (spec?.kind === 'multi' && zone.borderIds?.length) {
+    for (const id of zone.borderIds) {
+      const v = -id - 1
+      const side4 = Math.floor(v / 100)
+      const k = v % 100
+      const S = borderSquareRect(side4, k, n)
+      let C: { x: number; y: number; w: number; h: number }
+      let qi: number
+      if (side4 === 0) {
+        C = { x: S.x, y: S.y + S.h, w: QUAD, h: GAP }
+        qi = k
+      } else if (side4 === 2) {
+        C = { x: S.x, y: S.y - GAP, w: QUAD, h: GAP }
+        qi = (qs - 1) * qs + k
+      } else if (side4 === 3) {
+        C = { x: S.x + S.w, y: S.y, w: GAP, h: QUAD }
+        qi = k * qs
+      } else {
+        C = { x: S.x - GAP, y: S.y, w: GAP, h: QUAD }
+        qi = k * qs + (qs - 1)
+      }
+      if (!set.has(qi)) continue
+      attached[side4].add(qi)
+      inside.push(S, C)
+      if (side4 === 0 || side4 === 2) {
+        const outerY = side4 === 0 ? S.y : S.y + S.h
+        add(S.x, outerY, S.x + S.w, outerY)
+        add(S.x, S.y, S.x, S.y + S.h)
+        add(S.x + S.w, S.y, S.x + S.w, S.y + S.h)
+        add(C.x, C.y, C.x, C.y + C.h)
+        add(C.x + C.w, C.y, C.x + C.w, C.y + C.h)
+      } else {
+        const outerX = side4 === 3 ? S.x : S.x + S.w
+        add(outerX, S.y, outerX, S.y + S.h)
+        add(S.x, S.y, S.x + S.w, S.y)
+        add(S.x, S.y + S.h, S.x + S.w, S.y + S.h)
+        add(C.x, C.y, C.x + C.w, C.y)
+        add(C.x, C.y + C.h, C.x + C.w, C.y + C.h)
+      }
+    }
+  }
+
   for (const c of zone.cells) {
     const r = Math.floor(c / qs)
     const col = c % qs
     const { x, y } = quadXY(c, n, bw)
     inside.push({ x, y, w: QUAD, h: QUAD })
 
-    if (r === 0 || !set.has(c - qs)) add(x, y, x + QUAD, y)
-    if (r === qs - 1 || !set.has(c + qs)) add(x, y + QUAD, x + QUAD, y + QUAD)
-    else if (r % 2 === 1) {
+    if (r === 0) {
+      if (!attached[0].has(c)) add(x, y, x + QUAD, y)
+    } else if (!set.has(c - qs)) add(x, y, x + QUAD, y)
+    if (r === qs - 1) {
+      if (!attached[2].has(c)) add(x, y + QUAD, x + QUAD, y + QUAD)
+    } else if (!set.has(c + qs)) {
+      add(x, y + QUAD, x + QUAD, y + QUAD)
+    } else if (r % 2 === 1) {
       // couloir vertical entre deux tuiles : ses deux bords ferment le contour
       add(x, y + QUAD, x, y + QUAD + GAP)
       add(x + QUAD, y + QUAD, x + QUAD, y + QUAD + GAP)
       inside.push({ x, y: y + QUAD, w: QUAD, h: GAP })
     }
-    if (col === 0 || !set.has(c - 1)) add(x, y, x, y + QUAD)
-    if (col === qs - 1 || !set.has(c + 1)) add(x + QUAD, y, x + QUAD, y + QUAD)
-    else if (col % 2 === 1) {
+    if (col === 0) {
+      if (!attached[3].has(c)) add(x, y, x, y + QUAD)
+    } else if (!set.has(c - 1)) add(x, y, x, y + QUAD)
+    if (col === qs - 1) {
+      if (!attached[1].has(c)) add(x + QUAD, y, x + QUAD, y + QUAD)
+    } else if (!set.has(c + 1)) {
+      add(x + QUAD, y, x + QUAD, y + QUAD)
+    } else if (col % 2 === 1) {
       add(x + QUAD, y, x + QUAD + GAP, y)
       add(x + QUAD, y + QUAD, x + QUAD + GAP, y + QUAD)
       inside.push({ x: x + QUAD, y, w: GAP, h: QUAD })
@@ -682,14 +736,16 @@ function ZoneOutline({
   zone,
   n,
   bw,
+  spec,
   highlight,
 }: {
   zone: Zone
   n: number
   bw: number
+  spec?: Board['borders']
   highlight: boolean
 }) {
-  const d = useMemo(() => zoneOutlinePath(zone, n, bw), [zone, n, bw])
+  const d = useMemo(() => zoneOutlinePath(zone, n, bw, spec), [zone, n, bw, spec])
   const color = zone.color === BLACK ? BLACK_ACCENT : '#FFFFFF'
   return (
     <g pointerEvents="none">

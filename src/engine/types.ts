@@ -74,6 +74,11 @@ export interface Zone {
   tiles: number[]
   /** Cases de bordure reliées (variantes) : chacune compte comme une case. */
   borders: number
+  /**
+   * Identifiants des cases de bordure reliées (variantes) — pour l'affichage.
+   * Uniforme : -(côté+1). Multicolore : -(1 + côté*100 + index).
+   */
+  borderIds?: number[]
   /** Étoiles magiques reliées par cette zone (variante). */
   stars: number
   /** Tuiles distinctes + bordures = ce qui détermine les points. */

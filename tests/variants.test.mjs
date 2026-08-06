@@ -114,8 +114,8 @@ test('bordures colorées : chaque côté touché par la couleur du joueur compte
   assert.equal(zv.span, 2)
 })
 
-test('bordures colorées : le bord relie deux chemins de la couleur du joueur', () => {
-  // deux colonnes oranges séparées, toutes deux au bord haut
+test('bordures colorées : le bord rallonge chaque chemin sans jamais les relier', () => {
+  // deux tuiles oranges séparées, toutes deux au bord haut
   const rows = [
     'OO..OO..',
     'OO..OO..',
@@ -123,10 +123,12 @@ test('bordures colorées : le bord relie deux chemins de la couleur du joueur', 
   ]
   const board = boardFrom(rows, { kind: 'uniform', color: 'O' })
   const oranges = E.computeZones(board, R).filter((z) => z.color === 'O')
-  assert.equal(oranges.length, 1, 'le bord haut fusionne les deux chemins')
-  // 2 tuiles + bord haut + bord gauche (première colonne) = 4 -> 5 pts
-  assert.equal(oranges[0].borders, 2)
-  assert.equal(oranges[0].span, 4)
+  assert.equal(oranges.length, 2, 'le bord ne fusionne pas les deux chemins')
+  // première tuile : 1 tuile + bord haut + bord gauche = 3 ; seconde : 1 + haut = 2
+  const spans = oranges.map((z) => z.span).sort()
+  assert.deepEqual(spans, [2, 3])
+  const borders = oranges.map((z) => z.borders).sort()
+  assert.deepEqual(borders, [1, 2])
 })
 
 test('bordures multicolores : fixes par plateau, coins isolants, jamais deux identiques côte à côte', () => {

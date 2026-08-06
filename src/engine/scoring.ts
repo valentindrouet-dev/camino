@@ -59,7 +59,7 @@ function borderNeighbours(board: Board, qi: number): { id: number; color: Color 
  *    couleurs qui le touchent (il peut relier deux chemins d'une même
  *    couleur) ; il ne rejoint jamais le noir ;
  *  - bordures : une case de bordure reliée à un chemin de sa couleur compte
- *    comme une case de plus et peut relier deux chemins entre eux ;
+ *    comme une case de plus, mais ne relie JAMAIS deux chemins entre eux ;
  *  - étoiles magiques : comptées par zone (voir scoreBoard).
  */
 export function computeZones(board: Board, ruleset: Ruleset): Zone[] {
@@ -137,26 +137,9 @@ export function computeZones(board: Board, ruleset: Ruleset): Zone[] {
       colorZones.push({ cells, tiles, borderIds })
     }
 
-    // Une case de bordure est un vrai morceau de chemin : deux zones de la
-    // même couleur qui touchent la même case de bordure ne font qu'une.
-    let merged = true
-    while (merged) {
-      merged = false
-      outer: for (let i = 0; i < colorZones.length; i++) {
-        for (let j = i + 1; j < colorZones.length; j++) {
-          const shared = [...colorZones[i].borderIds].some((id) => colorZones[j].borderIds.has(id))
-          if (!shared) continue
-          const a = colorZones[i]
-          const b = colorZones.splice(j, 1)[0]
-          a.cells.push(...b.cells)
-          for (const t of b.tiles) a.tiles.add(t)
-          for (const id of b.borderIds) a.borderIds.add(id)
-          merged = true
-          break outer
-        }
-      }
-    }
-
+    // Une case de bordure rallonge le chemin qui la touche (+1 chacune) mais
+    // ne relie jamais deux chemins : deux zones qui touchent le même bord
+    // restent deux zones, et comptent chacune leur bonus.
     for (const z of colorZones) {
       const span = z.tiles.size + z.borderIds.size
       zones.push({
@@ -164,6 +147,7 @@ export function computeZones(board: Board, ruleset: Ruleset): Zone[] {
         cells: z.cells.sort((a, b) => a - b),
         tiles: [...z.tiles].sort((a, b) => a - b),
         borders: z.borderIds.size,
+        borderIds: [...z.borderIds].sort((a, b) => b - a),
         stars: 0,
         span,
         points: pointsForSpan(span, ruleset),
