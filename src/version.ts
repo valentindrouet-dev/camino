@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.23',
+    date: '2026-08-06',
+    changes: [
+      'Bordures colorées : le cadre du plateau est découpé en 8 carrés par côté, coins blancs, comme les bordures multicolores — sans agrandir le plateau.',
+      'Chaque carré de bord touché par un chemin de sa couleur lui ajoute une case, et apparaît dans son contour blanc : on voit d’où viennent les points.',
+    ],
+  },
+  {
     version: '1.22',
     date: '2026-08-06',
     changes: [

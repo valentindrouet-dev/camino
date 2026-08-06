@@ -346,7 +346,7 @@ export function SetupScreen({
               onChange={(v) =>
                 patchVariants({ coloredBorders: v, ...(v ? { multiBorders: false } : {}) })
               }
-              description="Le bord du plateau est de la couleur du joueur : chaque côté touché ajoute une case au chemin (max 4), sans relier les chemins entre eux. Exclusif avec Bordures multicolores."
+              description="Le bord du plateau, à la couleur du joueur, est découpé en 8 carrés par côté : chaque carré touché par un chemin de cette couleur lui ajoute une case, sans relier les chemins entre eux. Exclusif avec Bordures multicolores."
             />
             <VariantToggle
               label="Bordures multicolores"

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import {
   BLACK,
   COLOR_HEX,
@@ -123,7 +123,7 @@ export function BoardView({
     >
       {/* contour coloré du plateau */}
       <rect x="0" y="0" width={side} height={side} rx={compact ? 10 : 20} fill={frameColor} />
-      {board.borders?.kind === 'multi' && <BorderRing spec={board.borders} n={n} />}
+      {board.borders && <BorderRing spec={board.borders} n={n} rx={compact ? 10 : 20} />}
       <rect
         x={PAD + bw}
         y={PAD + bw}
@@ -363,31 +363,73 @@ function quadXY(qi: number, n: number, bw = 0) {
 }
 
 /**
- * Emprise d'un carré de bordure multicolore : chaque carré est ALIGNÉ sur le
- * quart de tuile qu'il prolonge (même largeur, mêmes jeux entre tuiles).
+ * Emprise de la bande de bordure scorante.
+ *
+ * Multicolore : une couronne de carrés s'ajoute autour du cadre (le plateau
+ * est plus large, c'est le verso imprimé). Colorée : le cadre du plateau EST
+ * la bande, découpée en carrés — le plateau garde sa taille habituelle.
  */
-function borderSquareRect(side4: number, k: number, n: number) {
-  const bw = BORDER_W
-  // position « le long du bord », identique à celle du quart k (cf. quadXY)
-  const along = PAD + bw + GAP + Math.floor(k / 2) * PITCH + (k % 2) * QUAD
-  // début du bord opposé : juste après le dernier quart et le jeu gris
-  const far = PAD + bw + GAP + n * PITCH
-  if (side4 === 0) return { x: along, y: PAD, w: QUAD, h: bw }
-  if (side4 === 2) return { x: along, y: far, w: QUAD, h: bw }
-  if (side4 === 3) return { x: PAD, y: along, w: bw, h: QUAD }
-  return { x: far, y: along, w: bw, h: QUAD }
+interface BandGeom {
+  /** Épaisseur ajoutée au plateau (0 pour la bordure colorée). */
+  bw: number
+  /** Profondeur de la bande de carrés. */
+  depth: number
+  /** Distance du bord du plateau au bord extérieur de la bande. */
+  outer: number
+  side: number
 }
 
-/** Couronne de la variante Bordures multicolores, posée sur le cadre coloré. */
-function BorderRing({ spec, n }: { spec: NonNullable<Board['borders']>; n: number }) {
-  if (spec.kind !== 'multi') return null
+function bandGeom(spec: Board['borders'] | undefined, n: number): BandGeom {
+  const multi = spec?.kind === 'multi'
+  const bw = multi ? BORDER_W : 0
+  return {
+    bw,
+    depth: multi ? BORDER_W : PAD,
+    outer: multi ? PAD : 0,
+    side: PAD * 2 + 2 * bw + n * PITCH + GAP,
+  }
+}
+
+/**
+ * Un carré de bordure est ALIGNÉ sur le quart de tuile qu'il prolonge : même
+ * largeur, mêmes jeux entre tuiles.
+ */
+function borderSquareRect(side4: number, k: number, g: BandGeom) {
+  // position « le long du bord », identique à celle du quart k (cf. quadXY)
+  const along = PAD + g.bw + GAP + Math.floor(k / 2) * PITCH + (k % 2) * QUAD
+  // bord opposé : juste après le dernier quart et le jeu gris
+  const far = g.side - g.outer - g.depth
+  if (side4 === 0) return { x: along, y: g.outer, w: QUAD, h: g.depth }
+  if (side4 === 2) return { x: along, y: far, w: QUAD, h: g.depth }
+  if (side4 === 3) return { x: g.outer, y: along, w: g.depth, h: QUAD }
+  return { x: far, y: along, w: g.depth, h: QUAD }
+}
+
+/**
+ * Bande de bordure : 2N carrés par côté et des coins blancs, pour les deux
+ * variantes. En bordure colorée les carrés reprennent la couleur du cadre :
+ * ce sont les séparateurs blancs qui les rendent lisibles un à un.
+ */
+function BorderRing({
+  spec,
+  n,
+  rx,
+}: {
+  spec: NonNullable<Board['borders']>
+  n: number
+  rx: number
+}) {
+  const clipId = useId()
+  const g = bandGeom(spec, n)
   const qs = n * 2
-  const bw = BORDER_W
+  const uniform = spec.kind === 'uniform'
+  const sep = uniform ? '#FFFFFF' : '#00000026'
+  const sepW = uniform ? 1.6 : 1
   const rects: React.ReactNode[] = []
   for (let side4 = 0; side4 < 4; side4++) {
     for (let k = 0; k < qs; k++) {
-      const color = spec.squares[side4 as 0 | 1 | 2 | 3][k]
-      const { x, y, w, h } = borderSquareRect(side4, k, n)
+      const color = uniform ? spec.color : spec.squares[side4 as 0 | 1 | 2 | 3][k]
+      const { x, y, w, h } = borderSquareRect(side4, k, g)
       rects.push(
         <rect
           key={`${side4}-${k}`}
@@ -396,17 +438,20 @@ function BorderRing({ spec, n }: { spec: NonNullable<Board['borders']>; n: numbe
           width={w}
           height={h}
           fill={COLOR_HEX[color]}
-          stroke="#00000026"
-          strokeWidth="1"
+          stroke={sep}
+          strokeWidth={sepW}
         />,
       )
     }
   }
   // coins blancs, dans le prolongement des carrés des deux côtés adjacents
-  const near = PAD
-  const far = PAD + bw + GAP + n * PITCH
+  const near = g.outer
+  const far = g.side - g.outer - g.depth
   return (
-    <g>
+    <g clipPath={`url(#${clipId})`}>
+      <clipPath id={clipId}>
+        <rect x="0" y="0" width={g.side} height={g.side} rx={rx} />
+      </clipPath>
       {rects}
       {[
         [near, near],
@@ -418,11 +463,11 @@ function BorderRing({ spec, n }: { spec: NonNullable<Board['borders']>; n: numbe
           key={`c${i}`}
           x={cx}
           y={cy}
-          width={bw}
-          height={bw}
+          width={g.depth}
+          height={g.depth}
           fill="#FFFFFF"
-          stroke="#00000026"
-          strokeWidth="1"
+          stroke={sep}
+          strokeWidth={sepW}
         />
       ))}
     </g>
@@ -556,21 +601,22 @@ function zoneOutlinePath(
     edges.set(k, (edges.get(k) ?? 0) + 1)
   }
 
-  // Bordures multicolores : les carrés reliés font partie du chemin, donc du
-  // contour. Chaque carré s'annexe avec le couloir gris qui le sépare de son
-  // quart ; les arêtes communes de deux carrés voisins s'annulent d'elles-mêmes.
+  // Bordures : les carrés reliés font partie du chemin, donc du contour.
+  // Chaque carré s'annexe avec le couloir gris qui le sépare de son quart ;
+  // les arêtes communes de deux carrés voisins s'annulent d'elles-mêmes.
   const attached: [Set<number>, Set<number>, Set<number>, Set<number>] = [
     new Set(),
     new Set(),
     new Set(),
     new Set(),
   ]
-  if (spec?.kind === 'multi' && zone.borderIds?.length) {
+  if (spec && zone.borderIds?.length) {
+    const g = bandGeom(spec, n)
     for (const id of zone.borderIds) {
       const v = -id - 1
       const side4 = Math.floor(v / 100)
       const k = v % 100
-      const S = borderSquareRect(side4, k, n)
+      const S = borderSquareRect(side4, k, g)
       let C: { x: number; y: number; w: number; h: number }
       let qi: number
       if (side4 === 0) {

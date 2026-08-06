@@ -88,8 +88,8 @@ test('tuiles blanches : le blanc prolonge et relie les chemins de toutes les cou
   assert.equal(zones.filter((z) => z.color === 'R').length, 1)
 })
 
-test('bordures colorées : chaque côté touché par la couleur du joueur compte', () => {
-  // une colonne orange qui touche le bord haut et le bord gauche
+test('bordures colorées : chaque carré de bord touché par la couleur du joueur compte', () => {
+  // une colonne orange qui longe le bord gauche sur 4 quarts et le bord haut
   const rows = [
     'OO......',
     'OO......',
@@ -100,10 +100,12 @@ test('bordures colorées : chaque côté touché par la couleur du joueur compte
   const board = boardFrom(rows, { kind: 'uniform', color: 'O' })
   const zones = E.computeZones(board, R)
   const orange = zones.find((z) => z.color === 'O')
-  // 2 tuiles + bord haut + bord gauche = 4 -> 5 pts
-  assert.equal(orange.borders, 2)
-  assert.equal(orange.span, 4)
-  assert.equal(orange.points, 5)
+  // 2 tuiles + 4 carrés à gauche + 2 carrés en haut = 8
+  assert.equal(orange.borders, 6)
+  assert.equal(orange.span, 8)
+  assert.equal(orange.points, 23)
+  // chaque carré est identifié à part, comme en multicolore
+  assert.equal(new Set(orange.borderIds).size, 6)
   // la même forme en vert ne profite pas du bord orange
   const vert = boardFrom(
     ['GG......', 'GG......', 'GG......', 'GG......', VIDE, VIDE, VIDE, VIDE],
@@ -124,11 +126,12 @@ test('bordures colorées : le bord rallonge chaque chemin sans jamais les relier
   const board = boardFrom(rows, { kind: 'uniform', color: 'O' })
   const oranges = E.computeZones(board, R).filter((z) => z.color === 'O')
   assert.equal(oranges.length, 2, 'le bord ne fusionne pas les deux chemins')
-  // première tuile : 1 tuile + bord haut + bord gauche = 3 ; seconde : 1 + haut = 2
+  // tuile de gauche : 1 tuile + 2 carrés en haut + 2 carrés à gauche = 5 ;
+  // tuile de droite : 1 tuile + 2 carrés en haut = 3
   const spans = oranges.map((z) => z.span).sort()
-  assert.deepEqual(spans, [2, 3])
+  assert.deepEqual(spans, [3, 5])
   const borders = oranges.map((z) => z.borders).sort()
-  assert.deepEqual(borders, [1, 2])
+  assert.deepEqual(borders, [2, 4])
 })
 
 test('bordures multicolores : fixes par plateau, coins isolants, jamais deux identiques côte à côte', () => {
