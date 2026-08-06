@@ -164,12 +164,14 @@ test('bordures multicolores : un carré relié compte comme une case de plus', (
 })
 
 test('étoiles magiques : barème des groupes et comptage sur le plateau', () => {
+  // une étoile seule vaut 1 ; chaque étoile reliée en vaut 2 (groupe = 2×N)
+  assert.equal(E.starClusterPoints(0), 0)
   assert.equal(E.starClusterPoints(1), 1)
-  assert.equal(E.starClusterPoints(2), 3)
+  assert.equal(E.starClusterPoints(2), 4)
   assert.equal(E.starClusterPoints(3), 6)
-  assert.equal(E.starClusterPoints(4), 10)
-  assert.equal(E.starClusterPoints(5), 20)
-  assert.equal(E.starClusterPoints(7), 20)
+  assert.equal(E.starClusterPoints(4), 8)
+  assert.equal(E.starClusterPoints(5), 10)
+  assert.equal(E.starClusterPoints(7), 14)
 
   // deux tuiles étoilées dont les quarts étoilés se touchent en une même couleur
   const starred = [...E.STARS.keys()]

@@ -15,6 +15,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.26',
+    date: '2026-08-06',
+    changes: [
+      'Nouveau barème des étoiles : une étoile seule (blanche) vaut 1 point, chaque étoile reliée (dorée) en vaut 2.',
+      'Les pastilles de zones ne recouvrent plus jamais une étoile : elles choisissent une case libre de leur zone (ou une voisine si tout est étoilé).',
+      'Les bonus d’étoiles logent entiers dans une case voisine du groupe, sans chevaucher lignes, étoiles ni autres pastilles.',
+      'Publication fiabilisée : les fichiers construits accompagnent le code sur la branche, le site se met à jour même quand GitHub Actions est en panne.',
+    ],
+  },
+  {
     version: '1.25',
     date: '2026-08-06',
     changes: [

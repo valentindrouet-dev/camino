@@ -504,9 +504,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
             </span>
             {variants?.magicStars && (
               <span className="bareme-item star">
-                ★ 1&nbsp;:&nbsp;<strong>1</strong> · 2&nbsp;:&nbsp;<strong>3</strong> ·
-                3&nbsp;:&nbsp;<strong>6</strong> · 4&nbsp;:&nbsp;<strong>10</strong> ·
-                5+&nbsp;:&nbsp;<strong>20</strong>
+                ★ seule&nbsp;:&nbsp;<strong>1</strong> · ★ reliée&nbsp;:&nbsp;<strong>2</strong>
               </span>
             )}
           </div>

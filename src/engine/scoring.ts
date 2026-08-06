@@ -20,11 +20,12 @@ export function pointsForSpan(span: number, ruleset: Ruleset): number {
   return table[Math.min(span, table.length - 1)] ?? 0
 }
 
-/** Points d'un groupe d'étoiles reliées : 1, 3, 6, 10, puis 20 dès 5. */
-export const STAR_POINTS = [0, 1, 3, 6, 10, 20]
-
+/**
+ * Points d'un groupe d'étoiles : une étoile seule vaut 1 point, chaque étoile
+ * reliée à au moins une autre en vaut 2 — un groupe de N ≥ 2 vaut donc 2×N.
+ */
 export function starClusterPoints(count: number): number {
-  return STAR_POINTS[Math.min(count, STAR_POINTS.length - 1)]
+  return count <= 1 ? Math.max(0, count) : 2 * count
 }
 
 /** Cases de bordure adjacentes à un quart donné, avec leur couleur. */

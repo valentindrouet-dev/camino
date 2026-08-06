@@ -401,7 +401,7 @@ export function SetupScreen({
               label="Étoiles magiques"
               on={!!variants.magicStars}
               onChange={(v) => patchVariants({ magicStars: v })}
-              description="30 tuiles portent une étoile. 1 étoile = 1 pt ; reliées : 2 = 3, 3 = 6, 4 = 10, 5 = 20 pts."
+              description="30 tuiles portent une étoile. Une étoile seule vaut 1 pt ; chaque étoile reliée à une autre en vaut 2 (3 reliées = 6 pts)."
             />
             <VariantToggle
               label="Tuile personnelle"

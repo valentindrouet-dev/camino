@@ -94,6 +94,84 @@ export function BoardView({
     for (const g of starGroups) if (g.count > 1) for (const c of g.cells) s.add(c)
     return s
   }, [starGroups])
+
+  /**
+   * Ancres des pastilles : chacune occupe UNE case (quart), sans jamais
+   * recouvrir une étoile ni une autre pastille. Les zones se placent d'abord
+   * (elles doivent rester dans leurs propres cases) ; les groupes d'étoiles
+   * prennent ensuite une case voisine libre.
+   */
+  const badgeAnchors = useMemo(() => {
+    const qs = n * 2
+    const starred = new Set(starGroups.flatMap((g) => g.cells))
+    const used = new Set<number>()
+    const byCentroid = (cells: number[]) => {
+      let mx = 0
+      let my = 0
+      for (const c of cells) {
+        mx += c % qs
+        my += Math.floor(c / qs)
+      }
+      mx /= cells.length
+      my /= cells.length
+      const d = (c: number) => ((c % qs) - mx) ** 2 + (Math.floor(c / qs) - my) ** 2
+      return (list: number[]) => [...list].sort((a, b) => d(a) - d(b))
+    }
+
+    /** Voisins orthogonaux puis diagonaux d'un ensemble de cases. */
+    const neighboursOf = (cells: number[]) => {
+      const inSet = new Set(cells)
+      const out = new Set<number>()
+      for (const c of cells) {
+        const r = Math.floor(c / qs)
+        const col = c % qs
+        for (const [dr, dc] of [
+          [-1, 0], [1, 0], [0, -1], [0, 1],
+          [-1, -1], [-1, 1], [1, -1], [1, 1],
+        ]) {
+          const nr = r + dr
+          const nc = col + dc
+          if (nr < 0 || nc < 0 || nr >= qs || nc >= qs) continue
+          const q = nr * qs + nc
+          if (!inSet.has(q)) out.add(q)
+        }
+      }
+      return [...out]
+    }
+
+    const zoneAnchors = new Map<number, number>()
+    zones.forEach((z, i) => {
+      if (z.points === 0) return
+      const sort = byCentroid(z.cells)
+      const sorted = sort(z.cells)
+      // Si toutes les cases de la zone portent une étoile (petite zone très
+      // étoilée), la pastille déborde sur une case voisine plutôt que de la
+      // recouvrir.
+      const a =
+        sorted.find((c) => !starred.has(c) && !used.has(c)) ??
+        sort(neighboursOf(z.cells)).find((c) => !starred.has(c) && !used.has(c)) ??
+        sorted.find((c) => !used.has(c)) ??
+        sorted[0]
+      used.add(a)
+      zoneAnchors.set(i, a)
+    })
+
+    const starAnchors = new Map<number, number>()
+    starGroups.forEach((g, i) => {
+      if (g.count <= 1) return
+      const sorted = byCentroid(g.cells)(neighboursOf(g.cells))
+      const filled = (c: number) => grid.cells[c] !== null
+      const a =
+        sorted.find((c) => filled(c) && !starred.has(c) && !used.has(c)) ??
+        sorted.find((c) => !starred.has(c) && !used.has(c)) ??
+        sorted.find((c) => !starred.has(c)) ??
+        sorted[0] ??
+        g.cells[0]
+      used.add(a)
+      starAnchors.set(i, a)
+    })
+    return { zoneAnchors, starAnchors }
+  }, [zones, starGroups, grid, n])
   const legalSet = useMemo(
     () => new Set(legal ?? (interactive ? computeLegalCells(board, ruleset.requireAdjacency) : [])),
     [legal, interactive, board, ruleset.requireAdjacency],
@@ -302,16 +380,34 @@ export function BoardView({
       {!compact &&
         showZones &&
         zones
-          .filter((z) => z.points !== 0)
-          .map((z, i) => <ZoneBadge key={`b${i}`} zone={z} n={n} bw={bw} ruleset={ruleset} />)}
+          .map((z, i) =>
+            z.points !== 0 ? (
+              <ZoneBadge
+                key={`b${i}`}
+                zone={z}
+                anchor={badgeAnchors.zoneAnchors.get(i) ?? z.cells[0]}
+                n={n}
+                bw={bw}
+                ruleset={ruleset}
+              />
+            ) : null,
+          )}
 
       {/* bonus des groupes d'étoiles : dessinés en dernier, toujours lisibles */}
       {!compact &&
         showZones &&
         ruleset.variants?.magicStars &&
-        starGroups
-          .filter((g) => g.count > 1)
-          .map((g, i) => <StarBadge key={`sb${i}`} cluster={g} n={n} bw={bw} />)}
+        starGroups.map((g, i) =>
+          g.count > 1 ? (
+            <StarBadge
+              key={`sb${i}`}
+              cluster={g}
+              anchor={badgeAnchors.starAnchors.get(i) ?? g.cells[0]}
+              n={n}
+              bw={bw}
+            />
+          ) : null,
+        )}
 
       {/* meilleur coup (aide) */}
       {hint && board.cells[hint.cell] === null && (
@@ -883,34 +979,19 @@ function ZoneOutline({
  */
 function ZoneBadge({
   zone,
+  anchor,
   n,
   bw,
   ruleset,
 }: {
   zone: Zone
+  /** Case (quart) qui porte la pastille — choisie sans collision. */
+  anchor: number
   n: number
   bw: number
   ruleset: Ruleset
 }) {
-  const qs = n * 2
-  let bx = 0
-  let by = 0
-  for (const c of zone.cells) {
-    bx += c % qs
-    by += Math.floor(c / qs)
-  }
-  bx /= zone.cells.length
-  by /= zone.cells.length
-  let best = zone.cells[0]
-  let bestD = Infinity
-  for (const c of zone.cells) {
-    const d = ((c % qs) - bx) ** 2 + (Math.floor(c / qs) - by) ** 2
-    if (d < bestD) {
-      bestD = d
-      best = c
-    }
-  }
-  const { x, y } = quadXY(best, n, bw)
+  const { x, y } = quadXY(anchor, n, bw)
   const cx = x + QUAD / 2
   const cy = y + QUAD / 2
   const label = signed(zone.points)
@@ -961,49 +1042,28 @@ function magicLinkPath(cells: number[], n: number, bw: number): string {
 /** Pastille dorée : points d'un groupe d'étoiles reliées. Toujours lisible. */
 function StarBadge({
   cluster,
+  anchor,
   n,
   bw,
 }: {
   cluster: { cells: number[]; count: number; points: number }
+  /** Case (quart) voisine du groupe qui porte la pastille, sans collision. */
+  anchor: number
   n: number
   bw: number
 }) {
-  // ancrée sur le quart le plus proche du centre du groupe, en haut à droite
-  const qs = n * 2
-  let mx = 0
-  let my = 0
-  for (const c of cluster.cells) {
-    mx += c % qs
-    my += Math.floor(c / qs)
-  }
-  mx /= cluster.cells.length
-  my /= cluster.cells.length
-  let best = cluster.cells[0]
-  let bestD = Infinity
-  for (const c of cluster.cells) {
-    const d = ((c % qs) - mx) ** 2 + (Math.floor(c / qs) - my) ** 2
-    if (d < bestD) {
-      bestD = d
-      best = c
-    }
-  }
-  const { x, y } = quadXY(best, n, bw)
+  const { x, y } = quadXY(anchor, n, bw)
+  const cx = x + QUAD / 2
+  const cy = y + QUAD / 2
   const label = `+${cluster.points}`
   return (
     <g className="zone-badge" pointerEvents="none">
       <title>{`${cluster.count} étoiles reliées — +${cluster.points} pts`}</title>
-      <circle
-        cx={x + QUAD}
-        cy={y}
-        r="13"
-        fill="#FFD23F"
-        stroke="#FFFFFF"
-        strokeWidth="2.5"
-      />
-      <circle cx={x + QUAD} cy={y} r="14.5" fill="none" stroke="#00000022" strokeWidth="1" />
+      <circle cx={cx} cy={cy} r="13" fill="#FFD23F" stroke="#FFFFFF" strokeWidth="2.5" />
+      <circle cx={cx} cy={cy} r="14.5" fill="none" stroke="#00000022" strokeWidth="1" />
       <text
-        x={x + QUAD}
-        y={y + 4.5}
+        x={cx}
+        y={cy + 4.5}
         textAnchor="middle"
         fontSize="13"
         fontWeight="800"
