@@ -31,6 +31,8 @@ export interface ArchivedBoard {
   name: string
   boardColor: BoardColor
   board: Board
+  /** Couleurs interdites du joueur (variante), pour rejouer l'affichage. */
+  forbidden?: Color[]
 }
 
 export interface ArchivedGame {
@@ -74,6 +76,7 @@ export function archiveGame(state: GameState): ArchivedGame {
       name: p.name,
       boardColor: p.boardColor,
       board: p.board,
+      ...(p.forbiddenColors?.length ? { forbidden: p.forbiddenColors } : {}),
     })),
     results: stats.map((s) => ({
       name: s.player.name,

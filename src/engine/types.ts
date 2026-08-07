@@ -107,8 +107,10 @@ export interface ScoreBreakdown {
   cloverPoints: number
   /** Couleur secrète (variante) : le meilleur chemin de cette couleur double. */
   secretPoints: number
-  /** Couleurs interdites (variante) : leurs points sont comptés en négatif. */
+  /** Couleurs interdites (variante) : leurs zones se comptent comme le noir. */
   forbidden?: Color[]
+  /** Nombre de zones d'une couleur interdite (chacune coûte le malus du noir). */
+  forbiddenZones?: number
   cardPoints: number
   cardLabel?: string
   /** La carte modifie le barème au lieu d'ajouter des points (voir cards.ts). */

@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.32',
+    date: '2026-08-07',
+    changes: [
+      'Les couleurs interdites se comportent désormais comme le noir : chaque zone de cette couleur coûte 2 points, quelle que soit sa taille — les réunir en une seule reste donc payant.',
+      'Sur le plateau, ces zones s’entourent et s’annotent en rouge comme les zones noires, et le noir garde son malus par-dessus.',
+      'Les bots l’ont compris : ils rassemblent leurs couleurs interdites au lieu d’en éparpiller les zones.',
+    ],
+  },
+  {
     version: '1.31',
     date: '2026-08-07',
     changes: [

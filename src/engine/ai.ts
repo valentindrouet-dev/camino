@@ -61,10 +61,10 @@ interface ColorPotential {
 export function evaluateBoard(
   board: Board,
   ruleset: Ruleset,
-  /** Couleurs interdites du joueur (variante) : leurs chemins sont à fuir. */
+  /** Couleurs interdites du joueur (variante) : leurs zones coûtent le malus. */
   forbidden: Color[] = [],
 ): number {
-  const zones = computeZones(board, ruleset)
+  const zones = computeZones(board, ruleset, forbidden)
   const grid = quadGrid(board)
   const qs = grid.size
   let value = 0
@@ -76,6 +76,13 @@ export function evaluateBoard(
       blackZones++
       continue
     }
+    // Couleur interdite : la zone coûte le malus, quelle que soit sa taille —
+    // agrandir ne coûte rien, mais en ouvrir une deuxième coûte cher.
+    if (forbidden.includes(z.color)) {
+      value += z.points
+      continue
+    }
+
     let zoneValue = z.points
 
     // Une zone ne peut grandir que si elle touche un quart encore vide.
@@ -97,13 +104,6 @@ export function evaluateBoard(
         const gain = pointsForSpan(z.span + 1, ruleset) - z.points
         zoneValue += AI_WEIGHTS.growthPotential * gain
       }
-    }
-
-    // Couleur interdite : tout ce que ce chemin promet se retournera contre le
-    // joueur — et il n'a aucune raison de s'y concentrer.
-    if (forbidden.includes(z.color)) {
-      value -= zoneValue
-      continue
     }
 
     value += zoneValue

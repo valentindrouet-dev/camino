@@ -195,6 +195,7 @@ export function HistoryScreen({ onBack }: Props) {
                                 ruleset={g.ruleset}
                                 frameColor={BOARD_COLOR_HEX[board.boardColor] ?? '#F7931D'}
                                 showZones
+                                forbidden={board.forbidden}
                               />
                             ) : (
                               <p className="note">

@@ -114,8 +114,8 @@ export function activeVariantInfos(options: GameOptions): VariantInfo[] {
     v.forbiddenColor,
     (v.forbiddenColorCount ?? 1) > 1 ? 'Couleur interdite (2)' : 'Couleur interdite',
     (v.forbiddenColorCount ?? 1) > 1
-      ? 'Chaque joueur a reçu deux couleurs interdites : les points de ses chemins de ces couleurs lui sont infligés en négatif.'
-      : 'Chaque joueur a reçu une couleur interdite : les points de ses chemins de cette couleur lui sont infligés en négatif.',
+      ? 'Chaque joueur a reçu deux couleurs interdites : elles se comportent comme le noir, chaque zone de ces couleurs coûte 2 points — quelle que soit sa taille, alors autant les réunir.'
+      : 'Chaque joueur a reçu une couleur interdite : elle se comporte comme le noir, chaque zone de cette couleur coûte 2 points — quelle que soit sa taille, alors autant les réunir.',
   )
   return out
 }

@@ -283,6 +283,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                 frameColor={p.color}
                 compact
                 showZones={false}
+                forbidden={p.forbiddenColors}
               />
             </div>
             {state.bagHolder === p.id && state.phase === 'playing' && (
@@ -451,6 +452,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
             hint={hint && viewId === activeId ? { cell: hint.cell, rot: hint.rot } : null}
             lastPlaced={lastPlaced}
             onPlace={play}
+            forbidden={viewed.forbiddenColors}
           />
         </div>
 
@@ -564,8 +566,9 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                   {viewed.forbiddenColors!.map((c) => COLOR_NAMES[c]).join(', ')}
                 </strong>
                 <p className="note" style={{ margin: '2px 0 0' }}>
-                  Les points de ses chemins {viewed.forbiddenColors!.length > 1 ? 'de ces couleurs' : 'de cette couleur'}{' '}
-                  lui sont infligés en négatif.
+                  {viewed.forbiddenColors!.length > 1 ? 'Ces couleurs comptent' : 'Cette couleur compte'}{' '}
+                  comme le noir : {signed(ruleset.blackPenalty)} pts par zone, quelle que soit sa
+                  taille.
                 </p>
               </div>
             </div>
@@ -646,7 +649,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
               <div className="scoresheet-row banned neg">
                 <span className="k">Interdite</span>
                 <span className="eq">=</span>
-                <strong>points en négatif</strong>
+                <strong>{signed(ruleset.blackPenalty)} pts par zone</strong>
               </div>
             )}
           </div>

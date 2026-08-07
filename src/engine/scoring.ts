@@ -79,9 +79,16 @@ function borderNeighbours(board: Board, qi: number): { id: number; color: Color 
  *    couleur) ; il ne rejoint jamais le noir ;
  *  - bordures : une case de bordure reliée à un chemin de sa couleur compte
  *    comme une case de plus, mais ne relie JAMAIS deux chemins entre eux ;
- *  - étoiles magiques : comptées par zone (voir scoreBoard).
+ *  - étoiles magiques : comptées par zone (voir scoreBoard) ;
+ *  - couleurs interdites : elles se comportent comme le noir, chaque zone
+ *    coûte le malus quelle que soit sa taille — les réunir reste payant.
  */
-export function computeZones(board: Board, ruleset: Ruleset): Zone[] {
+export function computeZones(
+  board: Board,
+  ruleset: Ruleset,
+  /** Couleurs interdites du joueur (variante) : leurs zones coûtent le malus. */
+  forbidden: Color[] = [],
+): Zone[] {
   const grid = quadGrid(board)
   const qs = grid.size
   const zones: Zone[] = []
@@ -176,7 +183,10 @@ export function computeZones(board: Board, ruleset: Ruleset): Zone[] {
         borderIds: [...z.borderIds].sort((a, b) => b - a),
         stars: 0,
         span,
-        points: pointsForSpan(span, ruleset),
+        // Couleur interdite : la zone se compte comme une zone noire.
+        points: forbidden.includes(color)
+          ? ruleset.blackPenalty
+          : pointsForSpan(span, ruleset),
       })
     }
   }
@@ -249,12 +259,13 @@ export function scoreBoard(
 ): ScoreBreakdown {
   const { secretColor } = who
   const forbidden = ruleset.variants?.forbiddenColor ? (who.forbiddenColors ?? []) : []
-  const zones = computeZones(board, ruleset)
+  const zones = computeZones(board, ruleset, forbidden)
   const byColor = {} as Record<Color, ColorScore>
   for (const c of COLORS) byColor[c] = { color: c, points: 0, scoringZones: [], zones: [] }
 
   let colorPoints = 0
   let blackZones = 0
+  let forbiddenZones = 0
 
   for (const z of zones) {
     byColor[z.color].zones.push(z)
@@ -262,11 +273,16 @@ export function scoreBoard(
       blackZones++
       byColor[BLACK].points += ruleset.blackPenalty
       byColor[BLACK].scoringZones.push(z)
+    } else if (forbidden.includes(z.color)) {
+      // Couleur interdite : la zone se compte comme une zone noire, quelle que
+      // soit sa taille — d'où l'intérêt de tout réunir en une seule.
+      forbiddenZones++
+      colorPoints += ruleset.blackPenalty
+      byColor[z.color].points += ruleset.blackPenalty
+      byColor[z.color].scoringZones.push(z)
     } else if (z.points > 0) {
-      // Couleur interdite : ce que le chemin aurait rapporté est infligé.
-      const gain = forbidden.includes(z.color) ? -z.points : z.points
-      colorPoints += gain
-      byColor[z.color].points += gain
+      colorPoints += z.points
+      byColor[z.color].points += z.points
       byColor[z.color].scoringZones.push(z)
     }
   }
@@ -287,7 +303,7 @@ export function scoreBoard(
     starPoints,
     cloverPoints,
     secretPoints,
-    ...(forbidden.length ? { forbidden } : {}),
+    ...(forbidden.length ? { forbidden, forbiddenZones } : {}),
     cardPoints: 0,
     byColor,
     zones,
@@ -361,6 +377,13 @@ export function signed(n: number): string {
 }
 
 export function zoneLabel(zone: Zone, ruleset: Ruleset): string {
+  // Une couleur interdite se compte comme le noir : le malus est déjà dans
+  // `points`, il n'y a pas de barème de taille à rappeler.
+  if (zone.color !== BLACK && zone.points < 0) {
+    return `Zone interdite (${COLOR_NAMES[zone.color].toLowerCase()}) — ${signed(zone.points)} pt${
+      Math.abs(zone.points) > 1 ? 's' : ''
+    }`
+  }
   if (zone.color === BLACK) {
     return `Zone noire — ${signed(ruleset.blackPenalty)} pt${
       Math.abs(ruleset.blackPenalty) > 1 ? 's' : ''

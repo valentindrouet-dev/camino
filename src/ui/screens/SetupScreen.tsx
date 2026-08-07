@@ -485,8 +485,8 @@ export function SetupScreen({
               onChange={(v) => patchVariants({ forbiddenColor: v })}
               description={
                 (variants.forbiddenColorCount ?? 1) > 1
-                  ? "Chaque joueur reçoit deux tuiles monochromes interdites. Les points de ses chemins de ces deux couleurs lui sont infligés en négatif. Ces tuiles ne se jouent pas."
-                  : "Chaque joueur reçoit une tuile monochrome interdite. Les points de ses chemins de cette couleur lui sont infligés en négatif. Cette tuile ne se joue pas."
+                  ? "Chaque joueur reçoit deux tuiles monochromes interdites. Ces deux couleurs se comportent alors comme le noir : chaque zone coûte 2 points, quelle que soit sa taille — les réunir reste payant. Ces tuiles ne se jouent pas."
+                  : "Chaque joueur reçoit une tuile monochrome interdite. Cette couleur se comporte alors comme le noir : chaque zone coûte 2 points, quelle que soit sa taille — les réunir reste payant. Cette tuile ne se joue pas."
               }
             >
               <label className="field variant-field">

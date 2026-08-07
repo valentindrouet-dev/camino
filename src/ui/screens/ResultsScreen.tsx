@@ -136,6 +136,7 @@ export function ResultsScreen({
                   ruleset={activeRuleset(state)}
                   frameColor={focused.player.color}
                   showZones
+                  forbidden={focused.player.forbiddenColors}
                 />
               </div>
               <div style={{ flex: "1 1 200px", minWidth: 180 }}>

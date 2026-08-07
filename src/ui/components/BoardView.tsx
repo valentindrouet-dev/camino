@@ -17,7 +17,7 @@ import {
   tileQuads,
   zoneLabel,
 } from '../../engine/index.ts'
-import type { Board, Rotation, Ruleset, Zone } from '../../engine/index.ts'
+import type { Board, Color, Rotation, Ruleset, Zone } from '../../engine/index.ts'
 import { IridescentDefs, quadFill, Sheen } from './Iridescent.tsx'
 import { CloverMark, FaultMark } from './TileMarks.tsx'
 
@@ -36,6 +36,8 @@ const GRID = '#A7A9AC'
 const SLOT = '#FFFFFF'
 /** Rouge clair des zones noires : contour et pastille. */
 const BLACK_ACCENT = '#FF6B6B'
+/** Référence stable : évite de recalculer les zones à chaque rendu. */
+const EMPTY: Color[] = []
 /** Profondeur de la couronne de bordure scorante (variantes). */
 const BORDER_W = 26
 
@@ -59,6 +61,11 @@ interface Props {
   lastPlaced?: number | null
   onPlace?: (cell: number) => void
   compact?: boolean
+  /**
+   * Couleurs interdites du joueur (variante) : leurs zones se comptent comme
+   * le noir et s'affichent donc en rouge, avec le malus.
+   */
+  forbidden?: Color[]
 }
 
 export function BoardView({
@@ -73,6 +80,7 @@ export function BoardView({
   lastPlaced = null,
   onPlace,
   compact = false,
+  forbidden,
 }: Props) {
   const [hover, setHover] = useState<number | null>(null)
   const [hoverZone, setHoverZone] = useState<number | null>(null)
@@ -86,9 +94,12 @@ export function BoardView({
   const grid = useMemo(() => quadGrid(board), [board])
   // En vignette on n'affiche ni contour ni pastille, mais les zones restent
   // nécessaires dès qu'il y a des trèfles : c'est ce qui décide de leur couleur.
+  const banned = forbidden?.length && ruleset.variants?.forbiddenColor ? forbidden : EMPTY
+  const bannedKey = banned.join('')
   const zones = useMemo(
-    () => (compact && !ruleset.variants?.clovers ? [] : computeZones(board, ruleset)),
-    [board, ruleset, compact],
+    () => (compact && !ruleset.variants?.clovers ? [] : computeZones(board, ruleset, banned)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bannedKey résume `banned`
+    [board, ruleset, compact, bannedKey],
   )
   const starGroups = useMemo(
     () => (ruleset.variants?.magicStars ? starClusters(board) : []),
@@ -1079,7 +1090,8 @@ function ZoneOutline({
   highlight: boolean
 }) {
   const d = useMemo(() => zoneOutlinePath(zone, n, bw, spec), [zone, n, bw, spec])
-  const color = zone.color === BLACK ? BLACK_ACCENT : '#FFFFFF'
+  // Noir — ou couleur interdite, dont la zone porte le même malus.
+  const color = zone.color === BLACK || zone.points < 0 ? BLACK_ACCENT : '#FFFFFF'
   return (
     <g pointerEvents="none">
       <path
@@ -1123,7 +1135,8 @@ function ZoneBadge({
   const cx = x + QUAD / 2
   const cy = y + QUAD / 2
   const label = signed(zone.points)
-  const color = zone.color === BLACK ? BLACK_ACCENT : '#FFFFFF'
+  // Noir — ou couleur interdite, dont la zone porte le même malus.
+  const color = zone.color === BLACK || zone.points < 0 ? BLACK_ACCENT : '#FFFFFF'
   // À deux chiffres le texte doit rentrer dans le rond avec de la marge.
   const size = label.length <= 2 ? 15 : label.length === 3 ? 11 : 9.5
   return (

@@ -37,7 +37,11 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
             <div
               className="score-line"
               key={c}
-              title={`${banni ? 'Couleur interdite — ' : ''}${detail(zones.map((z) => z.span))}`}
+              title={
+                banni
+                  ? `Couleur interdite — ${zones.length} zone${zones.length > 1 ? 's' : ''}`
+                  : detail(zones.map((z) => z.span))
+              }
             >
               <span className={`swatch ${banni ? 'banned' : ''}`} style={{ background: COLOR_HEX[c] }} />
               <span className="bar">

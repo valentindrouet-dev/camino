@@ -536,23 +536,38 @@ test('tuile de départ multicolore : quatre couleurs, la même tuile pour tous',
   assert.equal(new Set(ids).size, 2, 'une tuile par couleur de plateau')
 })
 
-test('couleur interdite : les points du chemin sont infligés en négatif', () => {
-  // un chemin rouge de 3 tuiles vaut 3 pts — ou −3 si le rouge est interdit
+test('couleur interdite : chaque zone compte comme une zone noire', () => {
+  // un chemin rouge de 3 tuiles vaut 3 pts — ou le malus du noir s'il est interdit
   const rows = ['RRRRRR..', 'RRRRRR..', VIDE, VIDE, VIDE, VIDE, VIDE, VIDE]
   const board = boardFrom(rows)
   const ruleset = withVariants({ forbiddenColor: true })
   assert.equal(E.scoreBoard(board, ruleset, {}).colorPoints, 3, 'sans interdit, normal')
   const puni = E.scoreBoard(board, ruleset, { forbiddenColors: ['R'] })
-  assert.equal(puni.colorPoints, -3)
-  assert.equal(puni.byColor.R.points, -3)
+  assert.equal(puni.colorPoints, R.blackPenalty)
+  assert.equal(puni.byColor.R.points, R.blackPenalty)
+  assert.equal(puni.forbiddenZones, 1)
   assert.deepEqual(puni.forbidden, ['R'])
-  assert.equal(puni.total, -3)
+  assert.equal(puni.total, R.blackPenalty)
+  // la taille ne change rien : un seul quart coûte autant qu'un long chemin
+  const petit = boardFrom(['RY......', 'YY......', VIDE, VIDE, VIDE, VIDE, VIDE, VIDE])
+  assert.equal(E.scoreBoard(petit, ruleset, { forbiddenColors: ['R'] }).colorPoints, R.blackPenalty)
+  // deux zones séparées coûtent deux fois : les réunir reste payant
+  const deuxZones = boardFrom(['RYYR....', 'YYYY....', VIDE, VIDE, VIDE, VIDE, VIDE, VIDE])
+  const double = E.scoreBoard(deuxZones, ruleset, { forbiddenColors: ['R'] })
+  assert.equal(double.forbiddenZones, 2)
+  assert.equal(double.byColor.R.points, 2 * R.blackPenalty)
   // sans la variante active, l'interdit ne s'applique pas
   assert.equal(E.scoreBoard(board, R, { forbiddenColors: ['R'] }).colorPoints, 3)
   // une couleur interdite n'est jamais doublée par la couleur secrète
   const deux = withVariants({ forbiddenColor: true, secretColor: true })
   const mixte = E.scoreBoard(board, deux, { secretColor: 'R', forbiddenColors: ['R'] })
   assert.equal(mixte.secretPoints, 0)
+  // et le noir, lui, reste négatif
+  const noir = boardFrom(['RRKK....', 'RRKK....', VIDE, VIDE, VIDE, VIDE, VIDE, VIDE])
+  const bd = E.scoreBoard(noir, ruleset, { forbiddenColors: ['R'] })
+  assert.equal(bd.blackZones, 1)
+  assert.equal(bd.blackPoints, R.blackPenalty)
+  assert.equal(bd.total, 2 * R.blackPenalty)
 })
 
 test('couleur interdite : une tuile par joueur, deux avec l’option', () => {
