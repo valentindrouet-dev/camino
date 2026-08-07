@@ -486,16 +486,12 @@ test('couleur secrète : une couleur par joueur, son meilleur chemin est doublé
   assert.equal(E.scoreBoard(board, R, 'R').secretPoints, 0, 'sans la variante, rien')
 })
 
-test('tuiles arc-en-ciel : un seul quart joker par tuile', () => {
+test('tuiles arc-en-ciel : la tuile entière est un seul grand carré joker', () => {
+  assert.equal(E.WHITE_TILE_IDS.length, 6)
   for (const id of E.WHITE_TILE_IDS) {
     const quads = [...E.TILES[id].quads]
-    assert.equal(quads.filter((q) => q === 'W').length, 1, `tuile ${id} : un seul carré irisé`)
-    assert.equal(quads.filter((q) => q !== 'W').length, 3, 'et trois quarts colorés')
-    assert.ok(!quads.includes('K'), 'jamais de noir sur une tuile arc-en-ciel')
+    assert.deepEqual(quads, ['W', 'W', 'W', 'W'], `tuile ${id} : un seul grand carré irisé`)
   }
-  // le quart irisé n'est pas toujours à la même place
-  const places = new Set(E.WHITE_TILE_IDS.map((id) => [...E.TILES[id].quads].indexOf('W')))
-  assert.ok(places.size > 1, 'le carré irisé change de position')
   // le sac garde la même taille qu'avant
   const s = E.createGame({
     players: [{ name: 'A', kind: 'human', boardColor: 'O' }],

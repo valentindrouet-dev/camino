@@ -395,7 +395,7 @@ export function SetupScreen({
               label="Tuiles arc-en-ciel"
               on={!!variants.whiteTiles}
               onChange={(v) => patchVariants({ whiteTiles: v })}
-              description="+6 tuiles portant un quart arc-en-ciel : ce carré joker prolonge et relie les chemins de toutes les couleurs qui le touchent."
+              description="+6 tuiles arc-en-ciel : un seul grand carré irisé qui prolonge et relie les chemins de toutes les couleurs voisines."
             />
             <VariantToggle
               label="Étoiles magiques"

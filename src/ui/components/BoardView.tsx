@@ -10,6 +10,7 @@ import {
   placeTile,
   quadGrid,
   scoreOf,
+  tileOfQuad,
   signed,
   starClusters,
   starQuadIndex,
@@ -83,14 +84,29 @@ export function BoardView({
   const bw = board.borders?.kind === 'multi' ? BORDER_W : 0
   const side = PAD * 2 + 2 * bw + n * PITCH + GAP
   const grid = useMemo(() => quadGrid(board), [board])
+  // En vignette on n'affiche ni contour ni pastille, mais les zones restent
+  // nécessaires dès qu'il y a des trèfles : c'est ce qui décide de leur couleur.
   const zones = useMemo(
-    () => (compact ? [] : computeZones(board, ruleset)),
+    () => (compact && !ruleset.variants?.clovers ? [] : computeZones(board, ruleset)),
     [board, ruleset, compact],
   )
   const starGroups = useMemo(
     () => (ruleset.variants?.magicStars ? starClusters(board) : []),
     [board, ruleset.variants?.magicStars],
   )
+  /** Tuiles dont les quatre quarts sont irisés : un seul grand carré à l'écran. */
+  const rainbowTiles = useMemo(() => {
+    const out = new Set<number>()
+    for (let i = 0; i < board.cells.length; i++) {
+      const placed = board.cells[i]
+      if (!placed) continue
+      if (tileQuads(placed.tileId, placed.rot, placed.flipped).every((q) => q === WHITE)) {
+        out.add(i)
+      }
+    }
+    return out
+  }, [board])
+
   /** Quarts appartenant à un chemin qui marque — sert à colorer les trèfles. */
   const scoringQuads = useMemo(() => {
     const s = new Set<number>()
@@ -115,9 +131,27 @@ export function BoardView({
    * (elles doivent rester dans leurs propres cases) ; les groupes d'étoiles
    * prennent ensuite une case voisine libre.
    */
+  /** Quarts qui portent un trèfle : une pastille ne doit jamais s'y poser. */
+  const cloverQuads = useMemo(() => {
+    const out = new Set<number>()
+    if (!ruleset.variants?.clovers) return out
+    for (let i = 0; i < board.cells.length; i++) {
+      const placed = board.cells[i]
+      if (!placed) continue
+      const cq = cloverQuadIndex(placed.tileId, placed.rot, placed.flipped)
+      if (cq === null) continue
+      const r = Math.floor(i / n) * 2 + (cq >= 2 ? 1 : 0)
+      const c = (i % n) * 2 + (cq === 1 || cq === 2 ? 1 : 0)
+      out.add(r * n * 2 + c)
+    }
+    return out
+  }, [board, n, ruleset.variants?.clovers])
+
   const badgeAnchors = useMemo(() => {
     const qs = n * 2
-    const starred = new Set(starGroups.flatMap((g) => g.cells))
+    // Une pastille ne se pose ni sur une étoile ni sur un trèfle : ce sont les
+    // deux marques que le joueur doit pouvoir lire à tout moment.
+    const starred = new Set([...starGroups.flatMap((g) => g.cells), ...cloverQuads])
     const used = new Set<number>()
     const byCentroid = (cells: number[]) => {
       let mx = 0
@@ -185,7 +219,7 @@ export function BoardView({
       starAnchors.set(i, a)
     })
     return { zoneAnchors, starAnchors }
-  }, [zones, starGroups, grid, n])
+  }, [zones, starGroups, cloverQuads, grid, n])
   const legalSet = useMemo(
     () => new Set(legal ?? (interactive ? computeLegalCells(board, ruleset.requireAdjacency) : [])),
     [legal, interactive, board, ruleset.requireAdjacency],
@@ -245,23 +279,32 @@ export function BoardView({
         <rect key={`e${i}`} {...cellXY(i)} width={TILEW} height={TILEW} fill={SLOT} />
       ))}
 
-      {/* quarts posés */}
+      {/* quarts posés — une tuile entièrement irisée est dessinée d'un seul
+          tenant : c'est UN grand carré arc-en-ciel, pas quatre petits */}
       {grid.cells.map((color, qi) =>
-        color === null ? null : (
-          <g key={`q${qi}`}>
-            <rect
-              className="quad"
-              {...quadXY(qi, n, bw)}
-              width={QUAD}
-              height={QUAD}
-              fill={quadFill(color, irisId)}
-            />
-            {color === WHITE && (
-              <Sheen {...quadXY(qi, n, bw)} size={QUAD} irisId={irisId} />
-            )}
-          </g>
+        color === null || rainbowTiles.has(tileOfQuad(n, qi)) ? null : (
+          <rect
+            key={`q${qi}`}
+            className="quad"
+            {...quadXY(qi, n, bw)}
+            width={QUAD}
+            height={QUAD}
+            fill={quadFill(color, irisId)}
+          />
         ),
       )}
+      {[...rainbowTiles].map((i) => (
+        <g key={`iris${i}`}>
+          <rect
+            className="quad"
+            {...cellXY(i)}
+            width={TILEW}
+            height={TILEW}
+            fill={`url(#${irisId})`}
+          />
+          <Sheen {...cellXY(i)} size={TILEW} irisId={irisId} />
+        </g>
+      ))}
 
       {/* failles : elles coupent la tuile en deux moitiés qui ne se relient pas */}
       {ruleset.variants?.faultTiles &&
@@ -361,22 +404,33 @@ export function BoardView({
       {/* aperçu de la tuile sélectionnée */}
       {preview && (
         <g>
-          {preview.quads.map((c, k) => {
-            const { x, y } = cellXY(preview.cell)
-            const [dx, dy] = QUAD_OFFSETS[k]
-            return (
-              <rect
-                key={k}
-                className="quad"
-                x={x + dx}
-                y={y + dy}
-                width={QUAD}
-                height={QUAD}
-                fill={quadFill(c, irisId)}
-                opacity="0.88"
-              />
-            )
-          })}
+          {preview.quads.every((c) => c === WHITE) ? (
+            <rect
+              className="quad"
+              {...cellXY(preview.cell)}
+              width={TILEW}
+              height={TILEW}
+              fill={`url(#${irisId})`}
+              opacity="0.88"
+            />
+          ) : (
+            preview.quads.map((c, k) => {
+              const { x, y } = cellXY(preview.cell)
+              const [dx, dy] = QUAD_OFFSETS[k]
+              return (
+                <rect
+                  key={k}
+                  className="quad"
+                  x={x + dx}
+                  y={y + dy}
+                  width={QUAD}
+                  height={QUAD}
+                  fill={quadFill(c, irisId)}
+                  opacity="0.88"
+                />
+              )
+            })
+          )}
           {ghost &&
             ruleset.variants?.faultTiles &&
             (() => {

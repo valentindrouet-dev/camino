@@ -56,7 +56,7 @@ export function activeVariantInfos(options: GameOptions): VariantInfo[] {
   add(
     v.whiteTiles,
     'Tuiles arc-en-ciel',
-    '+6 tuiles portant un quart arc-en-ciel : ce carré joker prolonge et relie les chemins de toutes les couleurs qui le touchent.',
+    '+6 tuiles arc-en-ciel : un seul grand carré irisé qui prolonge et relie les chemins de toutes les couleurs voisines.',
   )
   add(
     v.magicStars,

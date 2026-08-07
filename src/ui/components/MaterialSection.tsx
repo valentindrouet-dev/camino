@@ -140,8 +140,8 @@ export function MaterialSection() {
           </div>
           <p className="note" style={{ marginTop: 10 }}>
             Ajoutées au sac par leurs variantes : les monochromes densifient les couleurs, et le
-            carré arc-en-ciel des secondes prolonge et relie les chemins de toutes les couleurs qui
-            le touchent. Les tuiles couleur et les tuiles de départ multicolores ne se mélangent
+            grand carré arc-en-ciel des secondes prolonge et relie les chemins de toutes les
+            couleurs voisines. Les tuiles couleur et les tuiles de départ multicolores ne se mélangent
             jamais au sac : elles servent de tuile de départ et de marqueur de couleur secrète.
           </p>
 

@@ -66,9 +66,16 @@ export function TileGlyph({
     >
       <IridescentDefs id={irisId} />
       <g className="spin" style={{ transform: `rotate(${deg}deg)`, transformOrigin: '50px 50px' }}>
-        {([[0, 0], [50, 0], [50, 50], [0, 50]] as [number, number][]).map(([qx, qy], k) => (
-          <g key={k}>
+        {quads.every((q) => q === WHITE) ? (
+          // tuile arc-en-ciel : UN seul grand carré irisé, pas quatre
+          <>
+            <rect className="quad" x="0" y="0" width="100" height="100" fill={`url(#${irisId})`} />
+            <Sheen x={0} y={0} size={100} irisId={irisId} />
+          </>
+        ) : (
+          ([[0, 0], [50, 0], [50, 50], [0, 50]] as [number, number][]).map(([qx, qy], k) => (
             <rect
+              key={k}
               className="quad"
               x={qx}
               y={qy}
@@ -76,9 +83,8 @@ export function TileGlyph({
               height="50"
               fill={quadFill(quads[k], irisId)}
             />
-            {quads[k] === WHITE && <Sheen x={qx} y={qy} size={50} irisId={irisId} />}
-          </g>
-        ))}
+          ))
+        )}
         {showFault && FAULTS.get(tileId) !== undefined && (
           <FaultMark x={0} y={0} size={100} axis={FAULTS.get(tileId) as 0 | 1} />
         )}

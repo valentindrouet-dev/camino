@@ -12,10 +12,22 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
     10,
     ...PATH_COLORS.map((c) => breakdown.byColor[c].points),
   )
+  // Le panneau ne montre que ce qui compte déjà : les couleurs apparaissent au
+  // fur et à mesure qu'elles marquent, plutôt qu'une liste de tirets.
+  const scoring = PATH_COLORS.filter((c) => breakdown.byColor[c].points > 0)
+  const rien =
+    scoring.length === 0 &&
+    breakdown.blackZones === 0 &&
+    breakdown.starPoints === 0 &&
+    breakdown.cloverPoints === 0 &&
+    breakdown.secretPoints === 0 &&
+    !breakdown.cardLabel
   return (
     <div>
+      {!dense && rien && <p className="note" style={{ margin: '2px 0 8px' }}>Aucun point pour l’instant.</p>}
+
       {!dense &&
-        PATH_COLORS.map((c) => {
+        scoring.map((c) => {
           const s = breakdown.byColor[c]
           const zones = s.scoringZones
           return (
@@ -29,14 +41,12 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
                   }}
                 />
               </span>
-              <span className={`val ${s.points > 0 ? 'pos' : ''}`}>
-                {s.points > 0 ? `${s.points} pts` : '—'}
-              </span>
+              <span className="val pos">{s.points} pts</span>
             </div>
           )
         })}
 
-      {!dense && (
+      {!dense && breakdown.blackZones > 0 && (
         <div className="score-line" title={`${breakdown.blackZones} zone(s) noire(s)`}>
           <span className="swatch" style={{ background: COLOR_HEX[BLACK] }} />
           <span className="bar">
@@ -52,12 +62,12 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
               breakdown.blackPoints < 0 ? 'neg' : breakdown.blackPoints > 0 ? 'pos' : ''
             }`}
           >
-            {breakdown.blackPoints !== 0 ? `${signed(breakdown.blackPoints)} pts` : '—'}
+            {signed(breakdown.blackPoints)} pts
           </span>
         </div>
       )}
 
-      {!dense && breakdown.starPoints > 0 && (
+      {!dense && breakdown.starPoints !== 0 && (
         <div className="score-line" title="Étoiles magiques reliées">
           <span className="swatch mission" style={{ background: '#FFD23F' }}>
             ★

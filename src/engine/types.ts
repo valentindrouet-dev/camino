@@ -126,8 +126,8 @@ export interface Variants {
   /** +12 tuiles monochromes dans le sac (2 par couleur). */
   monoTiles?: boolean
   /**
-   * +6 tuiles arc-en-ciel dans le sac : un quart irisé joker qui rejoint les
-   * chemins de toutes les couleurs voisines. (Nom historique du drapeau.)
+   * +6 tuiles arc-en-ciel dans le sac : un grand carré irisé joker qui rejoint
+   * les chemins de toutes les couleurs voisines. (Nom historique du drapeau.)
    */
   whiteTiles?: boolean
   /** Étoiles sur 30 tuiles ; les relier rapporte des points. */

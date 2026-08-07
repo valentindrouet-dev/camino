@@ -1351,6 +1351,17 @@ button.mission-card.selected {
   color: #2f7a3c;
 }
 
+/* les lignes à libellé long (trèfles, étoiles) prennent toute la largeur */
+.scoresheet-row.clover,
+.scoresheet-row.star {
+  grid-column: 1 / -1;
+}
+
+.scoresheet-row.clover .k,
+.scoresheet-row.star .k {
+  min-width: 74px;
+}
+
 /* rapport de fin de partie */
 
 .game-report {

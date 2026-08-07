@@ -15,6 +15,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.30',
+    date: '2026-08-07',
+    changes: [
+      'Le score de la colonne de droite n’affiche que ce qui rapporte : les couleurs apparaissent au fur et à mesure qu’elles marquent, et les points de trèfles y figurent.',
+      'Les pastilles de points ne se posent plus jamais sur un trèfle, comme elles évitaient déjà les étoiles.',
+      'La tuile arc-en-ciel est un seul grand carré irisé, plateau, pioche et matériel compris.',
+      'Les trèfles des vignettes de la colonne de gauche prennent enfin leur vraie couleur : verts quand ils rapportent, rouges sinon.',
+    ],
+  },
+  {
     version: '1.29',
     date: '2026-08-07',
     changes: [

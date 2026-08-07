@@ -41,20 +41,11 @@ const RAW: string[] = [
  */
 const MONO: string[] = ['Y', 'O', 'R', 'G', 'B', 'P'].flatMap((c) => [c.repeat(4), c.repeat(4)])
 /**
- * Tuiles arc-en-ciel (variante) : UN SEUL quart irisé, joker qui rejoint les
- * chemins de toutes les couleurs voisines ; les trois autres quarts sont des
- * couleurs ordinaires. Le quart irisé change de place d'une tuile à l'autre.
+ * Tuiles arc-en-ciel (variante) : la tuile entière est UN SEUL grand carré
+ * irisé — un joker qui rejoint les chemins de toutes les couleurs voisines.
+ * Ses quatre quarts sont irisés, mais l'affichage les dessine d'un seul tenant.
  */
-const WHITES: string[] = (() => {
-  const rng = new Rng('camino-arc-en-ciel')
-  const palette = ['Y', 'O', 'R', 'G', 'B', 'P']
-  return Array.from({ length: 6 }, (_, i) => {
-    const trois = rng.shuffle([...palette]).slice(0, 3)
-    const quads = [...trois]
-    quads.splice(i % 4, 0, 'W')
-    return quads.slice(0, 4).join('')
-  })
-})()
+const WHITES: string[] = Array.from({ length: 6 }, () => 'WWWW')
 
 /**
  * Tuiles de départ multicolores (variante) : quatre couleurs différentes sur
