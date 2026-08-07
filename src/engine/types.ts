@@ -244,6 +244,11 @@ export interface GameOptions {
   showHints: boolean
   /** Le premier porteur du sac est tiré au sort au lieu d'être le joueur 1. */
   randomFirst?: boolean
+  /**
+   * Écran partagé : tous les plateaux côte à côte au centre, la colonne de
+   * gauche disparaît. Toujours décoché au début d'une partie.
+   */
+  allBoards?: boolean
   /** Signale la dernière tuile posée par des équerres sur le plateau. */
   showLastPlaced?: boolean
   /** Une (ou plusieurs) carte mission est tirée pour la table. */

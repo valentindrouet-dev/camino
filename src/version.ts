@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.33',
+    date: '2026-08-07',
+    changes: [
+      'Nouvelle option en cours de partie, « X Plateaux visibles » : tous les plateaux s’affichent côte à côte au centre et la colonne de gauche s’efface — la vue idéale en écran partagé.',
+      'La taille des plateaux suit leur nombre, de 2 à 6, pour que tout tienne à l’écran sans défilement ; décocher l’option rend la colonne de gauche, qui reste la vue par défaut au début de chaque partie.',
+      'Chaque plateau garde son propre barème : une carte mission personnelle ne déteint plus sur les plateaux voisins.',
+    ],
+  },
+  {
     version: '1.32',
     date: '2026-08-07',
     changes: [

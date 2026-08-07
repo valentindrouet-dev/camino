@@ -148,6 +148,16 @@ export default function App() {
               />
               Points par Zone visible
             </label>
+            {state.players.length > 1 && (
+              <label className={`toggle ${state.options.allBoards ? 'on' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={!!state.options.allBoards}
+                  onChange={(e) => patchOption('allBoards', e.target.checked)}
+                />
+                {state.players.length} Plateaux visibles
+              </label>
+            )}
             <label className={`toggle ${state.options.showHints ? 'on' : ''}`}>
               <input
                 type="checkbox"

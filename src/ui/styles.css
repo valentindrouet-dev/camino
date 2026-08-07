@@ -360,6 +360,121 @@ code {
   filter: drop-shadow(0 12px 24px rgba(150, 110, 50, 0.16));
 }
 
+/* ------------------------------------------------ écran partagé (X plateaux)
+ * Tous les plateaux au centre, la colonne de gauche s'efface. La taille des
+ * plateaux suit le nombre de colonnes ET de rangées, pour que tout tienne à
+ * l'écran sans faire défiler la page.
+ */
+.table.multi {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+.boards-grid {
+  width: 100%;
+  /* la grille ne s'étale pas plus large que ses plateaux : elle reste groupée
+     au centre de la table plutôt que collée aux deux bords */
+  max-width: calc(var(--cols, 2) * var(--cell, 500px) + (var(--cols, 2) - 1) * 14px);
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+  gap: 12px 14px;
+  justify-items: center;
+  align-items: start;
+}
+
+.boards-grid .board-cell {
+  margin: 0;
+  width: 100%;
+  /* carré : la hauteur restante, mesurée, se partage entre les rangées */
+  max-width: var(--cell, 500px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  transition: 120ms ease;
+}
+
+.boards-grid .board-cell.viewing {
+  border-color: #f3c27e;
+  background: var(--accent-soft);
+}
+
+.boards-grid .board-cell.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: var(--shadow-soft);
+}
+
+.boards-grid .board-cell > :last-child {
+  filter: drop-shadow(0 8px 16px rgba(150, 110, 50, 0.14));
+}
+
+.boards-grid figcaption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+}
+
+.boards-grid figcaption .who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 650;
+  font-size: 14px;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.boards-grid figcaption .who:hover {
+  color: var(--accent-ink);
+}
+
+.boards-grid figcaption .bag {
+  font-size: 14px;
+}
+
+.boards-grid figcaption .score-big {
+  margin-left: auto;
+  font-size: 17px;
+}
+
+/* au-delà de deux colonnes, les libellés se font discrets pour garder la place */
+.boards-grid[data-cols='3'] figcaption {
+  font-size: 13px;
+  min-height: 24px;
+}
+
+.boards-grid[data-cols='3'] figcaption .score-big {
+  font-size: 15px;
+}
+
+@media (max-width: 1240px) {
+  .table.multi {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+}
+
+@media (max-width: 860px) {
+  .table.multi {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .boards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+  .boards-grid .board-cell {
+    max-width: 100%;
+  }
+}
+
 .board-caption {
   display: flex;
   align-items: center;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   applyMove,
   availableTiles,
@@ -35,6 +35,13 @@ interface Props {
 }
 
 const BOT_DELAY = 520
+/** Écran partagé : bornes de la taille d'un plateau, et hauteur de son décor. */
+const BOARD_MAX = 500
+const BOARD_MIN = 170
+/** En-tête du plateau + marges de sa boîte, en pixels. */
+const CELL_CHROME = 50
+const GRID_GAP = 12
+const PAGE_PAD = 20
 /** Durée du vol d'une tuile de la pioche vers le plateau d'un bot. */
 const FLY_MS = 620
 
@@ -81,23 +88,63 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
 
   const breakdowns = useMemo(() => scoreAll(state), [state])
   // Barème en vigueur : avec la carte « zones noires positives », une zone
-  // noire vaut +2 et les pastilles du plateau doivent le montrer.
-  const ruleset = useMemo(() => rulesetForPlayer(state, viewId), [state, viewId])
+  // noire vaut +2 et les pastilles du plateau doivent le montrer. Une carte
+  // personnelle ne vaut que pour son joueur : chacun a donc le sien.
+  const rulesets = useMemo(
+    () => state.players.map((p) => rulesetForPlayer(state, p.id)),
+    [state],
+  )
+  const ruleset = rulesets[viewId]
   const missions = useMemo(() => cardResults(state, viewId), [state, viewId])
 
-  const lastPlaced = useMemo(() => {
-    if (!options.showLastPlaced) return null
+  /** Dernière case jouée par chaque joueur (option « Dernière tuile posée »). */
+  const lastPlacedBy = useMemo(() => {
+    const out = new Map<number, number>()
+    if (!options.showLastPlaced) return out
     for (let i = state.log.length - 1; i >= 0; i--) {
-      if (state.log[i].playerId === viewId) return state.log[i].cell
+      const e = state.log[i]
+      if (!out.has(e.playerId)) out.set(e.playerId, e.cell)
     }
-    return null
-  }, [state.log, viewId, options.showLastPlaced])
+    return out
+  }, [state.log, options.showLastPlaced])
+  const lastPlaced = lastPlacedBy.get(viewId) ?? null
+
+  /**
+   * Écran partagé : tous les plateaux au centre, la colonne de gauche s'efface.
+   * Au-delà de deux plateaux, la grille se resserre pour que tout tienne.
+   */
+  const multi = Boolean(options.allBoards) && state.players.length > 1
+  const cols = state.players.length <= 2 ? 2 : state.players.length === 4 ? 2 : 3
+  const rows = Math.ceil(state.players.length / cols)
 
   const hint = useMemo(() => {
     if (!options.showHints || isBot(active) || state.phase !== 'playing') return null
     const best = topMoves(state, 1)[0]
     return best ? { cell: best.cell, rot: best.rot, tileId: best.tileId, score: best.score } : null
   }, [options.showHints, active, state])
+
+  /*
+   * Taille des plateaux en écran partagé : elle est MESURÉE plutôt que devinée.
+   * La hauteur qui reste sous la pioche dépend du nombre de tuiles révélées, de
+   * la présence de l'indice, de la fenêtre… On lit donc la position réelle de
+   * la grille et on partage ce qui reste entre les rangées.
+   */
+  const gridRef = useRef<HTMLDivElement>(null)
+  const [cellMax, setCellMax] = useState(BOARD_MAX)
+  useLayoutEffect(() => {
+    if (!multi) return
+    const mesurer = () => {
+      const el = gridRef.current
+      if (!el) return
+      const dispo = window.innerHeight - el.getBoundingClientRect().top - PAGE_PAD
+      // chaque plateau porte son en-tête et ses marges : CELL_CHROME
+      const parRangee = (dispo - (rows - 1) * GRID_GAP) / rows - CELL_CHROME
+      setCellMax(Math.max(BOARD_MIN, Math.min(BOARD_MAX, Math.floor(parRangee))))
+    }
+    mesurer()
+    window.addEventListener('resize', mesurer)
+    return () => window.removeEventListener('resize', mesurer)
+  }, [multi, rows, state.pool.length, Boolean(hint), state.players.length])
 
   // Sélection : on présélectionne quand il ne reste qu'une tuile (dernier joueur).
   useEffect(() => {
@@ -243,7 +290,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
   const canPlaceHere = humanTurn && viewId === activeId && selected !== null
 
   return (
-    <div className="table">
+    <div className={`table ${multi ? 'multi' : ''}`}>
       {fly && (
         <FlyingTile
           key={fly.key}
@@ -255,6 +302,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
       )}
 
       {/* ------------------------------------------------ colonne joueurs */}
+      {!multi && (
       <div className="col-left">
         {state.players.map((p, i) => (
           <button
@@ -279,7 +327,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
             <div className="mini-board">
               <BoardView
                 board={p.board}
-                ruleset={ruleset}
+                ruleset={rulesets[i]}
                 frameColor={p.color}
                 compact
                 showZones={false}
@@ -292,6 +340,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
           </button>
         ))}
       </div>
+      )}
 
       {/* --------------------------------------------------- table de jeu */}
       <div className="stage" ref={stageRef}>
@@ -424,42 +473,102 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
           </div>
         )}
 
-        <div className="board-caption">
-          <span className="who">
-            <span className="dot" style={{ background: viewed.color }} />
-            Plateau de {viewed.name}
-            {viewId !== activeId &&
-              (isBot(active) && pinned === null ? (
-                <span className="tag">{active.name} joue…</span>
-              ) : (
-                <span className="tag">lecture seule</span>
-              ))}
-          </span>
-          <span className="tag">
-            Manche <strong>{Math.min(state.round + 1, state.totalRounds)}</strong> / {state.totalRounds}
-          </span>
-        </div>
+        {multi ? (
+          /* écran partagé : tous les plateaux d'un coup, la taille suit le nombre */
+          <div
+            className="boards-grid"
+            data-cols={cols}
+            ref={gridRef}
+            style={{ ['--cols' as string]: cols, ['--cell' as string]: `${cellMax}px` }}
+          >
+            {state.players.map((p, i) => {
+              const sien = humanTurn && p.id === activeId && selected !== null
+              return (
+                <figure
+                  key={p.id}
+                  className={`board-cell ${p.id === activeId && state.phase === 'playing' ? 'active' : ''} ${
+                    viewId === p.id ? 'viewing' : ''
+                  }`}
+                  ref={(el) => {
+                    if (el) cardRefs.current.set(p.id, el)
+                    else cardRefs.current.delete(p.id)
+                  }}
+                >
+                  <figcaption>
+                    <button
+                      className="who"
+                      onClick={() => setPinned(pinned === p.id ? null : p.id)}
+                      title={`Voir le détail du score de ${p.name}`}
+                    >
+                      <span className="dot" style={{ background: p.color }} />
+                      {p.name}
+                      {isBot(p) && <span className="tag">bot</span>}
+                    </button>
+                    {state.bagHolder === p.id && state.phase === 'playing' && (
+                      <span className="bag" title="A le sac ce tour-ci">
+                        🎒
+                      </span>
+                    )}
+                    {options.liveScore && <span className="score-big">{breakdowns[i].total}</span>}
+                  </figcaption>
+                  <BoardView
+                    board={p.board}
+                    ruleset={rulesets[i]}
+                    frameColor={p.color}
+                    showZones={options.showZones}
+                    interactive={sien}
+                    legal={p.id === activeId ? legal : []}
+                    ghost={sien ? { tileId: selected as number, rot, flipped } : null}
+                    hint={hint && p.id === activeId ? { cell: hint.cell, rot: hint.rot } : null}
+                    lastPlaced={lastPlacedBy.get(p.id) ?? null}
+                    onPlace={play}
+                    forbidden={p.forbiddenColors}
+                  />
+                </figure>
+              )
+            })}
+          </div>
+        ) : (
+          <>
+            <div className="board-caption">
+              <span className="who">
+                <span className="dot" style={{ background: viewed.color }} />
+                Plateau de {viewed.name}
+                {viewId !== activeId &&
+                  (isBot(active) && pinned === null ? (
+                    <span className="tag">{active.name} joue…</span>
+                  ) : (
+                    <span className="tag">lecture seule</span>
+                  ))}
+              </span>
+              <span className="tag">
+                Manche <strong>{Math.min(state.round + 1, state.totalRounds)}</strong> /{' '}
+                {state.totalRounds}
+              </span>
+            </div>
 
-        <div className="board-wrap">
-          <BoardView
-            board={viewed.board}
-            ruleset={ruleset}
-            frameColor={viewed.color}
-            showZones={options.showZones}
-            interactive={canPlaceHere}
-            legal={viewId === activeId ? legal : []}
-            ghost={canPlaceHere && selected !== null ? { tileId: selected, rot, flipped } : null}
-            hint={hint && viewId === activeId ? { cell: hint.cell, rot: hint.rot } : null}
-            lastPlaced={lastPlaced}
-            onPlace={play}
-            forbidden={viewed.forbiddenColors}
-          />
-        </div>
+            <div className="board-wrap">
+              <BoardView
+                board={viewed.board}
+                ruleset={ruleset}
+                frameColor={viewed.color}
+                showZones={options.showZones}
+                interactive={canPlaceHere}
+                legal={viewId === activeId ? legal : []}
+                ghost={canPlaceHere && selected !== null ? { tileId: selected, rot, flipped } : null}
+                hint={hint && viewId === activeId ? { cell: hint.cell, rot: hint.rot } : null}
+                lastPlaced={lastPlaced}
+                onPlace={play}
+                forbidden={viewed.forbiddenColors}
+              />
+            </div>
 
-        {pinned !== null && pinned !== activeId && (
-          <button className="btn small" onClick={() => setPinned(null)}>
-            ↩ Revenir au plateau de {active.name}
-          </button>
+            {pinned !== null && pinned !== activeId && (
+              <button className="btn small" onClick={() => setPinned(null)}>
+                ↩ Revenir au plateau de {active.name}
+              </button>
+            )}
+          </>
         )}
       </div>
 
