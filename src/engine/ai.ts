@@ -157,7 +157,7 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
   // ce qu'il a intérêt à faire, y compris quand elle est personnelle.
   const ruleset = rulesetForPlayer(state, player.id)
   const cells = legalCells(player.board, ruleset.requireAdjacency)
-  const before = scoreBoard(player.board, ruleset)
+  const before = scoreBoard(player.board, ruleset, player.secretColor)
   const base = before.total
   const blackBefore = before.blackZones
   const out: ScoredMove[] = []
@@ -184,6 +184,7 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
           ],
         },
         cards,
+        state.cardColors,
       ).cardPoints
     : 0
 
@@ -206,7 +207,7 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
     for (const { rot, flipped } of distinctOrientations(cand.tileId, allowFlip)) {
       for (const cell of cells) {
         const board = placeTile(player.board, cell, cand.tileId, rot, state.round, flipped)
-        const breakdown = scoreBoard(board, ruleset)
+        const breakdown = scoreBoard(board, ruleset, player.secretColor)
         const score = breakdown.total
         let value = evaluateBoard(board, ruleset)
         value += AI_WEIGHTS.centrality * neighbours(player.board.size, cell).length
@@ -223,6 +224,7 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
             breakdown,
             { playerId: player.id, board, ruleset, table },
             cards,
+            state.cardColors,
           ).cardPoints
           value += AI_WEIGHTS.mission * missionPoints
           if (missionPoints > missionBefore) {

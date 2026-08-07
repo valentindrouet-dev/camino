@@ -8,6 +8,9 @@ import {
   COLOR_NAMES,
   createBoard,
   DEFAULT_RULESET,
+  CLOVERS,
+  COLOR_TILE_IDS,
+  FAULTS,
   MONO_TILE_IDS,
   multiBorderFor,
   PATH_COLORS,
@@ -126,10 +129,38 @@ export function MaterialSection() {
               <TileGlyph key={id} tileId={id} size={40} />
             ))}
           </div>
+          <h4 style={{ fontSize: 14, margin: '14px 0 8px' }}>
+            6 tuiles couleur (départ et couleur secrète)
+          </h4>
+          <div className="material-tiles">
+            {Object.values(COLOR_TILE_IDS).map((id) => (
+              <TileGlyph key={id} tileId={id} size={40} />
+            ))}
+          </div>
           <p className="note" style={{ marginTop: 10 }}>
             Ajoutées au sac par leurs variantes : les monochromes densifient les couleurs, les
-            blanches prolongent et relient les chemins de toutes les couleurs voisines.
+            blanches prolongent et relient les chemins de toutes les couleurs voisines. Les six
+            tuiles couleur ne se mélangent jamais au sac : elles servent de tuile de départ et de
+            marqueur de couleur secrète.
           </p>
+
+          <h4 style={{ fontSize: 14, margin: '18px 0 8px' }}>
+            16 tuiles à faille — les deux moitiés ne se relient pas
+          </h4>
+          <div className="material-tiles">
+            {[...FAULTS.keys()].map((id) => (
+              <TileGlyph key={id} tileId={id} size={40} showFault />
+            ))}
+          </div>
+
+          <h4 style={{ fontSize: 14, margin: '18px 0 8px' }}>
+            {CLOVERS.size} tuiles à trèfle — +3 dans un chemin qui marque, −3 sinon
+          </h4>
+          <div className="material-tiles">
+            {[...CLOVERS.keys()].slice(0, 24).map((id) => (
+              <TileGlyph key={id} tileId={id} size={40} showClover />
+            ))}
+          </div>
         </>
       )}
 

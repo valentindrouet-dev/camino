@@ -15,6 +15,22 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.28',
+    date: '2026-08-07',
+    changes: [
+      'Rapport de fin de partie : un champ libre attaché à la partie, retrouvable dans l’Historique via le nouvel onglet « Rapports de partie ».',
+      'Variante Tuile supplémentaire : une tuile de plus au centre chaque manche, la restante est remélangée dans le sac.',
+      'Variante Tuiles failles : une faille grise coupe 16 tuiles en deux moitiés qui ne se relient pas.',
+      'Variante Trèfles : un quart de tuile sur quatre porte un trèfle — +3 dans un chemin qui marque, −3 sinon.',
+      'Variante Tuile de départ : chaque plateau démarre avec une tuile de sa couleur au centre.',
+      'Variante Sac antihoraire : le sac revient au dernier servi.',
+      'Variante Échange de plateaux : deux cartes face cachée, « Rotation ! » ou « Pas de rotation ! », retournées à mi-partie.',
+      'Variante Couleur secrète : une tuile monochrome remise en secret, dont le meilleur chemin est doublé.',
+      'Sept cartes missions d’extension, affichées en rose : Plateau immaculé, Le plus long chemin, Spécialiste, Symétrie, Cœur du plateau, Les quatre angles et Économe.',
+      'Les cartes « plus grand chemin » et « chemins d’une couleur » visent désormais une couleur tirée au début de chaque partie.',
+    ],
+  },
+  {
     version: '1.27',
     date: '2026-08-07',
     changes: [

@@ -14,6 +14,8 @@ type Screen = 'setup' | 'game' | 'results' | 'lab' | 'archive' | 'history' | 've
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('setup')
+  /** Identifiant de la partie qu'on vient d'archiver : sert au rapport de fin. */
+  const [archivedId, setArchivedId] = useState<string | null>(null)
   const [config, setConfig] = useState<GameConfig | null>(null)
   const [history, setHistory] = useState<GameState[]>([])
 
@@ -50,7 +52,7 @@ export default function App() {
     // L'archivage se fait ici, une seule fois par partie — surtout pas dans un
     // effet d'écran, qui se rejoue à chaque retour sur les résultats.
     const last = historyRef.current[historyRef.current.length - 1]
-    if (last?.phase === 'finished') archiveGame(last)
+    if (last?.phase === 'finished') setArchivedId(archiveGame(last).id)
     setScreen('results')
   }, [])
 
@@ -205,6 +207,7 @@ export default function App() {
       {screen === 'results' && state && (
         <ResultsScreen
           state={state}
+          archivedId={archivedId}
           onBackToGame={() => setScreen('game')}
           onReplaySameSeed={() => config && start(config, true)}
           onNewGame={() => quitGame('setup')}

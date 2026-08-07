@@ -9,10 +9,12 @@ import {
 import type { Color } from '../../engine/index.ts'
 import { BoardView } from '../components/BoardView.tsx'
 import { MissionCardView } from '../components/MissionCard.tsx'
+import { GameReport } from '../components/GameReport.tsx'
 import {
   deleteArchivedGame,
   exportArchiveCsv,
   loadArchive,
+  saveGameReport,
   type ArchivedGame,
 } from '../storage.ts'
 
@@ -24,8 +26,14 @@ interface Props {
 export function HistoryScreen({ onBack }: Props) {
   const [archive, setArchive] = useState<ArchivedGame[]>(() => loadArchive())
   const [openId, setOpenId] = useState<string | null>(null)
+  const [tab, setTab] = useState<'parties' | 'rapports'>('parties')
 
   const games = useMemo(() => archive.slice().reverse(), [archive])
+  /** Parties qui portent un rapport, de la plus récente à la plus ancienne. */
+  const reports = useMemo(
+    () => games.filter((g) => (g.report ?? '').trim().length > 0),
+    [games],
+  )
 
   const download = () => {
     const blob = new Blob([exportArchiveCsv(archive)], { type: 'text/csv;charset=utf-8' })
@@ -52,7 +60,76 @@ export function HistoryScreen({ onBack }: Props) {
         </div>
       </div>
 
-      {!archive.length && (
+      <div className="tabs" style={{ marginBottom: 14 }}>
+        <button className={tab === 'parties' ? 'on' : ''} onClick={() => setTab('parties')}>
+          Parties ({archive.length})
+        </button>
+        <button className={tab === 'rapports' ? 'on' : ''} onClick={() => setTab('rapports')}>
+          Rapports de partie ({reports.length})
+        </button>
+      </div>
+
+      {tab === 'rapports' && (
+        <div className="stack">
+          {!reports.length && (
+            <div className="panel">
+              <p className="note">
+                Aucun rapport pour l’instant. À la fin d’une partie, le champ « Rapport de fin de
+                partie » vous permet de noter vos remarques : elles s’affichent ici, avec la partie
+                à laquelle elles se rapportent.
+              </p>
+            </div>
+          )}
+          {reports.map((g) => (
+            <div key={g.id} className="panel report-card">
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <strong>
+                  {new Date(g.date).toLocaleDateString('fr-FR', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                  {' · '}
+                  {new Date(g.date).toLocaleTimeString('fr-FR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </strong>
+                <button
+                  className="btn small ghost"
+                  onClick={() => {
+                    setTab('parties')
+                    setOpenId(g.id)
+                  }}
+                >
+                  Voir la partie →
+                </button>
+              </div>
+              <div className="note">
+                {g.results
+                  .slice()
+                  .sort((a, b) => a.rank - b.rank)
+                  .map((r) => `${r.rank === 1 ? '🏆 ' : ''}${r.name} ${r.total}`)
+                  .join(' · ')}
+                {' · '}
+                {g.playerCount} joueur{g.playerCount > 1 ? 's' : ''} · graine {g.seed}
+              </div>
+              <p>{g.report}</p>
+              <button
+                className="btn small ghost"
+                style={{ marginTop: 8 }}
+                onClick={() => {
+                  if (confirm('Effacer ce rapport ?')) setArchive(saveGameReport(g.id, ''))
+                }}
+              >
+                Effacer le rapport
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'parties' && !archive.length && (
         <div className="panel">
           <p className="note">
             Aucune partie enregistrée pour l’instant. Chaque partie terminée sur cette machine est
@@ -61,7 +138,7 @@ export function HistoryScreen({ onBack }: Props) {
         </div>
       )}
 
-      <div className="stack">
+      <div className="stack" style={{ display: tab === 'parties' ? undefined : 'none' }}>
         {games.map((g) => {
           const isOpen = openId === g.id
           return (
@@ -165,6 +242,10 @@ export function HistoryScreen({ onBack }: Props) {
                       Supprimer
                     </button>
                   </div>
+                  <GameReport
+                    gameId={g.id}
+                    onSaved={(all) => setArchive(all)}
+                  />
                 </div>
               )}
             </div>
@@ -172,7 +253,7 @@ export function HistoryScreen({ onBack }: Props) {
         })}
       </div>
 
-      {archive.length > 0 && (
+      {tab === 'parties' && archive.length > 0 && (
         <p className="note" style={{ marginTop: 14 }}>
           {archive.length} partie{archive.length > 1 ? 's' : ''} enregistrée
           {archive.length > 1 ? 's' : ''} sur cette machine. Les statistiques cumulées (moyennes,

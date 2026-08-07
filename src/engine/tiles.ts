@@ -40,8 +40,14 @@ const RAW: string[] = [
  */
 const MONO: string[] = ['Y', 'O', 'R', 'G', 'B', 'P'].flatMap((c) => [c.repeat(4), c.repeat(4)])
 const WHITES: string[] = Array.from({ length: 6 }, () => 'WWWW')
+/**
+ * Six tuiles monochromes hors sac : elles servent de tuile de départ (à la
+ * couleur du plateau) et de marqueur de couleur secrète. Elles ne sont jamais
+ * mélangées à la pioche.
+ */
+const COLOR_MARKERS: string[] = ['Y', 'O', 'R', 'G', 'B', 'P'].map((c) => c.repeat(4))
 
-export const TILES: Tile[] = [...RAW, ...MONO, ...WHITES].map((s, id) => ({
+export const TILES: Tile[] = [...RAW, ...MONO, ...WHITES, ...COLOR_MARKERS].map((s, id) => ({
   id,
   quads: s.split('') as unknown as Quads,
 }))
@@ -50,6 +56,13 @@ export const TILES: Tile[] = [...RAW, ...MONO, ...WHITES].map((s, id) => ({
 export const TILE_COUNT = RAW.length
 export const MONO_TILE_IDS = MONO.map((_, i) => RAW.length + i)
 export const WHITE_TILE_IDS = WHITES.map((_, i) => RAW.length + MONO.length + i)
+/** Tuile monochrome de chaque couleur (départ, couleur secrète). Hors sac. */
+export const COLOR_TILE_IDS: Record<string, number> = Object.fromEntries(
+  ['Y', 'O', 'R', 'G', 'B', 'P'].map((c, i) => [
+    c,
+    RAW.length + MONO.length + WHITES.length + i,
+  ]),
+)
 
 /** Quarts d'une tuile après rotation horaire de `rot` x 90°. */
 export function rotatedQuads(quads: Quads, rot: Rotation): Quads {
@@ -150,6 +163,68 @@ export const STARS: ReadonlyMap<number, number> = (() => {
 /** Position du quart étoilé après orientation (0..3 dans la tuile posée). */
 export function starQuadIndex(tileId: number, rot: Rotation, flipped = false): number | null {
   const base = STARS.get(tileId)
+  if (base === undefined) return null
+  const FLIP: number[] = [1, 0, 3, 2]
+  const afterFlip = flipped ? FLIP[base] : base
+  return (afterFlip + rot) % 4
+}
+
+// ---------------------------------------------------------------------------
+// Failles (variante) : 16 tuiles portent une faille grise en leur milieu. Les
+// deux moitiés qu'elle sépare ne se relient PAS entre elles ; chacune se relie
+// normalement aux tuiles voisines. L'attribution est fixe (tuiles imprimées).
+// ---------------------------------------------------------------------------
+
+/** Axe de la faille : 0 = verticale (sépare gauche/droite), 1 = horizontale. */
+export const FAULTS: ReadonlyMap<number, 0 | 1> = (() => {
+  const rng = new Rng('camino-failles')
+  const map = new Map<number, 0 | 1>()
+  // Une faille n'a d'intérêt que si les deux moitiés portent de la couleur.
+  const candidates: number[] = []
+  for (let id = 0; id < TILE_COUNT; id++) {
+    if (TILES[id].quads.every((q) => q === 'K')) continue
+    candidates.push(id)
+  }
+  for (const id of rng.shuffle(candidates).slice(0, 16)) {
+    map.set(id, rng.int(2) as 0 | 1)
+  }
+  return map
+})()
+
+/**
+ * Axe de la faille après orientation. Une rotation d'un quart de tour bascule
+ * la verticale en horizontale ; le miroir (gauche-droite) ne change rien.
+ */
+export function faultAxis(tileId: number, rot: Rotation, _flipped = false): 0 | 1 | null {
+  const base = FAULTS.get(tileId)
+  if (base === undefined) return null
+  return ((base + rot) % 2) as 0 | 1
+}
+
+// ---------------------------------------------------------------------------
+// Trèfles (variante) : un quart sur quatre des tuiles porte un trèfle, jamais
+// sur un quart noir. Dans un chemin qui marque il rapporte +3, sinon il coûte 3.
+// ---------------------------------------------------------------------------
+
+/** quart trèflé (0..3, avant rotation) par id de tuile. */
+export const CLOVERS: ReadonlyMap<number, number> = (() => {
+  const rng = new Rng('camino-trefles')
+  const candidates: number[] = []
+  for (let id = 0; id < TILE_COUNT; id++) {
+    if (TILES[id].quads.every((q) => q === 'K')) continue
+    candidates.push(id)
+  }
+  const map = new Map<number, number>()
+  for (const id of rng.shuffle(candidates).slice(0, Math.round(TILE_COUNT * 0.25))) {
+    const options = [0, 1, 2, 3].filter((q) => TILES[id].quads[q] !== 'K')
+    map.set(id, options[rng.int(options.length)])
+  }
+  return map
+})()
+
+/** Position du quart trèflé après orientation (0..3 dans la tuile posée). */
+export function cloverQuadIndex(tileId: number, rot: Rotation, flipped = false): number | null {
+  const base = CLOVERS.get(tileId)
   if (base === undefined) return null
   const FLIP: number[] = [1, 0, 3, 2]
   const afterFlip = flipped ? FLIP[base] : base

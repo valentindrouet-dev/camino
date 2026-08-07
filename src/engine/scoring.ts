@@ -1,5 +1,5 @@
 import { quadGrid, tileOfQuad } from './board.ts'
-import { starQuadIndex } from './tiles.ts'
+import { cloverQuadIndex, faultAxis, starQuadIndex } from './tiles.ts'
 import type { Board, Color, ColorScore, Ruleset, ScoreBreakdown, Side, Zone } from './types.ts'
 import { BLACK, COLORS, PATH_COLORS, WHITE } from './types.ts'
 
@@ -26,6 +26,24 @@ export function pointsForSpan(span: number, ruleset: Ruleset): number {
  */
 export function starClusterPoints(count: number): number {
   return count <= 1 ? Math.max(0, count) : 2 * count
+}
+
+/**
+ * Variante Failles : la faille coupe une tuile en deux moitiés qui ne se
+ * relient pas entre elles. Seules les arêtes INTERNES à une tuile peuvent être
+ * bloquées — la frontière entre deux tuiles n'est jamais concernée.
+ */
+function faultBlocks(board: Board, a: number, b: number): boolean {
+  const tile = tileOfQuad(board.size, a)
+  if (tile !== tileOfQuad(board.size, b)) return false
+  const placed = board.cells[tile]
+  if (!placed) return false
+  const axis = faultAxis(placed.tileId, placed.rot, placed.flipped)
+  if (axis === null) return false
+  const qs = board.size * 2
+  // faille verticale (0) : elle sépare la gauche de la droite, donc bloque les
+  // voisins horizontaux ; faille horizontale (1) : l'inverse.
+  return axis === 0 ? a % qs !== b % qs : Math.floor(a / qs) !== Math.floor(b / qs)
 }
 
 /** Cases de bordure adjacentes à un quart donné, avec leur couleur. */
@@ -68,6 +86,7 @@ export function computeZones(board: Board, ruleset: Ruleset): Zone[] {
   const qs = grid.size
   const zones: Zone[] = []
   const stack: number[] = []
+  const faults = Boolean(ruleset.variants?.faultTiles)
 
   // --- zones noires : inchangées, le blanc et les bordures ne comptent pas
   {
@@ -86,7 +105,7 @@ export function computeZones(board: Board, ruleset: Ruleset): Zone[] {
         const r = Math.floor(cur / qs)
         const c = cur % qs
         for (const n of [r > 0 ? cur - qs : -1, r < qs - 1 ? cur + qs : -1, c > 0 ? cur - 1 : -1, c < qs - 1 ? cur + 1 : -1]) {
-          if (n >= 0 && !seen[n] && grid.cells[n] === BLACK) {
+          if (n >= 0 && !seen[n] && grid.cells[n] === BLACK && !(faults && faultBlocks(board, cur, n))) {
             seen[n] = 1
             stack.push(n)
           }
@@ -128,6 +147,7 @@ export function computeZones(board: Board, ruleset: Ruleset): Zone[] {
         const c = cur % qs
         for (const n of [r > 0 ? cur - qs : -1, r < qs - 1 ? cur + qs : -1, c > 0 ? cur - 1 : -1, c < qs - 1 ? cur + 1 : -1]) {
           if (n < 0 || seen[n]) continue
+          if (faults && faultBlocks(board, cur, n)) continue
           const nc = grid.cells[n]
           if (nc === color || nc === WHITE) {
             seen[n] = 1
@@ -221,7 +241,12 @@ function countStars(board: Board): number {
   return total
 }
 
-export function scoreBoard(board: Board, ruleset: Ruleset): ScoreBreakdown {
+export function scoreBoard(
+  board: Board,
+  ruleset: Ruleset,
+  /** Couleur secrète du joueur (variante) : son meilleur chemin est doublé. */
+  secretColor?: Color,
+): ScoreBreakdown {
   const zones = computeZones(board, ruleset)
   const byColor = {} as Record<Color, ColorScore>
   for (const c of COLORS) byColor[c] = { color: c, points: 0, scoringZones: [], zones: [] }
@@ -243,25 +268,66 @@ export function scoreBoard(board: Board, ruleset: Ruleset): ScoreBreakdown {
   }
 
   const starPoints = ruleset.variants?.magicStars ? countStars(board) : 0
+  const cloverPoints = ruleset.variants?.clovers ? countClovers(board, zones) : 0
+  const secretPoints = ruleset.variants?.secretColor ? secretBonus(zones, secretColor) : 0
   const blackPoints = blackZones * ruleset.blackPenalty
   return {
-    total: colorPoints + blackPoints + starPoints,
+    total: colorPoints + blackPoints + starPoints + cloverPoints + secretPoints,
     colorPoints,
     blackZones,
     blackPoints,
     starPoints,
+    cloverPoints,
+    secretPoints,
     cardPoints: 0,
     byColor,
     zones,
   }
 }
 
+/**
+ * Trèfles (variante) : un trèfle posé dans un chemin qui marque rapporte +3,
+ * sinon il coûte 3 points. Un trèfle sur un quart blanc profite de n'importe
+ * quel chemin qui marque et le traverse.
+ */
+export function countClovers(board: Board, zones: Zone[]): number {
+  const qs = board.size * 2
+  const scoring = new Set<number>()
+  for (const z of zones) {
+    if (z.color === BLACK || z.points <= 0) continue
+    for (const c of z.cells) scoring.add(c)
+  }
+  let total = 0
+  for (let i = 0; i < board.cells.length; i++) {
+    const placed = board.cells[i]
+    if (!placed) continue
+    const cq = cloverQuadIndex(placed.tileId, placed.rot, placed.flipped)
+    if (cq === null) continue
+    const r = Math.floor(i / board.size) * 2 + (cq >= 2 ? 1 : 0)
+    const c = (i % board.size) * 2 + (cq === 1 || cq === 2 ? 1 : 0)
+    total += scoring.has(r * qs + c) ? 3 : -3
+  }
+  return total
+}
+
+/** Couleur secrète (variante) : le meilleur chemin de cette couleur est doublé. */
+export function secretBonus(zones: Zone[], color: Color | undefined): number {
+  if (!color) return 0
+  let best = 0
+  for (const z of zones) {
+    if (z.color === color && z.points > best) best = z.points
+  }
+  return best
+}
+
 /** Score total uniquement — chemin rapide utilisé par l'IA et les simulations. */
-export function scoreOf(board: Board, ruleset: Ruleset): number {
+export function scoreOf(board: Board, ruleset: Ruleset, secretColor?: Color): number {
   const zones = computeZones(board, ruleset)
   let total = 0
   for (const z of zones) total += z.points
   if (ruleset.variants?.magicStars) total += countStars(board)
+  if (ruleset.variants?.clovers) total += countClovers(board, zones)
+  if (ruleset.variants?.secretColor) total += secretBonus(zones, secretColor)
   return total
 }
 

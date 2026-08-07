@@ -2,7 +2,7 @@ import { createBoard, isFull, legalCells, placeTile } from './board.ts'
 import { activeRuleset, applyCards, cardTable, CARDS, playerCardIds, rulesetForPlayer } from './cards.ts'
 import { Rng } from './rng.ts'
 import { scoreBoard, scoreOf } from './scoring.ts'
-import { MONO_TILE_IDS, TILE_COUNT, TILES, WHITE_TILE_IDS } from './tiles.ts'
+import { COLOR_TILE_IDS, MONO_TILE_IDS, TILE_COUNT, TILES, WHITE_TILE_IDS } from './tiles.ts'
 import type {
   BoardColor,
   BorderSpec,
@@ -15,7 +15,7 @@ import type {
   Rotation,
   Ruleset,
 } from './types.ts'
-import { DEFAULT_RULESET } from './types.ts'
+import { DEFAULT_RULESET, PATH_COLORS } from './types.ts'
 
 /** Couleurs exactes des six plateaux de la boîte. */
 export const BOARD_COLOR_HEX: Record<BoardColor, string> = {
@@ -76,16 +76,33 @@ export function defaultOptions(seed: string): GameOptions {
 
 /** Nombre de tuiles révélées au centre à chaque tour. */
 export function tilesPerRound(ruleset: Ruleset, playerCount: number): number {
-  if (ruleset.tilesPerRound > 0) return ruleset.tilesPerRound
+  const extra = ruleset.variants?.extraTile ? 1 : 0
+  if (ruleset.tilesPerRound > 0) return ruleset.tilesPerRound + extra
   // Règle officielle : autant de tuiles que de joueurs.
   // En solo on en propose 2 pour qu'il reste un choix à faire.
-  return playerCount === 1 ? 2 : playerCount
+  return (playerCount === 1 ? 2 : playerCount) + extra
+}
+
+/**
+ * Nombre de manches d'une partie : une par case du plateau, moins la tuile de
+ * départ déjà posée (variante).
+ */
+export function roundsFor(ruleset: Ruleset): number {
+  return ruleset.boardSize * ruleset.boardSize - (ruleset.variants?.startTile ? 1 : 0)
+}
+
+/** Manche où les cartes Rotation sont retournées (variante Échange de plateaux). */
+export function swapRound(ruleset: Ruleset): number {
+  return Math.floor(roundsFor(ruleset) / 2)
 }
 
 /** Nombre de tuiles nécessaires pour aller au bout de la partie. */
 export function tilesNeeded(ruleset: Ruleset, playerCount: number): number {
   const reserve = ruleset.variants?.personalTile ? playerCount : 0
-  return ruleset.boardSize * ruleset.boardSize * tilesPerRound(ruleset, playerCount) + reserve
+  // Chaque manche consomme une tuile par joueur ; celles qui restent au centre
+  // repartent au sac. Il faut simplement de quoi garnir la dernière manche.
+  const perRound = playerCount === 1 ? 1 : playerCount
+  return roundsFor(ruleset) * perRound + (tilesPerRound(ruleset, playerCount) - perRound) + reserve
 }
 
 /** Taille du sac selon les variantes actives. */
@@ -179,6 +196,29 @@ export function createGame(config: GameConfig): GameState {
     cardId = cardIds[0]
   }
 
+  // Tuile de départ : une tuile monochrome à la couleur du plateau, posée au
+  // centre. La même case pour tout le monde, tirée avec la graine.
+  if (ruleset.variants?.startTile) {
+    const mid = size % 2 === 1 ? [(size - 1) / 2] : [size / 2 - 1, size / 2]
+    const centres = mid.flatMap((r) => mid.map((c) => r * size + c))
+    const cell = centres[rng.int(centres.length)]
+    for (const p of players) {
+      p.board = {
+        ...p.board,
+        cells: p.board.cells.slice(),
+      }
+      p.board.cells[cell] = { tileId: COLOR_TILE_IDS[p.boardColor], rot: 0, round: -1 }
+    }
+  }
+
+  // Couleur secrète : une par joueur, tirée sans doublon tant que possible.
+  if (ruleset.variants?.secretColor) {
+    const deck = rng.shuffle([...PATH_COLORS])
+    players.forEach((p, i) => {
+      p.secretColor = deck[i % deck.length]
+    })
+  }
+
   const ids = Array.from({ length: TILE_COUNT }, (_, i) => i)
   if (ruleset.variants?.monoTiles) ids.push(...MONO_TILE_IDS)
   if (ruleset.variants?.whiteTiles) ids.push(...WHITE_TILE_IDS)
@@ -194,16 +234,29 @@ export function createGame(config: GameConfig): GameState {
       }
     }
   }
+  // Couleur imposée aux cartes qui en dépendent (plus grand chemin, chemins
+  // d'une couleur) : tirée en début de partie, la même pour toute la table.
+  const cardColors: Record<string, Color> = {}
+  for (const card of CARDS) {
+    if (card.colorized) cardColors[card.id] = PATH_COLORS[rng.int(PATH_COLORS.length)]
+  }
+
   const state: GameState = {
     phase: 'playing',
     options: config.options,
     cardId,
     cardIds,
+    cardColors,
+    swapCard: ruleset.variants?.boardSwap
+      ? rng.int(2) === 0
+        ? 'rotate'
+        : 'stay'
+      : undefined,
     players,
     bag,
     pool: [],
     round: 0,
-    totalRounds: size * size,
+    totalRounds: roundsFor(ruleset),
     bagHolder: 0,
     turnIndex: 0,
     log: [],
@@ -214,10 +267,12 @@ export function createGame(config: GameConfig): GameState {
 
 function drawPool(state: GameState): GameState {
   const count = tilesPerRound(state.options.ruleset, state.players.length)
-  // Les tuiles restées au centre (tuile personnelle jouée à la place)
-  // retournent au fond du sac.
+  // Les tuiles restées au centre (tuile supplémentaire non prise, ou tuile
+  // personnelle jouée à la place) sont REMÉLANGÉES dans le sac.
   const leftovers = state.pool.filter((p) => p.takenBy === null).map((p) => p.tileId)
-  const bag = [...leftovers, ...state.bag]
+  const bag = leftovers.length
+    ? new Rng(`${state.options.seed}-melange-${state.round}`).shuffle([...leftovers, ...state.bag])
+    : state.bag
   const pool: PoolTile[] = []
   for (let i = 0; i < count && bag.length; i++) {
     pool.push({ tileId: bag.pop() as number, takenBy: null })
@@ -299,6 +354,25 @@ export function redrawLastTile(state: GameState): GameState {
 }
 
 /**
+ * Prochain porteur du sac. Sens horaire par défaut ; avec la variante Sac
+ * antihoraire il revient au dernier servi, c'est-à-dire au voisin de droite.
+ */
+function nextBagHolder(state: GameState): number {
+  const n = state.players.length
+  const step = state.options.ruleset.variants?.bagCounterClockwise ? -1 : 1
+  return (state.bagHolder + step + n) % n
+}
+
+/**
+ * Variante Échange de plateaux : à mi-partie on retourne les deux cartes. Si
+ * c'est « Rotation ! », chaque joueur passe son plateau à son voisin de gauche.
+ */
+function rotateBoards(players: Player[]): Player[] {
+  const n = players.length
+  return players.map((p, i) => ({ ...p, board: players[(i - 1 + n) % n].board }))
+}
+
+/**
  * Applique un coup : le joueur courant prend une tuile du centre et la pose.
  * Retourne un NOUVEL état (les états sont immuables : l'annulation côté UI se
  * contente d'empiler les états successifs, et un serveur peut rejouer la
@@ -311,7 +385,7 @@ export function applyMove(state: GameState, move: Move): GameState {
   // Barème en vigueur : la carte « zones noires positives » en fait partie.
   const ruleset = activeRuleset(state)
 
-  const before = scoreOf(player.board, ruleset)
+  const before = scoreOf(player.board, ruleset, player.secretColor)
   const board = placeTile(
     player.board,
     move.cell,
@@ -320,7 +394,7 @@ export function applyMove(state: GameState, move: Move): GameState {
     state.round,
     move.flipped,
   )
-  const after = scoreOf(board, ruleset)
+  const after = scoreOf(board, ruleset, player.secretColor)
 
   const players = state.players.slice()
   players[playerId] = move.personal
@@ -353,12 +427,18 @@ export function applyMove(state: GameState, move: Move): GameState {
     const scoreHistory = next.scoreHistory.map((h, i) => h.concat(totals[i]))
     const round = next.round + 1
     const finished = round >= next.totalRounds || next.players.every((p) => isFull(p.board))
+    const swap =
+      next.options.ruleset.variants?.boardSwap &&
+      next.swapCard === 'rotate' &&
+      round === swapRound(next.options.ruleset) &&
+      next.players.length > 1
     next = {
       ...next,
+      players: swap ? rotateBoards(next.players) : next.players,
       scoreHistory,
       round,
       turnIndex: 0,
-      bagHolder: (next.bagHolder + 1) % next.players.length,
+      bagHolder: nextBagHolder(next),
       phase: finished ? 'finished' : 'playing',
     }
     if (!finished) next = drawPool(next)
@@ -371,15 +451,16 @@ export function applyMove(state: GameState, move: Move): GameState {
 /** Score complet de chaque joueur à cet instant, cartes missions comprises. */
 function roundTotals(state: GameState, baseRuleset: Ruleset): number[] {
   if (!state.options.useCards && !state.options.personalCards) {
-    return state.players.map((p) => scoreOf(p.board, baseRuleset))
+    return state.players.map((p) => scoreOf(p.board, baseRuleset, p.secretColor))
   }
   return state.players.map((p) => {
     const ruleset = rulesetForPlayer(state, p.id)
     const table = cardTable(state.players, ruleset)
     return applyCards(
-      scoreBoard(p.board, ruleset),
+      scoreBoard(p.board, ruleset, p.secretColor),
       { playerId: p.id, board: p.board, ruleset, table },
       playerCardIds(state, p.id),
+      state.cardColors,
     ).total
   })
 }

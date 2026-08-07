@@ -27,7 +27,7 @@ export interface PlayerStats {
 export function playerStats(state: GameState): PlayerStats[] {
   const raw = state.players.map((player) => {
     const ruleset = rulesetForPlayer(state, player.id)
-    const base = scoreBoard(player.board, ruleset)
+    const base = scoreBoard(player.board, ruleset, player.secretColor)
     const cards = playerCardIds(state, player.id)
     const breakdown = cards.length
       ? applyCards(
@@ -39,6 +39,7 @@ export function playerStats(state: GameState): PlayerStats[] {
             table: cardTable(state.players, ruleset),
           },
           cards,
+          state.cardColors,
         )
       : base
     const scoring = breakdown.zones.filter((z) => z.color !== BLACK && z.points > 0)

@@ -1,4 +1,5 @@
-import type { MissionCard } from '../../engine/index.ts'
+import { cardText } from '../../engine/index.ts'
+import type { Color, MissionCard } from '../../engine/index.ts'
 
 interface Props {
   card: MissionCard
@@ -7,6 +8,8 @@ interface Props {
   detail?: string
   /** La carte modifie le barème : afficher son effet, pas un total à ajouter. */
   structural?: boolean
+  /** Couleur tirée pour cette carte, si elle en dépend. */
+  color?: Color
   /** Version compacte pour le panneau latéral. */
   compact?: boolean
   selected?: boolean
@@ -22,6 +25,7 @@ export function MissionCardView({
   points,
   detail,
   structural,
+  color,
   compact,
   selected,
   onClick,
@@ -29,12 +33,14 @@ export function MissionCardView({
   const Tag = onClick ? 'button' : 'div'
   return (
     <Tag
-      className={`mission-card ${compact ? 'compact' : ''} ${selected ? 'selected' : ''}`}
+      className={`mission-card ${card.extra ? 'extra' : ''} ${compact ? 'compact' : ''} ${
+        selected ? 'selected' : ''
+      }`}
       onClick={onClick}
       type={onClick ? 'button' : undefined}
     >
       <span className="mission-badge">{card.badge}</span>
-      <span className="mission-text">{card.text}</span>
+      <span className="mission-text">{cardText(card, color)}</span>
       {points !== undefined && (
         <span className={`mission-score ${points > 0 || structural ? 'pos' : ''}`}>
           {!structural && (points > 0 ? `+${points}` : '0')}

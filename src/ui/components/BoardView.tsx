@@ -3,7 +3,9 @@ import {
   BLACK,
   COLOR_HEX,
   WHITE,
+  cloverQuadIndex,
   computeZones,
+  faultAxis,
   legalCells as computeLegalCells,
   placeTile,
   quadGrid,
@@ -16,6 +18,7 @@ import {
 } from '../../engine/index.ts'
 import type { Board, Rotation, Ruleset, Zone } from '../../engine/index.ts'
 import { IridescentDefs, quadFill, Sheen } from './Iridescent.tsx'
+import { CloverMark, FaultMark } from './TileMarks.tsx'
 
 /**
  * Reproduction du plateau de la boîte : un contour de couleur propre à chaque
@@ -88,6 +91,17 @@ export function BoardView({
     () => (ruleset.variants?.magicStars ? starClusters(board) : []),
     [board, ruleset.variants?.magicStars],
   )
+  /** Quarts appartenant à un chemin qui marque — sert à colorer les trèfles. */
+  const scoringQuads = useMemo(() => {
+    const s = new Set<number>()
+    if (!ruleset.variants?.clovers) return s
+    for (const z of zones) {
+      if (z.color === BLACK || z.points <= 0) continue
+      for (const c of z.cells) s.add(c)
+    }
+    return s
+  }, [zones, ruleset.variants?.clovers])
+
   /** Quarts dont l'étoile est reliée à au moins une autre : elle devient dorée. */
   const goldQuads = useMemo(() => {
     const s = new Set<number>()
@@ -249,6 +263,37 @@ export function BoardView({
         ),
       )}
 
+      {/* failles : elles coupent la tuile en deux moitiés qui ne se relient pas */}
+      {ruleset.variants?.faultTiles &&
+        board.cells.map((placed, i) => {
+          if (!placed) return null
+          const axis = faultAxis(placed.tileId, placed.rot, placed.flipped)
+          if (axis === null) return null
+          const { x, y } = cellXY(i)
+          return <FaultMark key={`f${i}`} x={x} y={y} size={TILEW} axis={axis} />
+        })}
+
+      {/* trèfles : verts dans un chemin qui marque, rouges sinon */}
+      {ruleset.variants?.clovers &&
+        board.cells.map((placed, i) => {
+          if (!placed) return null
+          const cq = cloverQuadIndex(placed.tileId, placed.rot, placed.flipped)
+          if (cq === null) return null
+          const { x, y } = cellXY(i)
+          const [dx, dy] = QUAD_OFFSETS[cq]
+          const r = Math.floor(i / n) * 2 + (cq >= 2 ? 1 : 0)
+          const c = (i % n) * 2 + (cq === 1 || cq === 2 ? 1 : 0)
+          return (
+            <CloverMark
+              key={`c${i}`}
+              cx={x + dx + QUAD / 2}
+              cy={y + dy + QUAD / 2}
+              size={QUAD * 0.62}
+              state={scoringQuads.has(r * n * 2 + c) ? 'scoring' : 'lost'}
+            />
+          )
+        })}
+
       {/* trait magique : un fil doré lumineux relie les étoiles adjacentes */}
       {ruleset.variants?.magicStars &&
         starGroups
@@ -332,6 +377,25 @@ export function BoardView({
               />
             )
           })}
+          {ghost &&
+            ruleset.variants?.faultTiles &&
+            (() => {
+              const axis = faultAxis(ghost.tileId, ghost.rot, ghost.flipped)
+              if (axis === null) return null
+              const { x, y } = cellXY(preview.cell)
+              return <FaultMark x={x} y={y} size={TILEW} axis={axis} />
+            })()}
+          {ghost &&
+            ruleset.variants?.clovers &&
+            (() => {
+              const cq = cloverQuadIndex(ghost.tileId, ghost.rot, ghost.flipped)
+              if (cq === null) return null
+              const { x, y } = cellXY(preview.cell)
+              const [dx, dy] = QUAD_OFFSETS[cq]
+              return (
+                <CloverMark cx={x + dx + QUAD / 2} cy={y + dy + QUAD / 2} size={QUAD * 0.62} />
+              )
+            })()}
           {ruleset.variants?.magicStars &&
             ghost &&
             (() => {

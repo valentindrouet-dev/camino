@@ -45,6 +45,10 @@ export interface ArchivedGame {
   results: ArchivedResult[]
   /** Absent des parties archivées par les toutes premières versions. */
   boards?: ArchivedBoard[]
+  /** Rapport de fin de partie saisi par le joueur. */
+  report?: string
+  /** Date de dernière modification du rapport. */
+  reportDate?: number
 }
 
 export function loadArchive(): ArchivedGame[] {
@@ -99,6 +103,29 @@ export function archiveGame(state: GameState): ArchivedGame {
 
 export function clearArchive() {
   localStorage.removeItem(KEY)
+}
+
+/**
+ * Enregistre (ou efface) le rapport d'une partie. Renvoie l'archive à jour.
+ */
+export function saveGameReport(id: string, report: string): ArchivedGame[] {
+  const texte = report.trim()
+  const all = loadArchive().map((g) =>
+    g.id === id
+      ? { ...g, report: texte || undefined, reportDate: texte ? Date.now() : undefined }
+      : g,
+  )
+  try {
+    localStorage.setItem(KEY, JSON.stringify(all))
+  } catch {
+    /* quota : le rapport reste au moins en mémoire */
+  }
+  return all
+}
+
+/** Retrouve une partie archivée par son identifiant. */
+export function findArchivedGame(id: string): ArchivedGame | undefined {
+  return loadArchive().find((g) => g.id === id)
 }
 
 export function deleteArchivedGame(id: string): ArchivedGame[] {

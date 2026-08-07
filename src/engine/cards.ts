@@ -10,8 +10,9 @@
  */
 import { quadGrid } from './board.ts'
 import { computeZones } from './scoring.ts'
-import type { Board, Ruleset, ScoreBreakdown, Zone } from './types.ts'
+import type { Board, Color, Ruleset, ScoreBreakdown, Zone } from './types.ts'
 import { BLACK } from './types.ts'
+import { COLOR_NAMES } from './scoring.ts'
 
 export interface CardTableEntry {
   playerId: number
@@ -26,6 +27,8 @@ export interface CardContext {
   ruleset: Ruleset
   /** Les zones de tous les joueurs — pour les cartes comparatives. */
   table: CardTableEntry[]
+  /** Couleur tirée pour cette carte, quand elle en dépend (`colorized`). */
+  color?: Color
 }
 
 export interface CardResult {
@@ -41,13 +44,27 @@ export interface CardResult {
 
 export interface MissionCard {
   id: string
-  /** Texte exact de la carte. */
+  /**
+   * Texte exact de la carte. `{couleur}` est remplacé par la couleur tirée en
+   * début de partie pour les cartes `colorized`.
+   */
   text: string
   /** Valeur affichée dans la pastille de la carte. */
   badge: string
   /** Nom court pour les listes et les statistiques. */
   name: string
+  /** La couleur visée est tirée au hasard au début de chaque partie. */
+  colorized?: boolean
+  /** Carte d'extension (affichée dans une autre couleur que celles de la boîte). */
+  extra?: boolean
   evaluate(ctx: CardContext): CardResult
+}
+
+/** Texte d'une carte, couleur tirée comprise. */
+export function cardText(card: MissionCard, color?: Color): string {
+  if (!card.colorized) return card.text
+  const nom = color ? COLOR_NAMES[color].toLowerCase() : 'de la couleur tirée'
+  return card.text.replace('{couleur}', nom)
 }
 
 /** Chemins qui marquent : zones de couleur d'au moins `minSpan` tuiles. */
@@ -73,6 +90,14 @@ function squareZones(ctx: CardContext): Zone[] {
     // « au moins 2 tuiles » : un carré aligné sur une seule tuile ne compte pas.
     return carre && z.span >= 2
   })
+}
+
+/** Les 4 quarts du centre du plateau. */
+function centreQuads(boardSize: number): number[] {
+  const qs = boardSize * 2
+  const a = qs / 2 - 1
+  const b = qs / 2
+  return [a * qs + a, a * qs + b, b * qs + a, b * qs + b]
 }
 
 /** Bords touchés par une zone. */
@@ -228,37 +253,43 @@ export const CARDS: MissionCard[] = [
   },
   {
     id: 'purple-longest',
-    name: 'Plus grand violet',
+    name: 'Plus grand chemin d’une couleur',
     badge: '+10',
-    text: '+10 points pour le plus grand chemin violet. Si égalité, +5 points par joueur.',
+    colorized: true,
+    text: '+10 points pour le plus grand chemin {couleur}. Si égalité, +5 points par joueur.',
     evaluate(ctx) {
+      const cible = ctx.color ?? 'P'
+      const nom = COLOR_NAMES[cible].toLowerCase()
       const bestOf = (zones: Zone[]) =>
         zones
-          .filter((z) => z.color === 'P' && z.span >= ctx.ruleset.minSpan)
+          .filter((z) => z.color === cible && z.span >= ctx.ruleset.minSpan)
           .reduce((m, z) => Math.max(m, z.span), 0)
       const mine = bestOf(ctx.breakdown.zones)
-      if (mine === 0) return { points: 0, detail: 'aucun chemin violet' }
+      if (mine === 0) return { points: 0, detail: `aucun chemin ${nom}` }
       const all = ctx.table.map((t) => bestOf(t.zones))
       const best = Math.max(...all)
-      if (mine < best) return { points: 0, detail: `violet de ${mine} tuiles, battu par ${best}` }
+      if (mine < best) return { points: 0, detail: `${nom} de ${mine} tuiles, battu par ${best}` }
       const exaequo = all.filter((v) => v === best).length
       return {
         points: exaequo > 1 ? 5 : 10,
         detail:
           exaequo > 1
             ? `à égalité (${best} tuiles) avec ${exaequo - 1} autre${exaequo > 2 ? 's' : ''}`
-            : `plus grand violet (${best} tuiles)`,
+            : `plus grand ${nom} (${best} tuiles)`,
       }
     },
   },
   {
     id: 'orange-paths',
-    name: 'Chemins orange',
+    name: 'Chemins d’une couleur',
     badge: '+8',
-    text: '+8 points pour chaque chemin orange.',
+    colorized: true,
+    text: '+8 points pour chaque chemin {couleur}.',
     evaluate(ctx) {
-      const n = paths(ctx).filter((z) => z.color === 'O').length
-      return { points: n * 8, detail: plural(n, 'chemin orange') }
+      const cible = ctx.color ?? 'O'
+      const nom = COLOR_NAMES[cible].toLowerCase()
+      const n = paths(ctx).filter((z) => z.color === cible).length
+      return { points: n * 8, detail: plural(n, `chemin ${nom}`) }
     },
   },
   {
@@ -295,8 +326,127 @@ export const CARDS: MissionCard[] = [
       return { points: n * 10, detail: plural(n, 'chemin') + ' qui enferme' }
     },
   },
+  // ------------------------------------------------------- cartes d'extension
+  {
+    id: 'immaculate',
+    name: 'Plateau immaculé',
+    badge: '+12',
+    extra: true,
+    text: '+12 points si votre plateau ne compte aucune zone noire.',
+    evaluate(ctx) {
+      const n = ctx.breakdown.blackZones
+      return n === 0
+        ? { points: 12, detail: 'aucune zone noire' }
+        : { points: 0, detail: plural(n, 'zone noire', 'zones noires') }
+    },
+  },
+  {
+    id: 'longest-table',
+    name: 'Le plus long chemin',
+    badge: '+10',
+    extra: true,
+    text:
+      '+10 points pour le plus long chemin de la table, toutes couleurs confondues. Si égalité, +5 points par joueur.',
+    evaluate(ctx) {
+      const bestOf = (zones: Zone[]) =>
+        zones
+          .filter((z) => z.color !== BLACK && z.span >= ctx.ruleset.minSpan)
+          .reduce((m, z) => Math.max(m, z.span), 0)
+      const mine = bestOf(ctx.breakdown.zones)
+      if (mine === 0) return { points: 0, detail: 'aucun chemin qui marque' }
+      const all = ctx.table.map((t) => bestOf(t.zones))
+      const best = Math.max(...all)
+      if (mine < best) return { points: 0, detail: `${mine} tuiles, battu par ${best}` }
+      const exaequo = all.filter((v) => v === best).length
+      return {
+        points: exaequo > 1 ? 5 : 10,
+        detail:
+          exaequo > 1
+            ? `à égalité (${best} tuiles) avec ${exaequo - 1} autre${exaequo > 2 ? 's' : ''}`
+            : `plus long chemin de la table (${best} tuiles)`,
+      }
+    },
+  },
+  {
+    id: 'specialist',
+    name: 'Spécialiste',
+    badge: '+12',
+    extra: true,
+    text: '+12 points si une même couleur vous donne 3 chemins qui marquent ou plus.',
+    evaluate(ctx) {
+      const parCouleur = new Map<Color, number>()
+      for (const z of paths(ctx)) parCouleur.set(z.color, (parCouleur.get(z.color) ?? 0) + 1)
+      const best = Math.max(0, ...parCouleur.values())
+      return best >= 3
+        ? { points: 12, detail: `${best} chemins d’une même couleur` }
+        : { points: 0, detail: `${best} chemin${best > 1 ? 's' : ''} au mieux dans une couleur` }
+    },
+  },
+  {
+    id: 'symmetry',
+    name: 'Symétrie',
+    badge: '+10',
+    extra: true,
+    text: '+10 points si vos deux plus longs chemins font exactement la même longueur.',
+    evaluate(ctx) {
+      const spans = paths(ctx)
+        .map((z) => z.span)
+        .sort((a, b) => b - a)
+      if (spans.length < 2) return { points: 0, detail: 'moins de deux chemins qui marquent' }
+      return spans[0] === spans[1]
+        ? { points: 10, detail: `deux chemins de ${spans[0]} tuiles` }
+        : { points: 0, detail: `${spans[0]} et ${spans[1]} tuiles` }
+    },
+  },
+  {
+    id: 'heart',
+    name: 'Cœur du plateau',
+    badge: '+6',
+    extra: true,
+    text: '+6 points pour chaque chemin qui marque et occupe le centre du plateau.',
+    evaluate(ctx) {
+      const centre = centreQuads(ctx.board.size)
+      const n = paths(ctx).filter((z) => centre.some((c) => z.cells.includes(c))).length
+      return { points: n * 6, detail: plural(n, 'chemin') + ' par le centre' }
+    },
+  },
+  {
+    id: 'four-corners',
+    name: 'Les quatre angles',
+    badge: '+12',
+    extra: true,
+    text: '+12 points si les 4 angles du plateau appartiennent à des chemins qui marquent.',
+    evaluate(ctx) {
+      const corners = cornerQuads(ctx.board.size)
+      const pris = corners.filter((c) => paths(ctx).some((z) => z.cells.includes(c))).length
+      return pris === 4
+        ? { points: 12, detail: 'les 4 angles marquent' }
+        : { points: 0, detail: `${pris} angle${pris > 1 ? 's' : ''} sur 4` }
+    },
+  },
+  {
+    id: 'thrifty',
+    name: 'Économe',
+    badge: '+10',
+    extra: true,
+    text: '+10 points si vous avez le moins de zones noires de la table. Si égalité, +5 points par joueur.',
+    evaluate(ctx) {
+      const noires = (zones: Zone[]) => zones.filter((z) => z.color === BLACK).length
+      const mine = noires(ctx.breakdown.zones)
+      const all = ctx.table.map((t) => noires(t.zones))
+      const best = Math.min(...all)
+      if (mine > best) return { points: 0, detail: `${mine} zones noires, le meilleur en a ${best}` }
+      const exaequo = all.filter((v) => v === best).length
+      return {
+        points: exaequo > 1 ? 5 : 10,
+        detail:
+          exaequo > 1
+            ? `à égalité (${best}) avec ${exaequo - 1} autre${exaequo > 2 ? 's' : ''}`
+            : `le moins de zones noires (${best})`,
+      }
+    },
+  },
 ]
-
 export function cardById(id: string | undefined): MissionCard | undefined {
   return id ? CARDS.find((c) => c.id === id) : undefined
 }
@@ -367,8 +517,10 @@ export function activeRuleset(state: {
 /** Applique une LISTE de cartes : les bonus se cumulent. */
 export function applyCards(
   breakdown: ScoreBreakdown,
-  ctx: Omit<CardContext, 'breakdown'>,
+  ctx: Omit<CardContext, 'breakdown' | 'color'>,
   cardIds: string[],
+  /** Couleurs tirées en début de partie pour les cartes qui en dépendent. */
+  colors?: Record<string, Color>,
 ): ScoreBreakdown {
   let out = breakdown
   let points = 0
@@ -377,7 +529,7 @@ export function applyCards(
   for (const id of cardIds) {
     const card = cardById(id)
     if (!card) continue
-    const r = card.evaluate({ ...ctx, breakdown: out })
+    const r = card.evaluate({ ...ctx, breakdown: out, color: colors?.[id] })
     points += r.points
     labels.push(cardIds.length > 1 ? `${card.name} : ${r.detail}` : r.detail)
     if (r.structural) structural = true

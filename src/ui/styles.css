@@ -1312,6 +1312,96 @@ button.mission-card.selected {
   line-height: 1;
 }
 
+/* variante Échange de plateaux : les deux cartes Rotation */
+
+.swap-cards {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+
+.swap-card {
+  flex: 1;
+  text-align: center;
+  padding: 12px 8px;
+  border-radius: var(--radius-sm);
+  font-weight: 800;
+  font-size: 13px;
+  border: 1px solid var(--line);
+}
+
+.swap-card.back {
+  background: repeating-linear-gradient(45deg, #efe6d8, #efe6d8 6px, #e6dbc9 6px, #e6dbc9 12px);
+  color: #9a8f7f;
+}
+
+.swap-card.on {
+  background: #e8f6ea;
+  border-color: #7cc98a;
+  color: #1f6b30;
+}
+
+.swap-card.off {
+  background: #fdecea;
+  border-color: #f0a9a3;
+  color: #97302a;
+}
+
+.scoresheet-row.clover .k {
+  color: #2f7a3c;
+}
+
+/* rapport de fin de partie */
+
+.game-report {
+  width: 100%;
+  margin: 8px 0 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink);
+  resize: vertical;
+}
+
+.game-report::placeholder {
+  color: #9a938a;
+}
+
+.game-report:focus {
+  outline: none;
+  border-color: #f3c27e;
+  box-shadow: 0 0 0 3px #f7931d22;
+}
+
+.report-card {
+  border-left: 3px solid #f3c27e;
+  padding-left: 12px;
+}
+
+.report-card p {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* cartes d'extension : rose, pour les distinguer des 12 cartes de la boîte */
+
+.mission-card.extra {
+  background: linear-gradient(180deg, #ffd7ec, #ffc2e0);
+  border-color: #f2a3ca;
+}
+
+.mission-card.extra .mission-badge {
+  background: #fff0f7;
+  border-color: #d9578f;
+  color: #a03063;
+}
+
 /* rappel des variantes en cours de partie : nom seul, clic pour la règle */
 
 .variant-chip {

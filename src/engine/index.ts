@@ -1,7 +1,7 @@
 import { applyCards, cardById, cardTable, playerCardIds, rulesetForPlayer } from './cards.ts'
 import type { MissionCard } from './cards.ts'
 import { scoreBoard } from './scoring.ts'
-import type { GameState, Player, ScoreBreakdown } from './types.ts'
+import type { Color, GameState, Player, ScoreBreakdown } from './types.ts'
 
 export * from './types.ts'
 export * from './tiles.ts'
@@ -20,7 +20,7 @@ export * from './rng.ts'
  */
 export function scorePlayer(player: Player, state: GameState): ScoreBreakdown {
   const ruleset = rulesetForPlayer(state, player.id)
-  const breakdown = scoreBoard(player.board, ruleset)
+  const breakdown = scoreBoard(player.board, ruleset, player.secretColor)
   const cards = playerCardIds(state, player.id)
   if (!cards.length) return breakdown
   return applyCards(
@@ -32,6 +32,7 @@ export function scorePlayer(player: Player, state: GameState): ScoreBreakdown {
       table: cardTable(state.players, ruleset),
     },
     cards,
+    state.cardColors,
   )
 }
 
@@ -44,18 +45,26 @@ export function scoreAll(state: GameState): ScoreBreakdown[] {
 export function cardResults(
   state: GameState,
   playerId: number,
-): { card: MissionCard; points: number; detail: string; structural?: boolean }[] {
+): {
+  card: MissionCard
+  points: number
+  detail: string
+  structural?: boolean
+  /** Couleur tirée pour cette carte, si elle en dépend. */
+  color?: Color
+}[] {
   const ids = playerCardIds(state, playerId)
   if (!ids.length) return []
   const player = state.players.find((p) => p.id === playerId)
   if (!player) return []
   const ruleset = rulesetForPlayer(state, playerId)
-  const breakdown = scoreBoard(player.board, ruleset)
+  const breakdown = scoreBoard(player.board, ruleset, player.secretColor)
   const table = cardTable(state.players, ruleset)
   return ids.flatMap((id) => {
     const card = cardById(id)
     if (!card) return []
-    const r = card.evaluate({ playerId, board: player.board, breakdown, ruleset, table })
-    return [{ card, points: r.points, detail: r.detail, structural: r.structural }]
+    const color = state.cardColors?.[id]
+    const r = card.evaluate({ playerId, board: player.board, breakdown, ruleset, table, color })
+    return [{ card, points: r.points, detail: r.detail, structural: r.structural, color }]
   })
 }

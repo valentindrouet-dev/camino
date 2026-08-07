@@ -1,7 +1,8 @@
 import { useId } from 'react'
-import { STARS, tileQuads, WHITE } from '../../engine/index.ts'
+import { CLOVERS, FAULTS, STARS, tileQuads, WHITE } from '../../engine/index.ts'
 import type { Rotation } from '../../engine/index.ts'
 import { IridescentDefs, quadFill, Sheen } from './Iridescent.tsx'
+import { CloverMark, FaultMark } from './TileMarks.tsx'
 
 interface Props {
   tileId: number
@@ -11,6 +12,10 @@ interface Props {
   flipped?: boolean
   /** Affiche l'étoile magique si la tuile en porte une (variante). */
   showStar?: boolean
+  /** Affiche la faille si la tuile en porte une (variante). */
+  showFault?: boolean
+  /** Affiche le trèfle si la tuile en porte un (variante). */
+  showClover?: boolean
   /**
    * Angle affiché en degrés. Permet de faire tourner la tuile « à 360° » :
    * l'angle s'accumule (90, 180, 270, 360, 450...) pour que l'animation
@@ -30,6 +35,8 @@ export function TileGlyph({
   rot = 0,
   flipped = false,
   showStar = false,
+  showFault = false,
+  showClover = false,
   angle,
   size = 64,
   className,
@@ -40,6 +47,8 @@ export function TileGlyph({
   const starQuad = showStar ? (STARS.get(tileId) ?? null) : null
   const FLIP = [1, 0, 3, 2]
   const starAt = starQuad === null ? null : flipped ? FLIP[starQuad] : starQuad
+  const cloverQuad = showClover ? (CLOVERS.get(tileId) ?? null) : null
+  const cloverAt = cloverQuad === null ? null : flipped ? FLIP[cloverQuad] : cloverQuad
   const STAR_XY = [
     [25, 25],
     [75, 25],
@@ -70,6 +79,16 @@ export function TileGlyph({
             {quads[k] === WHITE && <Sheen x={qx} y={qy} size={50} irisId={irisId} />}
           </g>
         ))}
+        {showFault && FAULTS.get(tileId) !== undefined && (
+          <FaultMark x={0} y={0} size={100} axis={FAULTS.get(tileId) as 0 | 1} />
+        )}
+        {showClover && cloverAt !== null && (
+          <CloverMark
+            cx={STAR_XY[cloverAt][0]}
+            cy={STAR_XY[cloverAt][1]}
+            size={30}
+          />
+        )}
         {starAt !== null && (
           <text
             x={STAR_XY[starAt][0]}

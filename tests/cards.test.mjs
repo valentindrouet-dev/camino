@@ -52,9 +52,18 @@ const EXAMPLE = [
   'PPKKRYBG',
 ]
 
-test('il y a bien 12 cartes', () => {
-  assert.equal(E.CARDS.length, 12)
-  assert.equal(new Set(E.CARDS.map((c) => c.id)).size, 12)
+test('12 cartes de la boîte + 7 cartes d’extension, toutes distinctes', () => {
+  assert.equal(E.CARDS.length, 19)
+  assert.equal(new Set(E.CARDS.map((c) => c.id)).size, 19)
+  assert.equal(E.CARDS.filter((c) => c.extra).length, 7)
+  // les deux cartes à couleur variable annoncent leur couleur dans leur texte
+  const colorees = E.CARDS.filter((c) => c.colorized)
+  assert.equal(colorees.length, 2)
+  for (const c of colorees) {
+    assert.match(c.text, /\{couleur\}/)
+    assert.match(E.cardText(c, 'G'), /vert/)
+    assert.doesNotMatch(E.cardText(c, 'G'), /\{couleur\}/)
+  }
 })
 
 test('chemins d’exactement 4 tuiles (+5)', () => {
@@ -250,7 +259,8 @@ test('cartes missions multiples : x cartes tirées, cumulées pour tout le monde
   const board = boardFrom(EXAMPLE.map((x) => x.split('')))
   const state = { ...s, players: s.players.map((p) => ({ ...p, board })) }
   const ids = ['exact-4', 'exact-5', 'orange-paths'] // +5, +8, +16 sur l'exemple
-  const withCards = { ...state, cardId: ids[0], cardIds: ids }
+  // « chemins d'une couleur » vise la couleur tirée : on la fixe sur l'orange
+  const withCards = { ...state, cardId: ids[0], cardIds: ids, cardColors: { 'orange-paths': 'O' } }
   const total = E.scorePlayer(withCards.players[0], withCards)
   assert.equal(total.cardPoints, 5 + 8 + 16, 'les bonus se cumulent')
   const sans = E.scoreBoard(board, R)

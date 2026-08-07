@@ -69,6 +69,32 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
         </div>
       )}
 
+      {!dense && breakdown.cloverPoints !== 0 && (
+        <div className="score-line" title="Trèfles : +3 dans un chemin qui marque, −3 sinon">
+          <span className="swatch mission" style={{ background: '#3E8E4A' }}>
+            ☘
+          </span>
+          <span className="bar">
+            <i style={{ width: '100%', background: '#3E8E4A' }} />
+          </span>
+          <span className={`val ${breakdown.cloverPoints > 0 ? 'pos' : 'neg'}`}>
+            {signed(breakdown.cloverPoints)}
+          </span>
+        </div>
+      )}
+
+      {!dense && breakdown.secretPoints > 0 && (
+        <div className="score-line" title="Couleur secrète : meilleur chemin doublé">
+          <span className="swatch mission" style={{ background: '#8E6BB5' }}>
+            ?
+          </span>
+          <span className="bar">
+            <i style={{ width: '100%', background: '#8E6BB5' }} />
+          </span>
+          <span className="val pos">+{breakdown.secretPoints}</span>
+        </div>
+      )}
+
       {!dense && breakdown.cardLabel && (
         <div className="score-line" title={`Carte mission — ${breakdown.cardLabel}`}>
           <span className="swatch mission" style={{ background: '#F9B515' }}>

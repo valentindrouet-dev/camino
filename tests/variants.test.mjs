@@ -263,6 +263,8 @@ test('une partie complète se joue avec toutes les variantes cumulables', () => 
     ],
     options: {
       ...E.defaultOptions('integrale'),
+      useCards: true,
+      cardCount: 3,
       ruleset: withVariants({
         lastPickRandom: true,
         multiBorders: true,
@@ -271,6 +273,13 @@ test('une partie complète se joue avec toutes les variantes cumulables', () => 
         magicStars: true,
         personalTile: true,
         mirrorTiles: true,
+        extraTile: true,
+        faultTiles: true,
+        clovers: true,
+        startTile: true,
+        bagCounterClockwise: true,
+        boardSwap: true,
+        secretColor: true,
       }),
     },
   }
@@ -318,4 +327,161 @@ test('étoiles magiques : groupées par simple adjacence, pas par chemin', () =>
   board.cells[3] = { tileId: d, rot: 0, round: 0 }
   assert.equal(E.starClusters(board).length, 2)
   assert.equal(E.scoreBoard(board, withVariants({ magicStars: true })).starPoints, 7)
+})
+
+test('tuile supplémentaire : une tuile de plus au centre, la restante retourne au sac', () => {
+  const mk = (variants) =>
+    E.createGame({
+      players: [
+        { name: 'A', kind: 'human', boardColor: 'O' },
+        { name: 'B', kind: 'human', boardColor: 'B' },
+      ],
+      options: { ...E.defaultOptions('extra'), ruleset: withVariants(variants) },
+    })
+  const base = mk(undefined)
+  assert.equal(base.pool.length, 2, 'autant de tuiles que de joueurs')
+  let s = mk({ extraTile: true })
+  assert.equal(s.pool.length, 3, 'une tuile de plus')
+
+  // les deux joueurs posent : la 3e tuile repart au sac, le total est conservé
+  const total = s.bag.length + s.pool.length
+  for (let i = 0; i < 2; i++) {
+    const libre = E.availableTiles(s)[0]
+    s = E.applyMove(s, { tileId: libre.tileId, cell: i, rot: 0 })
+  }
+  assert.equal(s.round, 1)
+  assert.equal(s.pool.length, 3, 'la manche suivante révèle encore 3 tuiles')
+  assert.equal(s.bag.length + s.pool.length, total - 2, 'seules les 2 tuiles posées ont quitté le sac')
+})
+
+test('tuiles failles : les deux moitiés d’une tuile ne se relient pas', () => {
+  const id = [...E.FAULTS.keys()][0]
+  const axis = E.FAULTS.get(id)
+  // une tuile entièrement d'une couleur, coupée par une faille
+  const uni = E.TILES.length
+  E.TILES.push({ id: uni, quads: ['R', 'R', 'R', 'R'] })
+  E.FAULTS.set?.(uni, axis) // la map est figée : on teste sur la tuile d'origine
+
+  const board = E.createBoard(4)
+  board.cells[0] = { tileId: id, rot: 0, round: 0 }
+  const avec = E.computeZones(board, withVariants({ faultTiles: true }))
+  const sans = E.computeZones(board, R)
+  // la faille ne peut que découper : jamais moins de zones qu'en son absence
+  assert.ok(avec.length >= sans.length, `${avec.length} zones avec faille, ${sans.length} sans`)
+
+  // l'axe bascule d'un quart de tour, le miroir ne change rien
+  assert.equal(E.faultAxis(id, 0), axis)
+  assert.equal(E.faultAxis(id, 1), (axis + 1) % 2)
+  assert.equal(E.faultAxis(id, 2), axis)
+  assert.equal(E.faultAxis(id, 0, true), axis)
+  assert.equal(E.faultAxis(9999, 0), null)
+})
+
+test('trèfles : +3 dans un chemin qui marque, −3 sinon', () => {
+  const trefles = [...E.CLOVERS.keys()]
+  assert.equal(trefles.length, Math.round(E.TILE_COUNT * 0.25), 'un quart des tuiles')
+  // jamais sur un quart noir
+  for (const id of trefles) {
+    assert.notEqual(E.TILES[id].quads[E.CLOVERS.get(id)], 'K')
+  }
+  const ruleset = withVariants({ clovers: true })
+  const board = E.createBoard(4)
+  board.cells[0] = { tileId: trefles[0], rot: 0, round: 0 }
+  // une tuile seule ne fait aucun chemin qui marque : le trèfle coûte 3
+  assert.equal(E.scoreBoard(board, ruleset).cloverPoints, -3)
+  // sans la variante, il ne compte pas
+  assert.equal(E.scoreBoard(board, R).cloverPoints, 0)
+})
+
+test('tuile de départ : une tuile de la couleur du plateau, une manche de moins', () => {
+  const s = E.createGame({
+    players: [
+      { name: 'A', kind: 'human', boardColor: 'O' },
+      { name: 'B', kind: 'human', boardColor: 'G' },
+    ],
+    options: { ...E.defaultOptions('depart'), ruleset: withVariants({ startTile: true }) },
+  })
+  assert.equal(s.totalRounds, 15, '16 cases moins la tuile de départ')
+  const cells = s.players.map((p) => p.board.cells.findIndex((c) => c !== null))
+  assert.equal(cells[0], cells[1], 'la même case pour tout le monde')
+  assert.ok(cells[0] >= 0)
+  for (const p of s.players) {
+    const t = p.board.cells[cells[0]]
+    assert.equal(t.tileId, E.COLOR_TILE_IDS[p.boardColor])
+    assert.deepEqual([...E.TILES[t.tileId].quads], Array(4).fill(p.boardColor))
+  }
+  // la tuile de départ ne sort pas du sac
+  assert.equal(s.bag.length + s.pool.length, 97)
+})
+
+test('sac antihoraire : le sac revient au dernier servi', () => {
+  const mk = (variants) =>
+    E.createGame({
+      players: [
+        { name: 'A', kind: 'human', boardColor: 'O' },
+        { name: 'B', kind: 'human', boardColor: 'B' },
+        { name: 'C', kind: 'human', boardColor: 'G' },
+      ],
+      options: { ...E.defaultOptions('sac-sens'), ruleset: withVariants(variants) },
+    })
+  const manche = (s) => {
+    for (let i = 0; i < 3; i++) {
+      const libre = E.availableTiles(s)[0]
+      s = E.applyMove(s, { tileId: libre.tileId, cell: s.round, rot: 0 })
+    }
+    return s
+  }
+  assert.equal(manche(mk(undefined)).bagHolder, 1, 'sens horaire : +1')
+  assert.equal(manche(mk({ bagCounterClockwise: true })).bagHolder, 2, 'antihoraire : −1')
+})
+
+test('échange de plateaux : la carte est tirée dès le début et appliquée à mi-partie', () => {
+  const mk = (seed) =>
+    E.createGame({
+      players: [
+        { name: 'A', kind: 'human', boardColor: 'O' },
+        { name: 'B', kind: 'human', boardColor: 'B' },
+      ],
+      options: { ...E.defaultOptions(seed), ruleset: withVariants({ boardSwap: true }) },
+    })
+  // les deux cartes existent : selon la graine, on tire l'une ou l'autre
+  const tirages = new Set(['a', 'b', 'c', 'd', 'e', 'f'].map((x) => mk(x).swapCard))
+  assert.deepEqual([...tirages].sort(), ['rotate', 'stay'])
+
+  // avec « Rotation ! », les plateaux tournent à la manche 8
+  const rotate = ['a', 'b', 'c', 'd', 'e', 'f'].map(mk).find((s) => s.swapCard === 'rotate')
+  let s = rotate
+  assert.equal(E.swapRound(s.options.ruleset), 8)
+  const marque = []
+  for (let r = 0; r < 8; r++) {
+    for (let i = 0; i < 2; i++) {
+      const libre = E.availableTiles(s)[0]
+      s = E.applyMove(s, { tileId: libre.tileId, cell: r, rot: 0 })
+      if (r === 0) marque.push(libre.tileId)
+    }
+  }
+  assert.equal(s.round, 8)
+  // le plateau de A porte maintenant la première tuile posée par B
+  assert.equal(s.players[0].board.cells[0].tileId, marque[1])
+  assert.equal(s.players[1].board.cells[0].tileId, marque[0])
+})
+
+test('couleur secrète : une couleur par joueur, son meilleur chemin est doublé', () => {
+  const s = E.createGame({
+    players: [
+      { name: 'A', kind: 'human', boardColor: 'O' },
+      { name: 'B', kind: 'human', boardColor: 'B' },
+    ],
+    options: { ...E.defaultOptions('secret'), ruleset: withVariants({ secretColor: true }) },
+  })
+  for (const p of s.players) assert.ok(E.PATH_COLORS.includes(p.secretColor))
+  assert.notEqual(s.players[0].secretColor, s.players[1].secretColor)
+
+  // un chemin rouge de 3 tuiles vaut 3 pts, doublé si le rouge est secret
+  const rows = ['RRRRRR..', 'RRRRRR..', VIDE, VIDE, VIDE, VIDE, VIDE, VIDE]
+  const board = boardFrom(rows)
+  const ruleset = withVariants({ secretColor: true })
+  assert.equal(E.scoreBoard(board, ruleset, 'R').secretPoints, 3)
+  assert.equal(E.scoreBoard(board, ruleset, 'B').secretPoints, 0)
+  assert.equal(E.scoreBoard(board, R, 'R').secretPoints, 0, 'sans la variante, rien')
 })

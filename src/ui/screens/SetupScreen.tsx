@@ -416,6 +416,48 @@ export function SetupScreen({
               description="Chaque tuile peut se retourner sur sa face miroir (touche F) : couleurs inversées gauche-droite."
             />
             <VariantToggle
+              label="Tuile supplémentaire"
+              on={!!variants.extraTile}
+              onChange={(v) => patchVariants({ extraTile: v })}
+              description="Une tuile de plus au centre à chaque manche : plus de choix, et la tuile restante est remélangée dans le sac."
+            />
+            <VariantToggle
+              label="Tuiles failles"
+              on={!!variants.faultTiles}
+              onChange={(v) => patchVariants({ faultTiles: v })}
+              description="Une faille grise coupe 16 tuiles en deux moitiés : elles ne se relient pas entre elles, mais chacune se relie normalement aux tuiles voisines."
+            />
+            <VariantToggle
+              label="Trèfles"
+              on={!!variants.clovers}
+              onChange={(v) => patchVariants({ clovers: v })}
+              description="Un quart de tuile sur quatre porte un trèfle : +3 points s’il se trouve dans un chemin qui marque, −3 sinon."
+            />
+            <VariantToggle
+              label="Tuile de départ"
+              on={!!variants.startTile}
+              onChange={(v) => patchVariants({ startTile: v })}
+              description="Chaque plateau démarre avec une tuile monochrome de sa propre couleur, posée au centre — une manche de moins à jouer."
+            />
+            <VariantToggle
+              label="Sac antihoraire"
+              on={!!variants.bagCounterClockwise}
+              onChange={(v) => patchVariants({ bagCounterClockwise: v })}
+              description="Le sac revient au dernier servi — le voisin de droite — au lieu de tourner dans le sens horaire : le premier choix ne va plus toujours au même."
+            />
+            <VariantToggle
+              label="Échange de plateaux"
+              on={!!variants.boardSwap}
+              onChange={(v) => patchVariants({ boardSwap: v })}
+              description="Deux cartes face cachée dès le début : à la moitié de la partie on en retourne une. « Rotation ! » fait passer chaque plateau au voisin de gauche, « Pas de rotation ! » oblige à garder le sien."
+            />
+            <VariantToggle
+              label="Couleur secrète"
+              on={!!variants.secretColor}
+              onChange={(v) => patchVariants({ secretColor: v })}
+              description="Chaque joueur reçoit en secret une tuile monochrome — sa couleur. À la fin, son meilleur chemin de cette couleur est doublé. Cette tuile ne se joue pas."
+            />
+            <VariantToggle
               label="Barème perso"
               on={showScale}
               onChange={setShowScale}

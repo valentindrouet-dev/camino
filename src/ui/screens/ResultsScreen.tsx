@@ -14,9 +14,12 @@ import { BoardView } from "../components/BoardView.tsx";
 import { ScoreDetail } from "../components/ScoreDetail.tsx";
 import { Bars, ScoreLines } from "../components/Charts.tsx";
 import { MissionCardView } from "../components/MissionCard.tsx";
+import { GameReport } from "../components/GameReport.tsx";
 
 interface Props {
   state: GameState;
+  /** Partie archivée correspondante : le rapport s'y attache. */
+  archivedId?: string | null;
   onReplaySameSeed: () => void;
   onNewGame: () => void;
   onBackToGame: () => void;
@@ -26,6 +29,7 @@ interface Props {
 
 export function ResultsScreen({
   state,
+  archivedId,
   onReplaySameSeed,
   onNewGame,
   onBackToGame,
@@ -108,6 +112,8 @@ export function ResultsScreen({
         ))}
       </div>
 
+      {archivedId && <GameReport gameId={archivedId} />}
+
       <div className="grid-2">
         <div className="stack">
           <div className="panel">
@@ -144,6 +150,7 @@ export function ResultsScreen({
                         points={m.points}
                         detail={m.detail}
                         structural={m.structural}
+                        color={m.color}
                       />
                     ))}
                   </div>

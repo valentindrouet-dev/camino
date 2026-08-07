@@ -73,5 +73,40 @@ export function activeVariantInfos(options: GameOptions): VariantInfo[] {
     'Tuiles miroir',
     'Chaque tuile peut se retourner sur sa face miroir (touche F) : couleurs inversées gauche-droite.',
   )
+  add(
+    v.extraTile,
+    'Tuile supplémentaire',
+    'Une tuile de plus au centre à chaque manche ; la tuile restante est remélangée dans le sac.',
+  )
+  add(
+    v.faultTiles,
+    'Tuiles failles',
+    'Une faille grise coupe 16 tuiles en deux moitiés qui ne se relient pas entre elles ; chaque moitié se relie normalement aux tuiles voisines.',
+  )
+  add(
+    v.clovers,
+    'Trèfles',
+    'Un quart de tuile sur quatre porte un trèfle : +3 points dans un chemin qui marque, −3 sinon.',
+  )
+  add(
+    v.startTile,
+    'Tuile de départ',
+    'Chaque plateau démarre avec une tuile monochrome de sa couleur, posée au centre.',
+  )
+  add(
+    v.bagCounterClockwise,
+    'Sac antihoraire',
+    'Le sac revient au dernier servi — le voisin de droite — au lieu de tourner dans le sens horaire.',
+  )
+  add(
+    v.boardSwap,
+    'Échange de plateaux',
+    'Deux cartes face cachée : à la moitié de la partie, « Rotation ! » fait passer chaque plateau au voisin de gauche, « Pas de rotation ! » oblige à garder le sien.',
+  )
+  add(
+    v.secretColor,
+    'Couleur secrète',
+    'Chaque joueur a reçu une couleur en secret : à la fin, son meilleur chemin de cette couleur est doublé.',
+  )
   return out
 }

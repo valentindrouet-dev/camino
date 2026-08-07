@@ -10,7 +10,10 @@ import {
   canRedrawLastTile,
   isBot,
   redrawLastTile,
+  COLOR_NAMES,
+  COLOR_TILE_IDS,
   rulesetForPlayer,
+  swapRound,
   scoreAll,
   signed,
   topMoves,
@@ -22,6 +25,7 @@ import { ScoreDetail } from '../components/ScoreDetail.tsx'
 import { ScoreLines } from '../components/Charts.tsx'
 import { MissionCardView } from '../components/MissionCard.tsx'
 import { activeVariantInfos } from '../variantInfo.ts'
+import { TileGlyph as ColorTile } from '../components/TileGlyph.tsx'
 
 interface Props {
   history: GameState[]
@@ -331,6 +335,8 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                     tileId={t.tileId}
                     flipped={selected === t.tileId && !fromPersonal ? flipped : false}
                     showStar={Boolean(variants?.magicStars)}
+                    showFault={Boolean(variants?.faultTiles)}
+                    showClover={Boolean(variants?.clovers)}
                     angle={selected === t.tileId && !fromPersonal ? spin : 0}
                     size={selected === t.tileId && !fromPersonal ? 78 : 66}
                   />
@@ -356,6 +362,8 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                   tileId={active.personalTileId as number}
                   flipped={fromPersonal ? flipped : false}
                   showStar={Boolean(variants?.magicStars)}
+                  showFault={Boolean(variants?.faultTiles)}
+                  showClover={Boolean(variants?.clovers)}
                   angle={selected === active.personalTileId && fromPersonal ? spin : 0}
                   size={selected === active.personalTileId && fromPersonal ? 78 : 66}
                 />
@@ -485,8 +493,57 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                   points={m.points}
                   detail={m.detail}
                   structural={m.structural}
+                  color={m.color}
                 />
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* variante Échange de plateaux : les deux cartes, face cachée puis révélées */}
+        {variants?.boardSwap && state.players.length > 1 && (
+          <div className="panel">
+            <h3>Échange de plateaux</h3>
+            {state.round < swapRound(state.options.ruleset) ? (
+              <>
+                <div className="swap-cards">
+                  <span className="swap-card back">?</span>
+                  <span className="swap-card back">?</span>
+                </div>
+                <p className="note">
+                  Une des deux cartes sera retournée à la manche{' '}
+                  {swapRound(state.options.ruleset) + 1}.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="swap-cards">
+                  <span className={`swap-card ${state.swapCard === 'rotate' ? 'on' : 'off'}`}>
+                    {state.swapCard === 'rotate' ? 'Rotation !' : 'Pas de rotation !'}
+                  </span>
+                </div>
+                <p className="note">
+                  {state.swapCard === 'rotate'
+                    ? 'Les plateaux ont tourné : chacun a reçu celui de son voisin de droite.'
+                    : 'Chacun garde son plateau jusqu’à la fin.'}
+                </p>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* variante Couleur secrète : la tuile reçue par le joueur affiché */}
+        {variants?.secretColor && viewed.secretColor && (
+          <div className="panel">
+            <h3>Couleur secrète de {viewed.name}</h3>
+            <div className="row" style={{ gap: 12 }}>
+              <ColorTile tileId={COLOR_TILE_IDS[viewed.secretColor]} size={54} />
+              <div>
+                <strong>{COLOR_NAMES[viewed.secretColor]}</strong>
+                <p className="note" style={{ margin: '2px 0 0' }}>
+                  Son meilleur chemin de cette couleur sera doublé.
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -533,6 +590,20 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
               <span className="eq">=</span>
               <strong>{signed(ruleset.blackPenalty)} pts</strong>
             </div>
+            {variants?.clovers && (
+              <>
+                <div className="scoresheet-row clover">
+                  <span className="k">☘ chemin</span>
+                  <span className="eq">=</span>
+                  <strong>+3 pts</strong>
+                </div>
+                <div className="scoresheet-row clover">
+                  <span className="k">☘ perdu</span>
+                  <span className="eq">=</span>
+                  <strong>−3 pts</strong>
+                </div>
+              </>
+            )}
             {variants?.magicStars && (
               <>
                 <div className="scoresheet-row star">

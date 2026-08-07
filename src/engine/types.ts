@@ -103,6 +103,10 @@ export interface ScoreBreakdown {
   blackPoints: number
   /** Points des étoiles magiques (variante). */
   starPoints: number
+  /** Trèfles (variante) : +3 dans un chemin qui marque, −3 sinon. */
+  cloverPoints: number
+  /** Couleur secrète (variante) : le meilleur chemin de cette couleur double. */
+  secretPoints: number
   cardPoints: number
   cardLabel?: string
   /** La carte modifie le barème au lieu d'ajouter des points (voir cards.ts). */
@@ -129,6 +133,20 @@ export interface Variants {
   personalTile?: boolean
   /** Chaque tuile peut être retournée sur sa face miroir. */
   mirrorTiles?: boolean
+  /** Une tuile de plus au centre à chaque manche ; la restante retourne au sac. */
+  extraTile?: boolean
+  /** Une faille grise coupe 16 tuiles en deux moitiés qui ne se relient pas. */
+  faultTiles?: boolean
+  /** Un trèfle sur un quart de tuile : +3 dans un chemin qui marque, −3 sinon. */
+  clovers?: boolean
+  /** Chaque plateau démarre avec une tuile de sa propre couleur au centre. */
+  startTile?: boolean
+  /** Le sac revient au dernier servi : il tourne dans le sens antihoraire. */
+  bagCounterClockwise?: boolean
+  /** Deux cartes face cachée : à mi-partie, les plateaux tournent — ou non. */
+  boardSwap?: boolean
+  /** Chaque joueur reçoit une couleur secrète ; son meilleur chemin double. */
+  secretColor?: boolean
 }
 
 /** Barème modifiable — c'est le cœur de l'outil d'équilibrage. */
@@ -183,6 +201,8 @@ export interface Player {
   personalUsed?: boolean
   /** Carte mission personnelle (variante Cartes missions persos). */
   cardId?: string
+  /** Couleur secrète (variante) : son meilleur chemin de cette couleur double. */
+  secretColor?: Color
 }
 
 export interface PoolTile {
@@ -240,6 +260,13 @@ export interface GameState {
   cardId?: string
   /** Cartes de la table (variante Cartes missions multiples : plusieurs). */
   cardIds?: string[]
+  /** Couleur tirée pour les cartes qui en dépendent (id de carte → couleur). */
+  cardColors?: Record<string, Color>
+  /**
+   * Variante Échange de plateaux : la carte tirée face cachée en début de
+   * partie, révélée à mi-parcours.
+   */
+  swapCard?: 'rotate' | 'stay'
   /** Le dernier joueur du tour a déjà repioché (variante Dernier choix). */
   redrawUsed?: boolean
   players: Player[]
