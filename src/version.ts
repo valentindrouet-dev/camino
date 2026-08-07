@@ -15,6 +15,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.27',
+    date: '2026-08-07',
+    changes: [
+      'Le barème reprend la présentation de la feuille de score : « Points des tuiles connectées », 3 = 3 pts … 9+ = 30 pts, Noir = −2 pts.',
+      'Les variantes de la partie sont rappelées dans la colonne de droite : le nom seul, la règle se déplie au clic.',
+      'Bordures colorées : toucher le bord — une ou plusieurs fois, un ou plusieurs côtés — vaut +1 case en tout pour le chemin.',
+      'Les plateaux à bordures multicolores n’ont plus de cadre coloré : seulement leurs carrés et leurs coins blancs, comme le verso imprimé.',
+    ],
+  },
+  {
     version: '1.26',
     date: '2026-08-06',
     changes: [

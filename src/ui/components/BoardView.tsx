@@ -204,8 +204,18 @@ export function BoardView({
     >
       <IridescentDefs id={irisId} />
 
-      {/* contour coloré du plateau */}
-      <rect x="0" y="0" width={side} height={side} rx={compact ? 10 : 20} fill={frameColor} />
+      {/* fond du plateau : contour coloré — sauf en bordures multicolores,
+          où le verso imprimé n'a PAS de cadre de couleur, seulement les carrés */}
+      <rect
+        x="0"
+        y="0"
+        width={side}
+        height={side}
+        rx={compact ? 10 : 20}
+        fill={board.borders?.kind === 'multi' ? '#FFFFFF' : frameColor}
+        stroke={board.borders?.kind === 'multi' ? '#00000022' : 'none'}
+        strokeWidth="1.5"
+      />
       {board.borders && <BorderRing spec={board.borders} n={n} rx={compact ? 10 : 20} />}
       <rect
         x={PAD + bw}

@@ -375,7 +375,7 @@ export function SetupScreen({
               onChange={(v) =>
                 patchVariants({ coloredBorders: v, ...(v ? { multiBorders: false } : {}) })
               }
-              description="Le bord du plateau, à la couleur du joueur, forme quatre blocs — un par côté. Chaque côté touché par un chemin de cette couleur lui ajoute une case (4 au plus) et s’entoure avec lui, sans relier les chemins entre eux. Exclusif avec Bordures multicolores."
+              description="Le bord du plateau est à la couleur du joueur. Un chemin de cette couleur qui touche le bord — une ou plusieurs fois, un ou plusieurs côtés — gagne une case, une seule. Les bords ne relient jamais deux chemins. Exclusif avec Bordures multicolores."
             />
             <VariantToggle
               label="Bordures multicolores"
@@ -383,7 +383,7 @@ export function SetupScreen({
               onChange={(v) =>
                 patchVariants({ multiBorders: v, ...(v ? { coloredBorders: false } : {}) })
               }
-              description="Plateaux bordés de 8 carrés colorés par côté (coins blancs) : chaque carré touché par un chemin de sa couleur ajoute une case, sans relier les chemins entre eux. Exclusif avec Bordures colorées."
+              description="Plateaux au verso sans cadre de couleur, bordés de 8 carrés colorés par côté (coins blancs) : chaque carré touché par un chemin de sa couleur ajoute une case, sans relier les chemins entre eux. Exclusif avec Bordures colorées."
             />
             <VariantToggle
               label="Tuiles monochromes"

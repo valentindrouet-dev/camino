@@ -1312,6 +1312,84 @@ button.mission-card.selected {
   line-height: 1;
 }
 
+/* rappel des variantes en cours de partie : nom seul, clic pour la règle */
+
+.variant-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.variant-chip:hover {
+  border-color: #f3c27e;
+}
+
+.variant-chip.on {
+  background: #fdf3e3;
+  border-color: #f3c27e;
+}
+
+.variant-chip .chev {
+  font-size: 10px;
+  color: var(--ink-dim);
+}
+
+/* barème présenté comme la feuille de score */
+
+.scoresheet-caption {
+  margin: -4px 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.scoresheet {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 18px;
+}
+
+.scoresheet-row {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 13.5px;
+  padding: 1px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.scoresheet-row .k {
+  min-width: 42px;
+  color: var(--ink-dim);
+  font-weight: 600;
+}
+
+.scoresheet-row .eq {
+  color: var(--ink-dim);
+}
+
+.scoresheet-row.neg strong {
+  color: #cf3a33;
+}
+
+.scoresheet-row.pos strong {
+  color: #2f8f3c;
+}
+
+.scoresheet-row.star .k {
+  color: #a87c00;
+}
+
 /* tuile personnelle dans le centre de table */
 
 .pool-tile.personal .frame {

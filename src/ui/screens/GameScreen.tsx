@@ -21,6 +21,7 @@ import { TileGlyph } from '../components/TileGlyph.tsx'
 import { ScoreDetail } from '../components/ScoreDetail.tsx'
 import { ScoreLines } from '../components/Charts.tsx'
 import { MissionCardView } from '../components/MissionCard.tsx'
+import { activeVariantInfos } from '../variantInfo.ts'
 
 interface Props {
   history: GameState[]
@@ -45,6 +46,9 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
   const [flipped, setFlipped] = useState(false)
   const [spin, setSpin] = useState(0)
   const [pinned, setPinned] = useState<number | null>(null)
+  // Rappel des variantes : seul le nom est visible, cliquer déplie la règle.
+  const [openVariant, setOpenVariant] = useState<string | null>(null)
+  const activeVariants = useMemo(() => activeVariantInfos(state.options), [state.options])
 
   /*
    * Le plateau central reste celui du joueur humain : pendant que les bots
@@ -487,30 +491,63 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
           </div>
         )}
 
-        {/* barème en vigueur pour le plateau affiché */}
+        {/* rappel des variantes de la partie */}
+        {activeVariants.length > 0 && (
+          <div className="panel">
+            <h3>Variantes</h3>
+            <div className="stack" style={{ gap: 4 }}>
+              {activeVariants.map((v) => (
+                <div key={v.label}>
+                  <button
+                    className={`variant-chip ${openVariant === v.label ? 'on' : ''}`}
+                    onClick={() =>
+                      setOpenVariant((o) => (o === v.label ? null : v.label))
+                    }
+                  >
+                    {v.label}
+                    <span className="chev">{openVariant === v.label ? '▾' : '▸'}</span>
+                  </button>
+                  {openVariant === v.label && (
+                    <p className="variant-desc">{v.description}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* barème en vigueur, présenté comme la feuille de score */}
         <div className="panel">
           <h3>Barème</h3>
-          <div className="bareme">
-            {[3, 4, 5, 6, 7, 8].map((n) => (
-              <span className="bareme-item" key={n}>
-                {n}&nbsp;: <strong>{ruleset.pointsBySpan[n] ?? 0}</strong>
-              </span>
+          <p className="scoresheet-caption">Points des tuiles connectées</p>
+          <div className="scoresheet">
+            {[3, 4, 5, 6, 7, 8, 9].map((n) => (
+              <div className="scoresheet-row" key={n}>
+                <span className="k">{n === 9 ? '9+' : n}</span>
+                <span className="eq">=</span>
+                <strong>{ruleset.pointsBySpan[n] ?? 0} pts</strong>
+              </div>
             ))}
-            <span className="bareme-item">
-              9+&nbsp;: <strong>{ruleset.pointsBySpan[9] ?? 0}</strong>
-            </span>
-            <span className={`bareme-item ${ruleset.blackPenalty < 0 ? 'neg' : 'pos'}`}>
-              noir&nbsp;: <strong>{signed(ruleset.blackPenalty)}</strong>
-            </span>
+            <div className={`scoresheet-row ${ruleset.blackPenalty < 0 ? 'neg' : 'pos'}`}>
+              <span className="k">Noir</span>
+              <span className="eq">=</span>
+              <strong>{signed(ruleset.blackPenalty)} pts</strong>
+            </div>
             {variants?.magicStars && (
-              <span className="bareme-item star">
-                ★ seule&nbsp;:&nbsp;<strong>1</strong> · ★ reliée&nbsp;:&nbsp;<strong>2</strong>
-              </span>
+              <>
+                <div className="scoresheet-row star">
+                  <span className="k">★ seule</span>
+                  <span className="eq">=</span>
+                  <strong>1 pt</strong>
+                </div>
+                <div className="scoresheet-row star">
+                  <span className="k">★ reliée</span>
+                  <span className="eq">=</span>
+                  <strong>2 pts</strong>
+                </div>
+              </>
             )}
           </div>
-          <p className="note" style={{ marginTop: 6 }}>
-            Points selon le nombre de tuiles (bordures comprises) d’un chemin.
-          </p>
         </div>
 
         {options.liveScore && state.scoreHistory[0].length > 1 && (

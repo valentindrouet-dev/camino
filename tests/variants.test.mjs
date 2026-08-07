@@ -88,7 +88,7 @@ test('tuiles blanches : le blanc prolonge et relie les chemins de toutes les cou
   assert.equal(zones.filter((z) => z.color === 'R').length, 1)
 })
 
-test('bordures colorées : un bloc par côté touché, une seule fois', () => {
+test('bordures colorées : toucher le bord vaut +1 en tout, quel que soit le nombre de côtés', () => {
   // une colonne orange qui longe le bord gauche et touche le bord haut
   const rows = [
     'OO......',
@@ -100,11 +100,11 @@ test('bordures colorées : un bloc par côté touché, une seule fois', () => {
   const board = boardFrom(rows, { kind: 'uniform', color: 'O' })
   const zones = E.computeZones(board, R)
   const orange = zones.find((z) => z.color === 'O')
-  // 2 tuiles + bloc gauche + bloc haut = 4 -> 5 pts (le côté ne compte qu'une fois,
-  // même longé sur toute sa hauteur)
-  assert.equal(orange.borders, 2)
-  assert.equal(orange.span, 4)
-  assert.equal(orange.points, 5)
+  // 2 tuiles + le bord (une seule fois, même en touchant deux côtés) = 3 -> 3 pts
+  assert.equal(orange.borders, 1)
+  assert.equal(orange.span, 3)
+  assert.equal(orange.points, 3)
+  // les deux côtés touchés restent connus pour l'affichage
   assert.equal(new Set(orange.borderIds).size, 2)
   // la même forme en vert ne profite pas du bord orange
   const vert = boardFrom(
@@ -126,12 +126,11 @@ test('bordures colorées : le bord rallonge chaque chemin sans jamais les relier
   const board = boardFrom(rows, { kind: 'uniform', color: 'O' })
   const oranges = E.computeZones(board, R).filter((z) => z.color === 'O')
   assert.equal(oranges.length, 2, 'le bord ne fusionne pas les deux chemins')
-  // tuile de gauche : 1 tuile + bloc haut + bloc gauche = 3 ;
-  // tuile de droite : 1 tuile + bloc haut = 2
+  // chaque tuile touche le bord : +1 chacune, jamais plus
   const spans = oranges.map((z) => z.span).sort()
-  assert.deepEqual(spans, [2, 3])
+  assert.deepEqual(spans, [2, 2])
   const borders = oranges.map((z) => z.borders).sort()
-  assert.deepEqual(borders, [1, 2])
+  assert.deepEqual(borders, [1, 1])
 })
 
 test('bordures multicolores : fixes par plateau, coins isolants, jamais deux identiques côte à côte', () => {

@@ -138,16 +138,21 @@ export function computeZones(board: Board, ruleset: Ruleset): Zone[] {
       colorZones.push({ cells, tiles, borderIds })
     }
 
-    // Une case de bordure rallonge le chemin qui la touche (+1 chacune) mais
-    // ne relie jamais deux chemins : deux zones qui touchent le même bord
-    // restent deux zones, et comptent chacune leur bonus.
+    // Les bordures rallongent le chemin qui les touche mais ne relient jamais
+    // deux chemins. Multicolore : chaque carré touché compte une case.
+    // Colorée : toucher le bord vaut +1 EN TOUT, qu'on touche un côté, le
+    // même plusieurs fois ou plusieurs côtés différents.
+    const uniformBorder = board.borders?.kind === 'uniform'
     for (const z of colorZones) {
-      const span = z.tiles.size + z.borderIds.size
+      const borderCount = uniformBorder
+        ? (z.borderIds.size > 0 ? 1 : 0)
+        : z.borderIds.size
+      const span = z.tiles.size + borderCount
       zones.push({
         color,
         cells: z.cells.sort((a, b) => a - b),
         tiles: [...z.tiles].sort((a, b) => a - b),
-        borders: z.borderIds.size,
+        borders: borderCount,
         borderIds: [...z.borderIds].sort((a, b) => b - a),
         stars: 0,
         span,
