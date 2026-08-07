@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.31',
+    date: '2026-08-07',
+    changes: [
+      'Option de partie « 1er Joueur Aléatoire » : le sac ne part plus forcément du joueur en tête de liste.',
+      'Nouvelle variante « Couleur interdite » : chaque joueur reçoit une tuile monochrome dont les chemins lui rapportent ses points en négatif.',
+      'La variante propose une deuxième couleur interdite par joueur, et les bots savent désormais fuir ces couleurs.',
+    ],
+  },
+  {
     version: '1.30',
     date: '2026-08-07',
     changes: [

@@ -481,9 +481,13 @@ test('couleur secrète : une couleur par joueur, son meilleur chemin est doublé
   const rows = ['RRRRRR..', 'RRRRRR..', VIDE, VIDE, VIDE, VIDE, VIDE, VIDE]
   const board = boardFrom(rows)
   const ruleset = withVariants({ secretColor: true })
-  assert.equal(E.scoreBoard(board, ruleset, 'R').secretPoints, 3)
-  assert.equal(E.scoreBoard(board, ruleset, 'B').secretPoints, 0)
-  assert.equal(E.scoreBoard(board, R, 'R').secretPoints, 0, 'sans la variante, rien')
+  assert.equal(E.scoreBoard(board, ruleset, { secretColor: 'R' }).secretPoints, 3)
+  assert.equal(E.scoreBoard(board, ruleset, { secretColor: 'B' }).secretPoints, 0)
+  assert.equal(
+    E.scoreBoard(board, R, { secretColor: 'R' }).secretPoints,
+    0,
+    'sans la variante, rien',
+  )
 })
 
 test('tuiles arc-en-ciel : la tuile entière est un seul grand carré joker', () => {
@@ -530,4 +534,81 @@ test('tuile de départ multicolore : quatre couleurs, la même tuile pour tous',
   })
   const ids = mono.players.map((p) => p.board.cells.find((c) => c !== null).tileId)
   assert.equal(new Set(ids).size, 2, 'une tuile par couleur de plateau')
+})
+
+test('couleur interdite : les points du chemin sont infligés en négatif', () => {
+  // un chemin rouge de 3 tuiles vaut 3 pts — ou −3 si le rouge est interdit
+  const rows = ['RRRRRR..', 'RRRRRR..', VIDE, VIDE, VIDE, VIDE, VIDE, VIDE]
+  const board = boardFrom(rows)
+  const ruleset = withVariants({ forbiddenColor: true })
+  assert.equal(E.scoreBoard(board, ruleset, {}).colorPoints, 3, 'sans interdit, normal')
+  const puni = E.scoreBoard(board, ruleset, { forbiddenColors: ['R'] })
+  assert.equal(puni.colorPoints, -3)
+  assert.equal(puni.byColor.R.points, -3)
+  assert.deepEqual(puni.forbidden, ['R'])
+  assert.equal(puni.total, -3)
+  // sans la variante active, l'interdit ne s'applique pas
+  assert.equal(E.scoreBoard(board, R, { forbiddenColors: ['R'] }).colorPoints, 3)
+  // une couleur interdite n'est jamais doublée par la couleur secrète
+  const deux = withVariants({ forbiddenColor: true, secretColor: true })
+  const mixte = E.scoreBoard(board, deux, { secretColor: 'R', forbiddenColors: ['R'] })
+  assert.equal(mixte.secretPoints, 0)
+})
+
+test('couleur interdite : une tuile par joueur, deux avec l’option', () => {
+  const partie = (variants, seed) =>
+    E.createGame({
+      players: [
+        { name: 'A', kind: 'human', boardColor: 'O' },
+        { name: 'B', kind: 'human', boardColor: 'G' },
+      ],
+      options: { ...E.defaultOptions(seed), ruleset: withVariants(variants) },
+    })
+  const une = partie({ forbiddenColor: true }, 'interdit-1')
+  for (const p of une.players) {
+    assert.equal(p.forbiddenColors.length, 1)
+    assert.ok(E.PATH_COLORS.includes(p.forbiddenColors[0]))
+  }
+  const deux = partie({ forbiddenColor: true, forbiddenColorCount: 2 }, 'interdit-2')
+  for (const p of deux.players) {
+    assert.equal(p.forbiddenColors.length, 2)
+    assert.equal(new Set(p.forbiddenColors).size, 2, 'deux couleurs différentes')
+  }
+  // avec la couleur secrète, on ne reçoit jamais une couleur à la fois secrète
+  // et interdite
+  const melange = partie({ forbiddenColor: true, forbiddenColorCount: 2, secretColor: true }, 'mix')
+  for (const p of melange.players) {
+    assert.ok(!p.forbiddenColors.includes(p.secretColor))
+  }
+  // sans la variante, personne ne reçoit de couleur interdite
+  const sans = partie({}, 'sans')
+  for (const p of sans.players) assert.equal(p.forbiddenColors, undefined)
+})
+
+test('1er joueur aléatoire : le sac ne part plus toujours du joueur 1', () => {
+  const partie = (randomFirst, seed) =>
+    E.createGame({
+      players: [
+        { name: 'A', kind: 'human', boardColor: 'O' },
+        { name: 'B', kind: 'human', boardColor: 'G' },
+        { name: 'C', kind: 'human', boardColor: 'B' },
+        { name: 'D', kind: 'human', boardColor: 'Y' },
+      ],
+      options: { ...E.defaultOptions(seed), randomFirst },
+    })
+  for (let i = 0; i < 10; i++) assert.equal(partie(false, `fixe-${i}`).bagHolder, 0)
+  const tirages = new Set()
+  for (let i = 0; i < 40; i++) {
+    const s = partie(true, `alea-${i}`)
+    assert.ok(s.bagHolder >= 0 && s.bagHolder < 4)
+    tirages.add(s.bagHolder)
+  }
+  assert.ok(tirages.size > 1, 'le premier joueur varie selon la graine')
+  // le tirage se fait en dernier : les tuiles révélées ne changent pas
+  const a = partie(false, 'meme-graine')
+  const b = partie(true, 'meme-graine')
+  assert.deepEqual(
+    a.pool.map((t) => t.tileId),
+    b.pool.map((t) => t.tileId),
+  )
 })

@@ -548,6 +548,30 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
           </div>
         )}
 
+        {/* variante Couleur interdite : les tuiles interdites du joueur affiché */}
+        {variants?.forbiddenColor && (viewed.forbiddenColors?.length ?? 0) > 0 && (
+          <div className="panel">
+            <h3>
+              {viewed.forbiddenColors!.length > 1 ? 'Couleurs interdites' : 'Couleur interdite'} de{' '}
+              {viewed.name}
+            </h3>
+            <div className="row" style={{ gap: 12 }}>
+              {viewed.forbiddenColors!.map((c) => (
+                <ColorTile key={c} tileId={COLOR_TILE_IDS[c]} size={54} />
+              ))}
+              <div>
+                <strong>
+                  {viewed.forbiddenColors!.map((c) => COLOR_NAMES[c]).join(', ')}
+                </strong>
+                <p className="note" style={{ margin: '2px 0 0' }}>
+                  Les points de ses chemins {viewed.forbiddenColors!.length > 1 ? 'de ces couleurs' : 'de cette couleur'}{' '}
+                  lui sont infligés en négatif.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* rappel des variantes de la partie */}
         {activeVariants.length > 0 && (
           <div className="panel">
@@ -617,6 +641,13 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                   <strong>2 pts</strong>
                 </div>
               </>
+            )}
+            {variants?.forbiddenColor && (
+              <div className="scoresheet-row banned neg">
+                <span className="k">Interdite</span>
+                <span className="eq">=</span>
+                <strong>points en négatif</strong>
+              </div>
             )}
           </div>
         </div>

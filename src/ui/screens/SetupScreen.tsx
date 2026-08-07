@@ -259,6 +259,11 @@ export function SetupScreen({
               onChange={(v) => setOptions((o) => ({ ...o, showLastPlaced: v }))}
             />
             <Toggle
+              label="1er Joueur Aléatoire"
+              on={!!options.randomFirst}
+              onChange={(v) => setOptions((o) => ({ ...o, randomFirst: v }))}
+            />
+            <Toggle
               label="Graine manuelle"
               on={!!options.manualSeed}
               onChange={(v) =>
@@ -474,6 +479,29 @@ export function SetupScreen({
               onChange={(v) => patchVariants({ secretColor: v })}
               description="Chaque joueur reçoit en secret une tuile monochrome — sa couleur. À la fin, son meilleur chemin de cette couleur est doublé. Cette tuile ne se joue pas."
             />
+            <VariantToggle
+              label="Couleur interdite"
+              on={!!variants.forbiddenColor}
+              onChange={(v) => patchVariants({ forbiddenColor: v })}
+              description={
+                (variants.forbiddenColorCount ?? 1) > 1
+                  ? "Chaque joueur reçoit deux tuiles monochromes interdites. Les points de ses chemins de ces deux couleurs lui sont infligés en négatif. Ces tuiles ne se jouent pas."
+                  : "Chaque joueur reçoit une tuile monochrome interdite. Les points de ses chemins de cette couleur lui sont infligés en négatif. Cette tuile ne se joue pas."
+              }
+            >
+              <label className="field variant-field">
+                <span>Couleurs interdites</span>
+                <select
+                  value={(variants.forbiddenColorCount ?? 1) > 1 ? "2" : "1"}
+                  onChange={(e) =>
+                    patchVariants({ forbiddenColorCount: Number(e.target.value) })
+                  }
+                >
+                  <option value="1">1 couleur</option>
+                  <option value="2">2 couleurs</option>
+                </select>
+              </label>
+            </VariantToggle>
             <VariantToggle
               label="Barème perso"
               on={showScale}

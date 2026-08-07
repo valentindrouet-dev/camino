@@ -20,7 +20,7 @@ export * from './rng.ts'
  */
 export function scorePlayer(player: Player, state: GameState): ScoreBreakdown {
   const ruleset = rulesetForPlayer(state, player.id)
-  const breakdown = scoreBoard(player.board, ruleset, player.secretColor)
+  const breakdown = scoreBoard(player.board, ruleset, player)
   const cards = playerCardIds(state, player.id)
   if (!cards.length) return breakdown
   return applyCards(
@@ -58,7 +58,7 @@ export function cardResults(
   const player = state.players.find((p) => p.id === playerId)
   if (!player) return []
   const ruleset = rulesetForPlayer(state, playerId)
-  const breakdown = scoreBoard(player.board, ruleset, player.secretColor)
+  const breakdown = scoreBoard(player.board, ruleset, player)
   const table = cardTable(state.players, ruleset)
   return ids.flatMap((id) => {
     const card = cardById(id)

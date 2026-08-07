@@ -10,11 +10,13 @@ interface Props {
 export function ScoreDetail({ breakdown, dense = false }: Props) {
   const max = Math.max(
     10,
-    ...PATH_COLORS.map((c) => breakdown.byColor[c].points),
+    ...PATH_COLORS.map((c) => Math.abs(breakdown.byColor[c].points)),
   )
   // Le panneau ne montre que ce qui compte déjà : les couleurs apparaissent au
-  // fur et à mesure qu'elles marquent, plutôt qu'une liste de tirets.
-  const scoring = PATH_COLORS.filter((c) => breakdown.byColor[c].points > 0)
+  // fur et à mesure qu'elles marquent, plutôt qu'une liste de tirets. Une
+  // couleur interdite (variante) apparaît de la même façon, en négatif.
+  const scoring = PATH_COLORS.filter((c) => breakdown.byColor[c].points !== 0)
+  const forbidden = breakdown.forbidden ?? []
   const rien =
     scoring.length === 0 &&
     breakdown.blackZones === 0 &&
@@ -30,18 +32,26 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
         scoring.map((c) => {
           const s = breakdown.byColor[c]
           const zones = s.scoringZones
+          const banni = forbidden.includes(c)
           return (
-            <div className="score-line" key={c} title={detail(zones.map((z) => z.span))}>
-              <span className="swatch" style={{ background: COLOR_HEX[c] }} />
+            <div
+              className="score-line"
+              key={c}
+              title={`${banni ? 'Couleur interdite — ' : ''}${detail(zones.map((z) => z.span))}`}
+            >
+              <span className={`swatch ${banni ? 'banned' : ''}`} style={{ background: COLOR_HEX[c] }} />
               <span className="bar">
                 <i
                   style={{
-                    width: `${(s.points / max) * 100}%`,
+                    width: `${(Math.abs(s.points) / max) * 100}%`,
                     background: COLOR_HEX[c],
+                    opacity: banni ? 0.55 : 1,
                   }}
                 />
               </span>
-              <span className="val pos">{s.points} pts</span>
+              <span className={`val ${s.points < 0 ? 'neg' : 'pos'}`}>
+                {s.points} pts
+              </span>
             </div>
           )
         })}

@@ -107,6 +107,8 @@ export interface ScoreBreakdown {
   cloverPoints: number
   /** Couleur secrète (variante) : le meilleur chemin de cette couleur double. */
   secretPoints: number
+  /** Couleurs interdites (variante) : leurs points sont comptés en négatif. */
+  forbidden?: Color[]
   cardPoints: number
   cardLabel?: string
   /** La carte modifie le barème au lieu d'ajouter des points (voir cards.ts). */
@@ -155,6 +157,13 @@ export interface Variants {
   boardSwap?: boolean
   /** Chaque joueur reçoit une couleur secrète ; son meilleur chemin double. */
   secretColor?: boolean
+  /**
+   * Chaque joueur reçoit une (ou deux) couleurs interdites : les points de ses
+   * chemins de cette couleur lui sont infligés en négatif.
+   */
+  forbiddenColor?: boolean
+  /** Nombre de couleurs interdites par joueur (1 par défaut, 2 au plus). */
+  forbiddenColorCount?: number
 }
 
 /** Barème modifiable — c'est le cœur de l'outil d'équilibrage. */
@@ -211,6 +220,8 @@ export interface Player {
   cardId?: string
   /** Couleur secrète (variante) : son meilleur chemin de cette couleur double. */
   secretColor?: Color
+  /** Couleurs interdites (variante) : leurs chemins comptent en négatif. */
+  forbiddenColors?: Color[]
 }
 
 export interface PoolTile {
@@ -229,6 +240,8 @@ export interface GameOptions {
   showZones: boolean
   /** Affiche le meilleur coup possible (aide au playtest). */
   showHints: boolean
+  /** Le premier porteur du sac est tiré au sort au lieu d'être le joueur 1. */
+  randomFirst?: boolean
   /** Signale la dernière tuile posée par des équerres sur le plateau. */
   showLastPlaced?: boolean
   /** Une (ou plusieurs) carte mission est tirée pour la table. */

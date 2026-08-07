@@ -58,7 +58,12 @@ interface ColorPotential {
  * Évaluation d'un plateau : points réels + potentiel de progression, avec une
  * prime de concentration sur les deux meilleures couleurs.
  */
-export function evaluateBoard(board: Board, ruleset: Ruleset): number {
+export function evaluateBoard(
+  board: Board,
+  ruleset: Ruleset,
+  /** Couleurs interdites du joueur (variante) : leurs chemins sont à fuir. */
+  forbidden: Color[] = [],
+): number {
   const zones = computeZones(board, ruleset)
   const grid = quadGrid(board)
   const qs = grid.size
@@ -92,6 +97,13 @@ export function evaluateBoard(board: Board, ruleset: Ruleset): number {
         const gain = pointsForSpan(z.span + 1, ruleset) - z.points
         zoneValue += AI_WEIGHTS.growthPotential * gain
       }
+    }
+
+    // Couleur interdite : tout ce que ce chemin promet se retournera contre le
+    // joueur — et il n'a aucune raison de s'y concentrer.
+    if (forbidden.includes(z.color)) {
+      value -= zoneValue
+      continue
     }
 
     value += zoneValue
@@ -157,7 +169,9 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
   // ce qu'il a intérêt à faire, y compris quand elle est personnelle.
   const ruleset = rulesetForPlayer(state, player.id)
   const cells = legalCells(player.board, ruleset.requireAdjacency)
-  const before = scoreBoard(player.board, ruleset, player.secretColor)
+  // Couleurs interdites du joueur (variante) : les bots les évitent.
+  const forbidden = ruleset.variants?.forbiddenColor ? (player.forbiddenColors ?? []) : []
+  const before = scoreBoard(player.board, ruleset, player)
   const base = before.total
   const blackBefore = before.blackZones
   const out: ScoredMove[] = []
@@ -207,9 +221,9 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
     for (const { rot, flipped } of distinctOrientations(cand.tileId, allowFlip)) {
       for (const cell of cells) {
         const board = placeTile(player.board, cell, cand.tileId, rot, state.round, flipped)
-        const breakdown = scoreBoard(board, ruleset, player.secretColor)
+        const breakdown = scoreBoard(board, ruleset, player)
         const score = breakdown.total
-        let value = evaluateBoard(board, ruleset)
+        let value = evaluateBoard(board, ruleset, forbidden)
         value += AI_WEIGHTS.centrality * neighbours(player.board.size, cell).length
 
         // Missions : ce que la pose rapporte déjà, plus une prime au progrès

@@ -228,11 +228,28 @@ export function createGame(config: GameConfig): GameState {
     }
   }
 
-  // Couleur secrète : une par joueur, tirée sans doublon tant que possible.
+  // Couleurs interdites : une (ou deux) par joueur, matérialisées par des
+  // tuiles monochromes qu'on ne joue pas. Les points de ses chemins de ces
+  // couleurs lui sont infligés en négatif.
+  if (ruleset.variants?.forbiddenColor) {
+    const count = Math.max(1, Math.min(ruleset.variants.forbiddenColorCount ?? 1, 2))
+    for (const p of players) {
+      p.forbiddenColors = rng.shuffle([...PATH_COLORS]).slice(0, count)
+    }
+  }
+
+  // Couleur secrète : une par joueur, tirée sans doublon tant que possible —
+  // et jamais une couleur qui lui est déjà interdite.
   if (ruleset.variants?.secretColor) {
     const deck = rng.shuffle([...PATH_COLORS])
     players.forEach((p, i) => {
-      p.secretColor = deck[i % deck.length]
+      const banned = p.forbiddenColors ?? []
+      const start = i % deck.length
+      let pick = deck[start]
+      for (let k = 0; k < deck.length && banned.includes(pick); k++) {
+        pick = deck[(start + k + 1) % deck.length]
+      }
+      p.secretColor = pick
     })
   }
 
@@ -274,7 +291,9 @@ export function createGame(config: GameConfig): GameState {
     pool: [],
     round: 0,
     totalRounds: roundsFor(ruleset),
-    bagHolder: 0,
+    // Premier porteur du sac : le joueur 1, ou un joueur au hasard (option).
+    // Le tirage est fait en dernier pour ne pas décaler le mélange du sac.
+    bagHolder: config.options.randomFirst ? rng.int(players.length) : 0,
     turnIndex: 0,
     log: [],
     scoreHistory: players.map(() => []),
@@ -402,7 +421,7 @@ export function applyMove(state: GameState, move: Move): GameState {
   // Barème en vigueur : la carte « zones noires positives » en fait partie.
   const ruleset = activeRuleset(state)
 
-  const before = scoreOf(player.board, ruleset, player.secretColor)
+  const before = scoreOf(player.board, ruleset, player)
   const board = placeTile(
     player.board,
     move.cell,
@@ -411,7 +430,7 @@ export function applyMove(state: GameState, move: Move): GameState {
     state.round,
     move.flipped,
   )
-  const after = scoreOf(board, ruleset, player.secretColor)
+  const after = scoreOf(board, ruleset, player)
 
   const players = state.players.slice()
   players[playerId] = move.personal
@@ -468,13 +487,13 @@ export function applyMove(state: GameState, move: Move): GameState {
 /** Score complet de chaque joueur à cet instant, cartes missions comprises. */
 function roundTotals(state: GameState, baseRuleset: Ruleset): number[] {
   if (!state.options.useCards && !state.options.personalCards) {
-    return state.players.map((p) => scoreOf(p.board, baseRuleset, p.secretColor))
+    return state.players.map((p) => scoreOf(p.board, baseRuleset, p))
   }
   return state.players.map((p) => {
     const ruleset = rulesetForPlayer(state, p.id)
     const table = cardTable(state.players, ruleset)
     return applyCards(
-      scoreBoard(p.board, ruleset, p.secretColor),
+      scoreBoard(p.board, ruleset, p),
       { playerId: p.id, board: p.board, ruleset, table },
       playerCardIds(state, p.id),
       state.cardColors,

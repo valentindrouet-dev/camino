@@ -244,9 +244,11 @@ function countStars(board: Board): number {
 export function scoreBoard(
   board: Board,
   ruleset: Ruleset,
-  /** Couleur secrète du joueur (variante) : son meilleur chemin est doublé. */
-  secretColor?: Color,
+  /** Variantes propres au joueur : couleur secrète, couleurs interdites. */
+  who: PlayerScoring = {},
 ): ScoreBreakdown {
+  const { secretColor } = who
+  const forbidden = ruleset.variants?.forbiddenColor ? (who.forbiddenColors ?? []) : []
   const zones = computeZones(board, ruleset)
   const byColor = {} as Record<Color, ColorScore>
   for (const c of COLORS) byColor[c] = { color: c, points: 0, scoringZones: [], zones: [] }
@@ -261,15 +263,21 @@ export function scoreBoard(
       byColor[BLACK].points += ruleset.blackPenalty
       byColor[BLACK].scoringZones.push(z)
     } else if (z.points > 0) {
-      colorPoints += z.points
-      byColor[z.color].points += z.points
+      // Couleur interdite : ce que le chemin aurait rapporté est infligé.
+      const gain = forbidden.includes(z.color) ? -z.points : z.points
+      colorPoints += gain
+      byColor[z.color].points += gain
       byColor[z.color].scoringZones.push(z)
     }
   }
 
   const starPoints = ruleset.variants?.magicStars ? countStars(board) : 0
   const cloverPoints = ruleset.variants?.clovers ? countClovers(board, zones) : 0
-  const secretPoints = ruleset.variants?.secretColor ? secretBonus(zones, secretColor) : 0
+  // Une couleur secrète interdite ne doublerait qu'un malus : on n'y touche pas.
+  const secretPoints =
+    ruleset.variants?.secretColor && secretColor && !forbidden.includes(secretColor)
+      ? secretBonus(zones, secretColor)
+      : 0
   const blackPoints = blackZones * ruleset.blackPenalty
   return {
     total: colorPoints + blackPoints + starPoints + cloverPoints + secretPoints,
@@ -279,6 +287,7 @@ export function scoreBoard(
     starPoints,
     cloverPoints,
     secretPoints,
+    ...(forbidden.length ? { forbidden } : {}),
     cardPoints: 0,
     byColor,
     zones,
@@ -310,6 +319,17 @@ export function countClovers(board: Board, zones: Zone[]): number {
   return total
 }
 
+/**
+ * Ce qu'un joueur apporte au décompte de son propre plateau : les variantes
+ * qui dépendent de lui et non du plateau seul.
+ */
+export interface PlayerScoring {
+  /** Son meilleur chemin de cette couleur est doublé (variante). */
+  secretColor?: Color
+  /** Les points de ses chemins de ces couleurs lui sont infligés en négatif. */
+  forbiddenColors?: Color[]
+}
+
 /** Couleur secrète (variante) : le meilleur chemin de cette couleur est doublé. */
 export function secretBonus(zones: Zone[], color: Color | undefined): number {
   if (!color) return 0
@@ -321,14 +341,8 @@ export function secretBonus(zones: Zone[], color: Color | undefined): number {
 }
 
 /** Score total uniquement — chemin rapide utilisé par l'IA et les simulations. */
-export function scoreOf(board: Board, ruleset: Ruleset, secretColor?: Color): number {
-  const zones = computeZones(board, ruleset)
-  let total = 0
-  for (const z of zones) total += z.points
-  if (ruleset.variants?.magicStars) total += countStars(board)
-  if (ruleset.variants?.clovers) total += countClovers(board, zones)
-  if (ruleset.variants?.secretColor) total += secretBonus(zones, secretColor)
-  return total
+export function scoreOf(board: Board, ruleset: Ruleset, who: PlayerScoring = {}): number {
+  return scoreBoard(board, ruleset, who).total
 }
 
 /** Zone (index dans le tableau) à laquelle appartient chaque quart, ou -1. */

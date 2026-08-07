@@ -110,5 +110,12 @@ export function activeVariantInfos(options: GameOptions): VariantInfo[] {
     'Couleur secrète',
     'Chaque joueur a reçu une couleur en secret : à la fin, son meilleur chemin de cette couleur est doublé.',
   )
+  add(
+    v.forbiddenColor,
+    (v.forbiddenColorCount ?? 1) > 1 ? 'Couleur interdite (2)' : 'Couleur interdite',
+    (v.forbiddenColorCount ?? 1) > 1
+      ? 'Chaque joueur a reçu deux couleurs interdites : les points de ses chemins de ces couleurs lui sont infligés en négatif.'
+      : 'Chaque joueur a reçu une couleur interdite : les points de ses chemins de cette couleur lui sont infligés en négatif.',
+  )
   return out
 }
