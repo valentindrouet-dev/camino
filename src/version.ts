@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.34',
+    date: '2026-08-07',
+    changes: [
+      'Un chrono démarre au lancement de chaque partie et s’affiche dans la barre du haut ; il se fige sur son total dès la dernière tuile posée.',
+      'La durée totale s’affiche à côté du titre « Fin de partie », part avec la partie dans l’archive et apparaît dans l’historique comme dans l’export CSV.',
+      'Les statistiques cumulées gagnent deux mesures : la durée moyenne d’une partie et le temps de jeu total.',
+    ],
+  },
+  {
     version: '1.33',
     date: '2026-08-07',
     changes: [

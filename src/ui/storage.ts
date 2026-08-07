@@ -47,6 +47,8 @@ export interface ArchivedGame {
   results: ArchivedResult[]
   /** Absent des parties archivées par les toutes premières versions. */
   boards?: ArchivedBoard[]
+  /** Durée de la partie, du lancement à la dernière tuile posée (ms). */
+  durationMs?: number
   /** Rapport de fin de partie saisi par le joueur. */
   report?: string
   /** Date de dernière modification du rapport. */
@@ -62,7 +64,7 @@ export function loadArchive(): ArchivedGame[] {
   }
 }
 
-export function archiveGame(state: GameState): ArchivedGame {
+export function archiveGame(state: GameState, durationMs?: number): ArchivedGame {
   const stats = playerStats(state)
   const entry: ArchivedGame = {
     id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
@@ -72,6 +74,7 @@ export function archiveGame(state: GameState): ArchivedGame {
     boardSize: state.options.ruleset.boardSize,
     ruleset: state.options.ruleset,
     cardId: state.options.useCards ? state.cardId : undefined,
+    ...(durationMs !== undefined ? { durationMs } : {}),
     boards: state.players.map((p) => ({
       name: p.name,
       boardColor: p.boardColor,
@@ -153,6 +156,12 @@ export interface ArchiveSummary {
   avgBlackZones: number
   avgLongest: number
   avgPaths: number
+  /** Durée moyenne d'une partie chronométrée (ms), 0 si aucune. */
+  avgDuration: number
+  /** Durée cumulée de toutes les parties chronométrées (ms). */
+  totalDuration: number
+  /** Nombre de parties dont la durée est connue. */
+  timedGames: number
   /** Victoires par siège. */
   winsBySeat: number[]
   byPlayerName: { name: string; games: number; wins: number; mean: number; best: number }[]
@@ -168,8 +177,12 @@ export function summarize(archive: ArchivedGame[]): ArchiveSummary {
   let longest = 0
   let paths = 0
   let players = 0
+  /* Le chrono n'existe que depuis la v1.34 : les parties plus anciennes n'ont
+     pas de durée et ne doivent pas tirer la moyenne vers le bas. */
+  const durations: number[] = []
 
   for (const g of archive) {
+    if (g.durationMs !== undefined) durations.push(g.durationMs)
     for (const r of g.results) {
       players++
       scores.push(r.total)
@@ -206,6 +219,11 @@ export function summarize(archive: ArchivedGame[]): ArchiveSummary {
     avgBlackZones: blackZones / div,
     avgLongest: longest / div,
     avgPaths: paths / div,
+    timedGames: durations.length,
+    totalDuration: durations.reduce((a, b) => a + b, 0),
+    avgDuration: durations.length
+      ? durations.reduce((a, b) => a + b, 0) / durations.length
+      : 0,
     winsBySeat: winsBySeat.map((n) => n ?? 0),
     byPlayerName: [...perName.entries()]
       .map(([name, p]) => ({
@@ -224,6 +242,7 @@ export function exportArchiveCsv(archive: ArchivedGame[]): string {
     'partie',
     'date',
     'graine',
+    'duree_s',
     'joueurs',
     'plateau',
     'nom',
@@ -243,6 +262,7 @@ export function exportArchiveCsv(archive: ArchivedGame[]): string {
         g.id,
         new Date(g.date).toISOString(),
         g.seed,
+        g.durationMs !== undefined ? Math.round(g.durationMs / 1000) : '',
         g.playerCount,
         `${g.boardSize}x${g.boardSize}`,
         r.name,

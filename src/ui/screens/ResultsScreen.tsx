@@ -15,11 +15,14 @@ import { ScoreDetail } from "../components/ScoreDetail.tsx";
 import { Bars, ScoreLines } from "../components/Charts.tsx";
 import { MissionCardView } from "../components/MissionCard.tsx";
 import { GameReport } from "../components/GameReport.tsx";
+import { spellDuration } from "../duration.ts";
 
 interface Props {
   state: GameState;
   /** Partie archivée correspondante : le rapport s'y attache. */
   archivedId?: string | null;
+  /** Durée totale de la partie, au chrono. */
+  durationMs?: number;
   onReplaySameSeed: () => void;
   onNewGame: () => void;
   onBackToGame: () => void;
@@ -30,6 +33,7 @@ interface Props {
 export function ResultsScreen({
   state,
   archivedId,
+  durationMs,
   onReplaySameSeed,
   onNewGame,
   onBackToGame,
@@ -57,7 +61,14 @@ export function ResultsScreen({
         className="row"
         style={{ justifyContent: "space-between", marginBottom: 16 }}
       >
-        <h2 style={{ fontSize: 26 }}>Fin de partie</h2>
+        <div className="row" style={{ gap: 12, flex: "none" }}>
+          <h2 style={{ fontSize: 26, whiteSpace: "nowrap" }}>Fin de partie</h2>
+          {durationMs !== undefined && (
+            <span className="tag chrono done" title="Durée totale de la partie">
+              ⏱ <strong>{spellDuration(durationMs)}</strong>
+            </span>
+          )}
+        </div>
         <div className="row wrap">
           <button className="btn small" onClick={onBackToGame}>
             Revoir les plateaux

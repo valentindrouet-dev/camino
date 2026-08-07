@@ -29,6 +29,7 @@ import {
   summarize,
   type ArchivedGame,
 } from '../storage.ts'
+import { formatDuration } from '../duration.ts'
 
 const KINDS: PlayerKind[] = ['bot-smart', 'bot-greedy', 'bot-random']
 const KIND_LABEL: Record<string, string> = {
@@ -439,6 +440,20 @@ function ArchivePanel() {
             <Kpi k="Min / Max" v={`${summary.min} / ${summary.max}`} s="observés" />
             <Kpi k="Zones noires" v={summary.avgBlackZones.toFixed(2)} s="par joueur" />
             <Kpi k="Chemins" v={summary.avgPaths.toFixed(1)} s="qui marquent" />
+            {summary.timedGames > 0 && (
+              <>
+                <Kpi
+                  k="Durée moyenne"
+                  v={formatDuration(summary.avgDuration)}
+                  s={`sur ${summary.timedGames} partie${summary.timedGames > 1 ? 's' : ''}`}
+                />
+                <Kpi
+                  k="Temps de jeu"
+                  v={formatDuration(summary.totalDuration)}
+                  s="au total"
+                />
+              </>
+            )}
           </div>
           <div style={{ marginTop: 10 }}>
             <Histogram buckets={histogram(summary.scores, 5)} />
@@ -491,6 +506,7 @@ function ArchivePanel() {
               <tr>
                 <th>Date</th>
                 <th>Joueurs</th>
+                <th>Durée</th>
                 <th>Vainqueur</th>
                 <th>Score</th>
               </tr>
@@ -505,6 +521,7 @@ function ArchivePanel() {
                     <tr key={g.id}>
                       <td>{new Date(g.date).toLocaleDateString('fr-FR')}</td>
                       <td>{g.playerCount}</td>
+                      <td>{g.durationMs === undefined ? '—' : formatDuration(g.durationMs)}</td>
                       <td>{w?.name}</td>
                       <td>{w?.total}</td>
                     </tr>

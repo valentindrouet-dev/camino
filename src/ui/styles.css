@@ -147,6 +147,22 @@ code {
   color: var(--ink);
 }
 
+/* Chrono de la partie : chiffres à chasse fixe, sinon l'étiquette tressaute
+   à chaque seconde. Une fois la partie finie, le total se met en avant. */
+.tag.chrono strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.tag.chrono.done {
+  background: var(--accent-soft);
+  border-color: #f3c27e;
+  color: var(--accent-ink);
+}
+
+.tag.chrono.done strong {
+  color: var(--accent-ink);
+}
+
 /* --------------------------------------------------------------- buttons */
 
 .btn {

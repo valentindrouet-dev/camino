@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createGame, randomSeed } from '../engine/index.ts'
 import type { GameConfig, GameState } from '../engine/index.ts'
 import { archiveGame } from './storage.ts'
@@ -9,6 +9,7 @@ import { LabScreen } from './screens/LabScreen.tsx'
 import { HistoryScreen } from './screens/HistoryScreen.tsx'
 import { VersionsScreen } from './screens/VersionsScreen.tsx'
 import { VERSION } from '../version.ts'
+import { formatDuration } from './duration.ts'
 
 type Screen = 'setup' | 'game' | 'results' | 'lab' | 'archive' | 'history' | 'versions'
 
@@ -22,6 +23,16 @@ export default function App() {
   const state = history[history.length - 1] ?? null
   const running = state?.phase === 'playing'
   const finished = state?.phase === 'finished'
+
+  /*
+   * Chrono de la partie : il démarre au lancement, s'arrête quand la dernière
+   * tuile est posée, et la durée obtenue part avec la partie dans l'archive.
+   * Il vit ici, hors du moteur : celui-ci doit rester déterministe, une même
+   * graine rejouée ne doit pas dépendre de l'heure qu'il est.
+   */
+  const startedAt = useRef<number | null>(null)
+  const endedAt = useRef<number | null>(null)
+  const [elapsed, setElapsed] = useState(0)
 
   // Une partie terminée n'est archivée qu'une fois, et le passage à l'écran de
   // résultats ne doit pas se redéclencher quand on revient voir les plateaux.
@@ -43,16 +54,34 @@ export default function App() {
     setConfig(next)
     setHistory([createGame(next)])
     settled.current = false
+    startedAt.current = Date.now()
+    endedAt.current = null
+    setElapsed(0)
     setScreen('game')
   }
+
+  // Le chrono ne bat que tant qu'on joue ; une fois la partie finie il reste
+  // figé sur son total, y compris quand on retourne voir les plateaux.
+  useEffect(() => {
+    if (!running) return
+    const battre = () =>
+      setElapsed(startedAt.current === null ? 0 : Date.now() - startedAt.current)
+    battre()
+    const id = window.setInterval(battre, 1000)
+    return () => window.clearInterval(id)
+  }, [running])
 
   const finish = useCallback(() => {
     if (settled.current) return
     settled.current = true
     // L'archivage se fait ici, une seule fois par partie — surtout pas dans un
     // effet d'écran, qui se rejoue à chaque retour sur les résultats.
+    endedAt.current = Date.now()
+    const duree =
+      startedAt.current === null ? undefined : endedAt.current - startedAt.current
+    if (duree !== undefined) setElapsed(duree)
     const last = historyRef.current[historyRef.current.length - 1]
-    if (last?.phase === 'finished') setArchivedId(archiveGame(last).id)
+    if (last?.phase === 'finished') setArchivedId(archiveGame(last, duree).id)
     setScreen('results')
   }, [])
 
@@ -60,6 +89,9 @@ export default function App() {
   const quitGame = useCallback((to: Screen = 'setup') => {
     setHistory([])
     settled.current = false
+    startedAt.current = null
+    endedAt.current = null
+    setElapsed(0)
     setScreen(to)
   }, [])
 
@@ -124,6 +156,16 @@ export default function App() {
             </span>
             <span className="tag">
               Graine <strong>{state.options.seed}</strong>
+            </span>
+            <span
+              className={`tag chrono ${state.phase === 'finished' ? 'done' : ''}`}
+              title={
+                state.phase === 'finished'
+                  ? 'Durée totale de la partie'
+                  : 'Temps écoulé depuis le début de la partie'
+              }
+            >
+              ⏱ <strong>{formatDuration(elapsed)}</strong>
             </span>
           </>
         )}
@@ -218,6 +260,7 @@ export default function App() {
         <ResultsScreen
           state={state}
           archivedId={archivedId}
+          durationMs={elapsed || undefined}
           onBackToGame={() => setScreen('game')}
           onReplaySameSeed={() => config && start(config, true)}
           onNewGame={() => quitGame('setup')}

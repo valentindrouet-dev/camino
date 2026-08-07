@@ -17,6 +17,7 @@ import {
   saveGameReport,
   type ArchivedGame,
 } from '../storage.ts'
+import { formatDuration } from '../duration.ts'
 
 interface Props {
   onBack: () => void
@@ -169,7 +170,9 @@ export function HistoryScreen({ onBack }: Props) {
                 </span>
                 <span className="meta note">
                   {g.playerCount} joueur{g.playerCount > 1 ? 's' : ''} · {g.boardSize}×{g.boardSize}
-                  {g.cardId ? ' · carte mission' : ''} · graine {g.seed}
+                  {g.cardId ? ' · carte mission' : ''}
+                  {g.durationMs !== undefined ? ` · ⏱ ${formatDuration(g.durationMs)}` : ''} ·
+                  graine {g.seed}
                 </span>
                 <span className="note">{isOpen ? '▲' : '▼'}</span>
               </button>
