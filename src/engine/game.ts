@@ -2,7 +2,14 @@ import { createBoard, isFull, legalCells, placeTile } from './board.ts'
 import { activeRuleset, applyCards, cardTable, CARDS, playerCardIds, rulesetForPlayer } from './cards.ts'
 import { Rng } from './rng.ts'
 import { scoreBoard, scoreOf } from './scoring.ts'
-import { COLOR_TILE_IDS, MONO_TILE_IDS, TILE_COUNT, TILES, WHITE_TILE_IDS } from './tiles.ts'
+import {
+  COLOR_TILE_IDS,
+  MONO_TILE_IDS,
+  MULTI_START_TILE_IDS,
+  TILE_COUNT,
+  TILES,
+  WHITE_TILE_IDS,
+} from './tiles.ts'
 import type {
   BoardColor,
   BorderSpec,
@@ -202,12 +209,22 @@ export function createGame(config: GameConfig): GameState {
     const mid = size % 2 === 1 ? [(size - 1) / 2] : [size / 2 - 1, size / 2]
     const centres = mid.flatMap((r) => mid.map((c) => r * size + c))
     const cell = centres[rng.int(centres.length)]
+    // Multicolore : une seule tuile à quatre couleurs, la même pour tous, pour
+    // que personne ne démarre avec un avantage. Monochrome : la couleur du
+    // plateau de chacun.
+    const multi = ruleset.variants.startTileMulti
+      ? MULTI_START_TILE_IDS[rng.int(MULTI_START_TILE_IDS.length)]
+      : null
     for (const p of players) {
       p.board = {
         ...p.board,
         cells: p.board.cells.slice(),
       }
-      p.board.cells[cell] = { tileId: COLOR_TILE_IDS[p.boardColor], rot: 0, round: -1 }
+      p.board.cells[cell] = {
+        tileId: multi ?? COLOR_TILE_IDS[p.boardColor],
+        rot: 0,
+        round: -1,
+      }
     }
   }
 

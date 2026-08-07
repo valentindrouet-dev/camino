@@ -7,6 +7,7 @@
  * (haut-gauche, haut-droite, bas-droite, bas-gauche).
  * Y=jaune O=orange R=rouge G=vert B=bleu P=violet K=noir
  */
+import { Rng } from './rng.ts'
 import type { Color, Quads, Rotation, Tile } from './types.ts'
 
 const RAW: string[] = [
@@ -39,7 +40,31 @@ const RAW: string[] = [
  * Elles n'entrent dans le sac que si la variante correspondante est active.
  */
 const MONO: string[] = ['Y', 'O', 'R', 'G', 'B', 'P'].flatMap((c) => [c.repeat(4), c.repeat(4)])
-const WHITES: string[] = Array.from({ length: 6 }, () => 'WWWW')
+/**
+ * Tuiles arc-en-ciel (variante) : UN SEUL quart irisé, joker qui rejoint les
+ * chemins de toutes les couleurs voisines ; les trois autres quarts sont des
+ * couleurs ordinaires. Le quart irisé change de place d'une tuile à l'autre.
+ */
+const WHITES: string[] = (() => {
+  const rng = new Rng('camino-arc-en-ciel')
+  const palette = ['Y', 'O', 'R', 'G', 'B', 'P']
+  return Array.from({ length: 6 }, (_, i) => {
+    const trois = rng.shuffle([...palette]).slice(0, 3)
+    const quads = [...trois]
+    quads.splice(i % 4, 0, 'W')
+    return quads.slice(0, 4).join('')
+  })
+})()
+
+/**
+ * Tuiles de départ multicolores (variante) : quatre couleurs différentes sur
+ * une même tuile. La partie en tire une, la même pour tous les joueurs.
+ */
+const MULTI_STARTS: string[] = (() => {
+  const rng = new Rng('camino-departs-multicolores')
+  const palette = ['Y', 'O', 'R', 'G', 'B', 'P']
+  return Array.from({ length: 6 }, () => rng.shuffle([...palette]).slice(0, 4).join(''))
+})()
 /**
  * Six tuiles monochromes hors sac : elles servent de tuile de départ (à la
  * couleur du plateau) et de marqueur de couleur secrète. Elles ne sont jamais
@@ -47,7 +72,13 @@ const WHITES: string[] = Array.from({ length: 6 }, () => 'WWWW')
  */
 const COLOR_MARKERS: string[] = ['Y', 'O', 'R', 'G', 'B', 'P'].map((c) => c.repeat(4))
 
-export const TILES: Tile[] = [...RAW, ...MONO, ...WHITES, ...COLOR_MARKERS].map((s, id) => ({
+export const TILES: Tile[] = [
+  ...RAW,
+  ...MONO,
+  ...WHITES,
+  ...COLOR_MARKERS,
+  ...MULTI_STARTS,
+].map((s, id) => ({
   id,
   quads: s.split('') as unknown as Quads,
 }))
@@ -62,6 +93,10 @@ export const COLOR_TILE_IDS: Record<string, number> = Object.fromEntries(
     c,
     RAW.length + MONO.length + WHITES.length + i,
   ]),
+)
+/** Les six tuiles de départ multicolores. Hors sac elles aussi. */
+export const MULTI_START_TILE_IDS = MULTI_STARTS.map(
+  (_, i) => RAW.length + MONO.length + WHITES.length + COLOR_MARKERS.length + i,
 )
 
 /** Quarts d'une tuile après rotation horaire de `rot` x 90°. */
@@ -134,7 +169,6 @@ export function tileColorCount(tileId: number): Partial<Record<Color, number>> {
 // un de leurs quarts — jamais un quart noir, et 75 % d'entre elles sur des
 // tuiles qui contiennent du noir. L'attribution est fixe (tuiles imprimées).
 // ---------------------------------------------------------------------------
-import { Rng } from './rng.ts'
 
 /** quart étoilé (0..3, avant rotation) par id de tuile. */
 export const STARS: ReadonlyMap<number, number> = (() => {

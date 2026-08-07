@@ -392,10 +392,10 @@ export function SetupScreen({
               description="+12 tuiles unies dans le sac (2 par couleur)."
             />
             <VariantToggle
-              label="Tuiles blanches"
+              label="Tuiles arc-en-ciel"
               on={!!variants.whiteTiles}
               onChange={(v) => patchVariants({ whiteTiles: v })}
-              description="+6 tuiles blanches jokers : elles prolongent et relient les chemins de toutes les couleurs voisines."
+              description="+6 tuiles portant un quart arc-en-ciel : ce carré joker prolonge et relie les chemins de toutes les couleurs qui le touchent."
             />
             <VariantToggle
               label="Étoiles magiques"
@@ -437,8 +437,25 @@ export function SetupScreen({
               label="Tuile de départ"
               on={!!variants.startTile}
               onChange={(v) => patchVariants({ startTile: v })}
-              description="Chaque plateau démarre avec une tuile monochrome de sa propre couleur, posée au centre — une manche de moins à jouer."
-            />
+              description={
+                variants.startTileMulti
+                  ? "Tous les plateaux démarrent avec la même tuile à quatre couleurs, posée au centre — une manche de moins à jouer."
+                  : "Chaque plateau démarre avec une tuile monochrome de sa propre couleur, posée au centre — une manche de moins à jouer."
+              }
+            >
+              <label className="field variant-field">
+                <span>Type de tuile</span>
+                <select
+                  value={variants.startTileMulti ? "multi" : "mono"}
+                  onChange={(e) =>
+                    patchVariants({ startTileMulti: e.target.value === "multi" })
+                  }
+                >
+                  <option value="mono">Monochrome (couleur du plateau)</option>
+                  <option value="multi">Multicolore (4 couleurs)</option>
+                </select>
+              </label>
+            </VariantToggle>
             <VariantToggle
               label="Sac antihoraire"
               on={!!variants.bagCounterClockwise}

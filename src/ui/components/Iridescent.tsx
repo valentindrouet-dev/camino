@@ -2,10 +2,10 @@ import { COLOR_HEX, WHITE } from '../../engine/index.ts'
 import type { Color } from '../../engine/index.ts'
 
 /**
- * Les tuiles blanches (variante) sont des jokers : elles appartiennent aux
- * chemins de toutes les couleurs. On les rend donc irisées — une nacre
- * arc-en-ciel avec un reflet — plutôt qu'un blanc plat qu'on confondait avec
- * un emplacement vide du plateau.
+ * Le carré arc-en-ciel (variante Tuiles arc-en-ciel) est un joker : il
+ * appartient aux chemins de toutes les couleurs qui le touchent. On le rend
+ * irisé — une nacre arc-en-ciel avec un reflet — plutôt qu'un blanc plat qu'on
+ * confondrait avec un emplacement vide du plateau.
  */
 export function IridescentDefs({ id }: { id: string }) {
   return (
@@ -29,12 +29,12 @@ export function IridescentDefs({ id }: { id: string }) {
   )
 }
 
-/** Remplissage d'un quart : la nacre pour le blanc, la couleur sinon. */
+/** Remplissage d'un quart : la nacre pour l'arc-en-ciel, la couleur sinon. */
 export function quadFill(color: Color, irisId: string): string {
   return color === WHITE ? `url(#${irisId})` : COLOR_HEX[color]
 }
 
-/** Reflet posé par-dessus un quart blanc, pour l'effet brillant. */
+/** Reflet posé par-dessus un quart irisé, pour l'effet brillant. */
 export function Sheen({
   x,
   y,

@@ -12,6 +12,7 @@ import {
   COLOR_TILE_IDS,
   FAULTS,
   MONO_TILE_IDS,
+  MULTI_START_TILE_IDS,
   multiBorderFor,
   PATH_COLORS,
   TILE_COUNT,
@@ -123,7 +124,7 @@ export function MaterialSection() {
               <TileGlyph key={id} tileId={id} size={40} />
             ))}
           </div>
-          <h4 style={{ fontSize: 14, margin: '14px 0 8px' }}>6 tuiles blanches</h4>
+          <h4 style={{ fontSize: 14, margin: '14px 0 8px' }}>6 tuiles arc-en-ciel</h4>
           <div className="material-tiles">
             {WHITE_TILE_IDS.map((id) => (
               <TileGlyph key={id} tileId={id} size={40} />
@@ -138,11 +139,20 @@ export function MaterialSection() {
             ))}
           </div>
           <p className="note" style={{ marginTop: 10 }}>
-            Ajoutées au sac par leurs variantes : les monochromes densifient les couleurs, les
-            blanches prolongent et relient les chemins de toutes les couleurs voisines. Les six
-            tuiles couleur ne se mélangent jamais au sac : elles servent de tuile de départ et de
-            marqueur de couleur secrète.
+            Ajoutées au sac par leurs variantes : les monochromes densifient les couleurs, et le
+            carré arc-en-ciel des secondes prolonge et relie les chemins de toutes les couleurs qui
+            le touchent. Les tuiles couleur et les tuiles de départ multicolores ne se mélangent
+            jamais au sac : elles servent de tuile de départ et de marqueur de couleur secrète.
           </p>
+
+          <h4 style={{ fontSize: 14, margin: '14px 0 8px' }}>
+            6 tuiles de départ multicolores
+          </h4>
+          <div className="material-tiles">
+            {MULTI_START_TILE_IDS.map((id) => (
+              <TileGlyph key={id} tileId={id} size={40} />
+            ))}
+          </div>
 
           <h4 style={{ fontSize: 14, margin: '18px 0 8px' }}>
             16 tuiles à faille — les deux moitiés ne se relient pas

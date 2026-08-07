@@ -55,8 +55,8 @@ export function activeVariantInfos(options: GameOptions): VariantInfo[] {
   add(v.monoTiles, 'Tuiles monochromes', '+12 tuiles unies dans le sac (2 par couleur).')
   add(
     v.whiteTiles,
-    'Tuiles blanches',
-    '+6 tuiles blanches jokers : elles prolongent et relient les chemins de toutes les couleurs voisines.',
+    'Tuiles arc-en-ciel',
+    '+6 tuiles portant un quart arc-en-ciel : ce carré joker prolonge et relie les chemins de toutes les couleurs qui le touchent.',
   )
   add(
     v.magicStars,
@@ -90,8 +90,10 @@ export function activeVariantInfos(options: GameOptions): VariantInfo[] {
   )
   add(
     v.startTile,
-    'Tuile de départ',
-    'Chaque plateau démarre avec une tuile monochrome de sa couleur, posée au centre.',
+    v.startTileMulti ? 'Tuile de départ multicolore' : 'Tuile de départ',
+    v.startTileMulti
+      ? 'Tous les plateaux ont démarré avec la même tuile à quatre couleurs, posée au centre.'
+      : 'Chaque plateau a démarré avec une tuile monochrome de sa couleur, posée au centre.',
   )
   add(
     v.bagCounterClockwise,

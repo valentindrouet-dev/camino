@@ -51,7 +51,7 @@ test('tuiles miroir : le miroir inverse gauche-droite et la pose l’applique', 
   assert.equal(s2.players[0].board.cells[0].flipped, true)
 })
 
-test('tuiles monochromes et blanches : le sac grossit selon les variantes', () => {
+test('tuiles monochromes et arc-en-ciel : le sac grossit selon les variantes', () => {
   const mk = (variants) =>
     E.createGame({
       players: [{ name: 'A', kind: 'human', boardColor: 'O' }],
@@ -65,8 +65,8 @@ test('tuiles monochromes et blanches : le sac grossit selon les variantes', () =
   assert.equal(tout.bag.length + tout.pool.length, 115)
 })
 
-test('tuiles blanches : le blanc prolonge et relie les chemins de toutes les couleurs', () => {
-  // deux tuiles rouges séparées par une tuile blanche ; une bleue sous la blanche
+test('carré arc-en-ciel : il prolonge et relie les chemins de toutes les couleurs', () => {
+  // deux tuiles rouges séparées par un carré arc-en-ciel ; une bleue en dessous
   const rows = [
     'RRWWRR..',
     'RRWWRR..',
@@ -78,13 +78,13 @@ test('tuiles blanches : le blanc prolonge et relie les chemins de toutes les cou
   const zones = E.computeZones(board, R)
   const rouge = zones.find((z) => z.color === 'R')
   const bleu = zones.find((z) => z.color === 'B')
-  // rouge : 2 tuiles rouges + la blanche traversée = 3 tuiles -> 3 pts
+  // rouge : 2 tuiles rouges + la tuile irisée traversée = 3 tuiles -> 3 pts
   assert.equal(rouge.span, 3)
   assert.equal(rouge.points, 3)
-  // bleu : sa tuile + la blanche = 2 tuiles, sous le minimum
+  // bleu : sa tuile + la tuile irisée = 2 tuiles, sous le minimum
   assert.equal(bleu.span, 2)
   assert.equal(bleu.points, 0)
-  // et une seule zone rouge : le blanc RELIE les deux tuiles rouges
+  // et une seule zone rouge : l'arc-en-ciel RELIE les deux tuiles rouges
   assert.equal(zones.filter((z) => z.color === 'R').length, 1)
 })
 
@@ -484,4 +484,54 @@ test('couleur secrète : une couleur par joueur, son meilleur chemin est doublé
   assert.equal(E.scoreBoard(board, ruleset, 'R').secretPoints, 3)
   assert.equal(E.scoreBoard(board, ruleset, 'B').secretPoints, 0)
   assert.equal(E.scoreBoard(board, R, 'R').secretPoints, 0, 'sans la variante, rien')
+})
+
+test('tuiles arc-en-ciel : un seul quart joker par tuile', () => {
+  for (const id of E.WHITE_TILE_IDS) {
+    const quads = [...E.TILES[id].quads]
+    assert.equal(quads.filter((q) => q === 'W').length, 1, `tuile ${id} : un seul carré irisé`)
+    assert.equal(quads.filter((q) => q !== 'W').length, 3, 'et trois quarts colorés')
+    assert.ok(!quads.includes('K'), 'jamais de noir sur une tuile arc-en-ciel')
+  }
+  // le quart irisé n'est pas toujours à la même place
+  const places = new Set(E.WHITE_TILE_IDS.map((id) => [...E.TILES[id].quads].indexOf('W')))
+  assert.ok(places.size > 1, 'le carré irisé change de position')
+  // le sac garde la même taille qu'avant
+  const s = E.createGame({
+    players: [{ name: 'A', kind: 'human', boardColor: 'O' }],
+    options: { ...E.defaultOptions('arc'), ruleset: withVariants({ whiteTiles: true }) },
+  })
+  assert.equal(s.bag.length + s.pool.length, 103)
+})
+
+test('tuile de départ multicolore : quatre couleurs, la même tuile pour tous', () => {
+  const s = E.createGame({
+    players: [
+      { name: 'A', kind: 'human', boardColor: 'O' },
+      { name: 'B', kind: 'human', boardColor: 'G' },
+      { name: 'C', kind: 'human', boardColor: 'B' },
+    ],
+    options: {
+      ...E.defaultOptions('depart-multi'),
+      ruleset: withVariants({ startTile: true, startTileMulti: true }),
+    },
+  })
+  const cells = s.players.map((p) => p.board.cells.findIndex((c) => c !== null))
+  assert.equal(new Set(cells).size, 1, 'la même case pour tout le monde')
+  const tuiles = s.players.map((p) => p.board.cells[cells[0]].tileId)
+  assert.equal(new Set(tuiles).size, 1, 'et la même tuile pour tout le monde')
+  assert.ok(E.MULTI_START_TILE_IDS.includes(tuiles[0]))
+  const quads = [...E.TILES[tuiles[0]].quads]
+  assert.equal(new Set(quads).size, 4, 'quatre couleurs différentes')
+  assert.ok(!quads.includes('K') && !quads.includes('W'), 'ni noir ni joker')
+  // en monochrome, chacun garde sa couleur
+  const mono = E.createGame({
+    players: [
+      { name: 'A', kind: 'human', boardColor: 'O' },
+      { name: 'B', kind: 'human', boardColor: 'G' },
+    ],
+    options: { ...E.defaultOptions('depart-mono'), ruleset: withVariants({ startTile: true }) },
+  })
+  const ids = mono.players.map((p) => p.board.cells.find((c) => c !== null).tileId)
+  assert.equal(new Set(ids).size, 2, 'une tuile par couleur de plateau')
 })

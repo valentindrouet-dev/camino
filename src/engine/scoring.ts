@@ -74,7 +74,7 @@ function borderNeighbours(board: Board, qi: number): { id: number; color: Color 
  * Toutes les zones du plateau (couleurs + noir), avec leur valeur.
  *
  * Variantes prises en compte :
- *  - tuiles blanches : un quart blanc appartient aux chemins de TOUTES les
+ *  - tuiles arc-en-ciel : le quart irisé appartient aux chemins de TOUTES les
  *    couleurs qui le touchent (il peut relier deux chemins d'une même
  *    couleur) ; il ne rejoint jamais le noir ;
  *  - bordures : une case de bordure reliée à un chemin de sa couleur compte
@@ -369,7 +369,7 @@ export const COLOR_NAMES: Record<Color, string> = {
   B: 'Bleu',
   P: 'Violet',
   K: 'Noir',
-  W: 'Blanc',
+  W: 'Arc-en-ciel',
 }
 
 export const COLOR_HEX: Record<Color, string> = {

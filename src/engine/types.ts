@@ -7,8 +7,8 @@
  */
 
 /**
- * Les 6 couleurs qui rapportent des points, le noir qui en enlève, et le
- * blanc des tuiles jokers (variante) qui rejoint toutes les couleurs.
+ * Les 6 couleurs qui rapportent des points, le noir qui en enlève, et le carré
+ * arc-en-ciel des tuiles jokers (variante) qui rejoint toutes les couleurs.
  */
 export type Color = 'Y' | 'O' | 'R' | 'G' | 'B' | 'P' | 'K' | 'W'
 
@@ -125,7 +125,10 @@ export interface Variants {
   multiBorders?: boolean
   /** +12 tuiles monochromes dans le sac (2 par couleur). */
   monoTiles?: boolean
-  /** +6 tuiles blanches jokers dans le sac. */
+  /**
+   * +6 tuiles arc-en-ciel dans le sac : un quart irisé joker qui rejoint les
+   * chemins de toutes les couleurs voisines. (Nom historique du drapeau.)
+   */
   whiteTiles?: boolean
   /** Étoiles sur 30 tuiles ; les relier rapporte des points. */
   magicStars?: boolean
@@ -139,8 +142,13 @@ export interface Variants {
   faultTiles?: boolean
   /** Un trèfle sur un quart de tuile : +3 dans un chemin qui marque, −3 sinon. */
   clovers?: boolean
-  /** Chaque plateau démarre avec une tuile de sa propre couleur au centre. */
+  /** Chaque plateau démarre avec une tuile posée au centre. */
   startTile?: boolean
+  /**
+   * Tuile de départ multicolore (4 couleurs différentes, la même pour tous)
+   * au lieu de la tuile monochrome à la couleur du plateau.
+   */
+  startTileMulti?: boolean
   /** Le sac revient au dernier servi : il tourne dans le sens antihoraire. */
   bagCounterClockwise?: boolean
   /** Deux cartes face cachée : à mi-partie, les plateaux tournent — ou non. */

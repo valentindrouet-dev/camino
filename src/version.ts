@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.29',
+    date: '2026-08-07',
+    changes: [
+      'La variante Tuile de départ propose deux tuiles au choix : monochrome à la couleur du plateau, ou multicolore à quatre couleurs — la même pour tous.',
+      'Les tuiles blanches deviennent les tuiles arc-en-ciel : un seul carré irisé par tuile, joker qui relie les couleurs voisines, les trois autres quarts étant colorés.',
+    ],
+  },
+  {
     version: '1.28',
     date: '2026-08-07',
     changes: [
