@@ -11,7 +11,7 @@
 import { quadGrid } from './board.ts'
 import { computeZones, scoreSign } from './scoring.ts'
 import type { Board, Color, Ruleset, ScoreBreakdown, Zone } from './types.ts'
-import { BLACK } from './types.ts'
+import { BLACK, PATH_COLORS } from './types.ts'
 import { COLOR_NAMES } from './scoring.ts'
 
 export interface CardTableEntry {
@@ -74,6 +74,24 @@ function paths(ctx: CardContext): Zone[] {
 
 function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n > 1 ? many : one}`
+}
+
+/** Nombre de zones noires d'un plateau. */
+function blackZones(zones: Zone[]): number {
+  return zones.filter((z) => z.color === BLACK).length
+}
+
+/** Quarts du pourtour du plateau (la couronne extérieure de la grille). */
+function edgeQuads(boardSize: number): Set<number> {
+  const qs = boardSize * 2
+  const out = new Set<number>()
+  for (let i = 0; i < qs; i++) {
+    out.add(i)
+    out.add(qs * (qs - 1) + i)
+    out.add(i * qs)
+    out.add(i * qs + qs - 1)
+  }
+  return out
 }
 
 // ---------------------------------------------------------------------------
@@ -431,9 +449,8 @@ export const CARDS: MissionCard[] = [
     extra: true,
     text: '+10 points si vous avez le moins de zones noires de la table. Si égalité, +5 points par joueur.',
     evaluate(ctx) {
-      const noires = (zones: Zone[]) => zones.filter((z) => z.color === BLACK).length
-      const mine = noires(ctx.breakdown.zones)
-      const all = ctx.table.map((t) => noires(t.zones))
+      const mine = blackZones(ctx.breakdown.zones)
+      const all = ctx.table.map((t) => blackZones(t.zones))
       const best = Math.min(...all)
       if (mine > best) return { points: 0, detail: `${mine} zones noires, le meilleur en a ${best}` }
       const exaequo = all.filter((v) => v === best).length
@@ -444,6 +461,75 @@ export const CARDS: MissionCard[] = [
             ? `à égalité (${best}) avec ${exaequo - 1} autre${exaequo > 2 ? 's' : ''}`
             : `le moins de zones noires (${best})`,
       }
+    },
+  },
+  {
+    id: 'clean-edge',
+    name: 'Frontière nette',
+    badge: '+6',
+    extra: true,
+    text: '+6 points si aucune de vos zones noires ne touche le bord du plateau.',
+    evaluate(ctx) {
+      const bord = edgeQuads(ctx.board.size)
+      const sales = ctx.breakdown.zones.filter(
+        (z) => z.color === BLACK && z.cells.some((c) => bord.has(c)),
+      ).length
+      if (sales > 0) {
+        return { points: 0, detail: `${plural(sales, 'zone noire', 'zones noires')} sur le bord` }
+      }
+      const noires = blackZones(ctx.breakdown.zones)
+      return {
+        points: 6,
+        // Un plateau sans noir remplit la condition sans avoir rien à éviter :
+        // c'est le cas le plus propre qui soit, on ne va pas le lui reprocher.
+        detail: noires ? `${plural(noires, 'zone noire', 'zones noires')} loin du bord` : 'aucune zone noire',
+      }
+    },
+  },
+  {
+    id: 'missing-color',
+    name: 'Le vide',
+    badge: '+15',
+    extra: true,
+    text: '+15 points si une des six couleurs est totalement absente de votre plateau.',
+    evaluate(ctx) {
+      // Sur les quarts posés, et rien d'autre : un carré arc-en-ciel est un
+      // joker, pas une couleur — il ne « remplit » aucune des six.
+      const vus = new Set(quadGrid(ctx.board).cells.filter((c): c is Color => c !== null))
+      const absentes = PATH_COLORS.filter((c) => !vus.has(c))
+      return absentes.length
+        ? {
+            points: 15,
+            detail: `${absentes.map((c) => COLOR_NAMES[c].toLowerCase()).join(', ')} absent${
+              absentes.length > 1 ? 'es' : 'e'
+            }`,
+          }
+        : { points: 0, detail: 'les 6 couleurs sont là' }
+    },
+  },
+  {
+    id: 'cleanest',
+    name: 'Le plus propre',
+    badge: '+10',
+    extra: true,
+    text:
+      '+10 points si vous avez strictement moins de zones noires que chacun des autres joueurs. Aucun point en cas d’égalité.',
+    evaluate(ctx) {
+      const mine = blackZones(ctx.breakdown.zones)
+      const autres = ctx.table
+        .filter((t) => t.playerId !== ctx.playerId)
+        .map((t) => blackZones(t.zones))
+      if (!autres.length) return { points: 10, detail: `${plural(mine, 'zone noire', 'zones noires')}, sans rival` }
+      const meilleur = Math.min(...autres)
+      return mine < meilleur
+        ? { points: 10, detail: `${mine} contre ${meilleur} au mieux` }
+        : {
+            points: 0,
+            detail:
+              mine === meilleur
+                ? `à égalité (${mine} zones noires)`
+                : `${mine} zones noires, un autre en a ${meilleur}`,
+          }
     },
   },
 ]

@@ -52,10 +52,10 @@ const EXAMPLE = [
   'PPKKRYBG',
 ]
 
-test('12 cartes de la boîte + 7 cartes d’extension, toutes distinctes', () => {
-  assert.equal(E.CARDS.length, 19)
-  assert.equal(new Set(E.CARDS.map((c) => c.id)).size, 19)
-  assert.equal(E.CARDS.filter((c) => c.extra).length, 7)
+test('12 cartes de la boîte + 10 cartes d’extension, toutes distinctes', () => {
+  assert.equal(E.CARDS.length, 22)
+  assert.equal(new Set(E.CARDS.map((c) => c.id)).size, 22)
+  assert.equal(E.CARDS.filter((c) => c.extra).length, 10)
   // les deux cartes à couleur variable annoncent leur couleur dans leur texte
   const colorees = E.CARDS.filter((c) => c.colorized)
   assert.equal(colorees.length, 2)
@@ -351,4 +351,104 @@ test('les bots visent les cartes missions', () => {
   const avec = play(mk(true))
   const cartes = E.scoreAll(avec).reduce((n, b) => n + b.cardPoints, 0)
   assert.ok(cartes > 0, `les bots accomplissent la mission (${cartes} pts)`)
+})
+
+test('frontière nette : aucune zone noire ne touche le bord (+6)', () => {
+  // une zone noire bien au centre, loin du pourtour
+  const centre = [
+    'RRYYOOGG',
+    'RRYYOOGG',
+    'BBRRYYOO',
+    'BBKKYYOO',
+    'GGKKRRBB',
+    'GGPPRRBB',
+    'YYOOGGRR',
+    'YYOOGGRR',
+  ]
+  const r = evalCard('clean-edge', centre)
+  assert.equal(r.points, 6, r.detail)
+  assert.equal(r.breakdown.blackZones, 1, 'il y a bien du noir à éviter')
+
+  // la même zone noire posée sur le bord : plus rien
+  const bord = [
+    'KKYYOOGG',
+    'KKYYOOGG',
+    'BBRRYYOO',
+    'BBRRYYOO',
+    'GGPPRRBB',
+    'GGPPRRBB',
+    'YYOOGGRR',
+    'YYOOGGRR',
+  ]
+  assert.equal(evalCard('clean-edge', bord).points, 0)
+
+  // l'exemple de la règle a 4 zones noires, dont sur le bord
+  assert.equal(evalCard('clean-edge', EXAMPLE).points, 0)
+})
+
+test('le vide : une couleur absente du plateau (+15)', () => {
+  // pas un seul quart bleu
+  const sansBleu = [
+    'RRYYOOGG',
+    'RRYYOOGG',
+    'PPRRYYOO',
+    'PPRRYYOO',
+    'GGPPRRYY',
+    'GGPPRRYY',
+    'YYOOGGRR',
+    'YYOOGGRR',
+  ]
+  const r = evalCard('missing-color', sansBleu)
+  assert.equal(r.points, 15)
+  assert.match(r.detail, /bleu/)
+
+  // l'exemple de la règle porte les six couleurs
+  assert.equal(evalCard('missing-color', EXAMPLE).points, 0)
+
+  // le noir ne compte pas comme une couleur, et un carré arc-en-ciel ne
+  // remplace aucune des six
+  const avecJoker = sansBleu.map((l, i) => (i < 2 ? 'WW' + l.slice(2) : l))
+  assert.equal(evalCard('missing-color', avecJoker).points, 15, 'le joker ne fait pas le bleu')
+})
+
+test('le plus propre : strictement moins de zones noires que tous les autres (+10)', () => {
+  const propre = [
+    'RRYYOOGG',
+    'RRYYOOGG',
+    'BBRRYYOO',
+    'BBKKYYOO',
+    'GGKKRRBB',
+    'GGPPRRBB',
+    'YYOOGGRR',
+    'YYOOGGRR',
+  ]
+  const sale = EXAMPLE // 4 zones noires
+  const gagne = evalCard('cleanest', propre, [sale, sale])
+  assert.equal(gagne.points, 10, gagne.detail)
+
+  // à égalité, rien du tout — c'est ce qui la distingue d'Économe
+  const egalite = evalCard('cleanest', propre, [propre, sale])
+  assert.equal(egalite.points, 0)
+  assert.match(egalite.detail, /égalité/)
+  // Économe, elle, console les ex æquo
+  assert.equal(evalCard('thrifty', propre, [propre, sale]).points, 5)
+
+  // battu
+  assert.equal(evalCard('cleanest', sale, [propre, propre]).points, 0)
+})
+
+test('les détails des cartes accordent leurs pluriels', () => {
+  const centre = [
+    'RRYYOOGG',
+    'RRYYOOGG',
+    'BBRRYYOO',
+    'BBKKYYOO',
+    'GGKKRRBB',
+    'GGPPRRBB',
+    'YYOOGGRR',
+    'YYOOGGRR',
+  ]
+  assert.match(evalCard('clean-edge', centre).detail, /^1 zone noire loin du bord$/)
+  // l'exemple de la règle a 4 zones noires, dont 3 touchent le pourtour
+  assert.match(evalCard('clean-edge', EXAMPLE).detail, /^3 zones noires sur le bord$/)
 })

@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.36',
+    date: '2026-08-07',
+    changes: [
+      'Trois cartes missions de plus, dans le rose des cartes d’extension : « Frontière nette » (+6 si aucune zone noire ne touche le bord), « Le vide » (+15 si une couleur est totalement absente du plateau) et « Le plus propre » (+10 si vous avez strictement moins de zones noires que chacun des autres).',
+      'Leur valeur a été calée sur 25 parties simulées chacune : Frontière nette rapporte 3,9 points en moyenne, Le plus propre 2,5 et Le vide 1,4 — de quoi tenir la comparaison avec « Économe » (3,4) sans l’écraser.',
+    ],
+  },
+  {
     version: '1.35',
     date: '2026-08-07',
     changes: [
