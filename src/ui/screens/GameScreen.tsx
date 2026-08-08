@@ -12,6 +12,7 @@ import {
   redrawLastTile,
   COLOR_NAMES,
   COLOR_TILE_IDS,
+  REVERSED_BASE,
   rulesetForPlayer,
   swapRound,
   scoreAll,
@@ -285,6 +286,10 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
     const id = window.setTimeout(() => setFly(null), FLY_MS)
     return () => window.clearTimeout(id)
   }, [state.log, state.players])
+
+  // Scoring inversé : le barème affiché est celui qu'on applique vraiment.
+  const envers = Boolean(variants?.reverseScoring)
+  const signe = envers ? -1 : 1
 
   const humanTurn = !isBot(active) && state.phase === 'playing'
   const canPlaceHere = humanTurn && viewId === activeId && selected !== null
@@ -714,29 +719,36 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
           <h3>Barème</h3>
           <p className="scoresheet-caption">Points des tuiles connectées</p>
           <div className="scoresheet">
+            {envers && (
+              <div className="scoresheet-row banned pos">
+                <span className="k">Départ</span>
+                <span className="eq">=</span>
+                <strong>{REVERSED_BASE} pts</strong>
+              </div>
+            )}
             {[3, 4, 5, 6, 7, 8, 9].map((n) => (
-              <div className="scoresheet-row" key={n}>
+              <div className={`scoresheet-row ${envers ? 'neg' : ''}`} key={n}>
                 <span className="k">{n === 9 ? '9+' : n}</span>
                 <span className="eq">=</span>
-                <strong>{ruleset.pointsBySpan[n] ?? 0} pts</strong>
+                <strong>{signe * (ruleset.pointsBySpan[n] ?? 0)} pts</strong>
               </div>
             ))}
-            <div className={`scoresheet-row ${ruleset.blackPenalty < 0 ? 'neg' : 'pos'}`}>
+            <div className={`scoresheet-row ${signe * ruleset.blackPenalty < 0 ? 'neg' : 'pos'}`}>
               <span className="k">Noir</span>
               <span className="eq">=</span>
-              <strong>{signed(ruleset.blackPenalty)} pts</strong>
+              <strong>{signed(signe * ruleset.blackPenalty)} pts</strong>
             </div>
             {variants?.clovers && (
               <>
                 <div className="scoresheet-row clover">
                   <span className="k">☘ chemin</span>
                   <span className="eq">=</span>
-                  <strong>+3 pts</strong>
+                  <strong>{signed(signe * 3)} pts</strong>
                 </div>
                 <div className="scoresheet-row clover">
                   <span className="k">☘ perdu</span>
                   <span className="eq">=</span>
-                  <strong>−3 pts</strong>
+                  <strong>{signed(signe * -3)} pts</strong>
                 </div>
               </>
             )}
@@ -745,20 +757,20 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                 <div className="scoresheet-row star">
                   <span className="k">★ seule</span>
                   <span className="eq">=</span>
-                  <strong>1 pt</strong>
+                  <strong>{signed(signe)} pt</strong>
                 </div>
                 <div className="scoresheet-row star">
                   <span className="k">★ reliée</span>
                   <span className="eq">=</span>
-                  <strong>2 pts</strong>
+                  <strong>{signed(signe * 2)} pts</strong>
                 </div>
               </>
             )}
             {variants?.forbiddenColor && (
-              <div className="scoresheet-row banned neg">
+              <div className={`scoresheet-row banned ${envers ? 'pos' : 'neg'}`}>
                 <span className="k">Interdite</span>
                 <span className="eq">=</span>
-                <strong>{signed(ruleset.blackPenalty)} pts par zone</strong>
+                <strong>{signed(signe * ruleset.blackPenalty)} pts par zone</strong>
               </div>
             )}
           </div>

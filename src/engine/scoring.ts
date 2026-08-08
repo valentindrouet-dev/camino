@@ -14,6 +14,22 @@ import { BLACK, COLORS, PATH_COLORS, WHITE } from './types.ts'
  *  - chaque zone noire, quelle que soit sa taille, enlève 2 points.
  */
 
+/**
+ * Scoring inversé (variante) : le signe de TOUT ce qui compte. Les points de
+ * départ compensent le fait que les chemins ne rapportent plus rien.
+ */
+export const REVERSED_BASE = 20
+
+/** −1 quand le scoring est inversé, +1 sinon. */
+export function scoreSign(ruleset: Ruleset): -1 | 1 {
+  return ruleset.variants?.reverseScoring ? -1 : 1
+}
+
+/** Applique le signe du barème — sans jamais produire de « −0 ». */
+function flip(sign: -1 | 1, n: number): number {
+  return sign * n || 0
+}
+
 export function pointsForSpan(span: number, ruleset: Ruleset): number {
   if (span < ruleset.minSpan) return 0
   const table = ruleset.pointsBySpan
@@ -94,6 +110,9 @@ export function computeZones(
   const zones: Zone[] = []
   const stack: number[] = []
   const faults = Boolean(ruleset.variants?.faultTiles)
+  // Scoring inversé : les valeurs sont retournées ici, une bonne fois — le
+  // plateau, le décompte et l'IA lisent tous `points` et suivent donc.
+  const sign = scoreSign(ruleset)
 
   // --- zones noires : inchangées, le blanc et les bordures ne comptent pas
   {
@@ -125,7 +144,8 @@ export function computeZones(
         borders: 0,
         stars: 0,
         span: tiles.size,
-        points: ruleset.blackPenalty,
+        scoring: false,
+        points: flip(sign, ruleset.blackPenalty),
       })
     }
   }
@@ -175,6 +195,8 @@ export function computeZones(
         ? (z.borderIds.size > 0 ? 1 : 0)
         : z.borderIds.size
       const span = z.tiles.size + borderCount
+      const banni = forbidden.includes(color)
+      const gain = pointsForSpan(span, ruleset)
       zones.push({
         color,
         cells: z.cells.sort((a, b) => a - b),
@@ -183,10 +205,11 @@ export function computeZones(
         borderIds: [...z.borderIds].sort((a, b) => b - a),
         stars: 0,
         span,
+        // Une couleur interdite ne « marque » pas : elle se compte comme une
+        // zone noire, et ne fait donc pas fleurir les trèfles.
+        scoring: !banni && gain > 0,
         // Couleur interdite : la zone se compte comme une zone noire.
-        points: forbidden.includes(color)
-          ? ruleset.blackPenalty
-          : pointsForSpan(span, ruleset),
+        points: flip(sign, banni ? ruleset.blackPenalty : gain),
       })
     }
   }
@@ -265,38 +288,47 @@ export function scoreBoard(
 
   let colorPoints = 0
   let blackZones = 0
+  let blackPoints = 0
   let forbiddenZones = 0
 
+  // `z.points` porte déjà le signe du barème en vigueur (scoring inversé
+  // compris) : il n'y a plus qu'à additionner.
   for (const z of zones) {
     byColor[z.color].zones.push(z)
     if (z.color === BLACK) {
       blackZones++
-      byColor[BLACK].points += ruleset.blackPenalty
+      blackPoints += z.points
+      byColor[BLACK].points += z.points
       byColor[BLACK].scoringZones.push(z)
     } else if (forbidden.includes(z.color)) {
       // Couleur interdite : la zone se compte comme une zone noire, quelle que
       // soit sa taille — d'où l'intérêt de tout réunir en une seule.
       forbiddenZones++
-      colorPoints += ruleset.blackPenalty
-      byColor[z.color].points += ruleset.blackPenalty
+      colorPoints += z.points
+      byColor[z.color].points += z.points
       byColor[z.color].scoringZones.push(z)
-    } else if (z.points > 0) {
+    } else if (z.points !== 0) {
       colorPoints += z.points
       byColor[z.color].points += z.points
       byColor[z.color].scoringZones.push(z)
     }
   }
 
-  const starPoints = ruleset.variants?.magicStars ? countStars(board) : 0
-  const cloverPoints = ruleset.variants?.clovers ? countClovers(board, zones) : 0
+  // Les variantes suivent le même signe : ce qui rapportait coûte, et
+  // réciproquement (c'est la règle du scoring inversé).
+  const sign = scoreSign(ruleset)
+  const starPoints = ruleset.variants?.magicStars ? flip(sign, countStars(board)) : 0
+  const cloverPoints = ruleset.variants?.clovers ? flip(sign, countClovers(board, zones)) : 0
   // Une couleur secrète interdite ne doublerait qu'un malus : on n'y touche pas.
   const secretPoints =
     ruleset.variants?.secretColor && secretColor && !forbidden.includes(secretColor)
       ? secretBonus(zones, secretColor)
       : 0
-  const blackPoints = blackZones * ruleset.blackPenalty
+  const basePoints = ruleset.variants?.reverseScoring ? REVERSED_BASE : 0
   return {
-    total: colorPoints + blackPoints + starPoints + cloverPoints + secretPoints,
+    total:
+      basePoints + colorPoints + blackPoints + starPoints + cloverPoints + secretPoints,
+    basePoints,
     colorPoints,
     blackZones,
     blackPoints,
@@ -319,7 +351,7 @@ export function countClovers(board: Board, zones: Zone[]): number {
   const qs = board.size * 2
   const scoring = new Set<number>()
   for (const z of zones) {
-    if (z.color === BLACK || z.points <= 0) continue
+    if (!z.scoring) continue
     for (const c of z.cells) scoring.add(c)
   }
   let total = 0
@@ -349,9 +381,11 @@ export interface PlayerScoring {
 /** Couleur secrète (variante) : le meilleur chemin de cette couleur est doublé. */
 export function secretBonus(zones: Zone[], color: Color | undefined): number {
   if (!color) return 0
+  // Le meilleur chemin de la couleur — c'est-à-dire le plus gros en valeur
+  // absolue, puisqu'en scoring inversé « le meilleur » est le plus coûteux.
   let best = 0
   for (const z of zones) {
-    if (z.color === color && z.points > best) best = z.points
+    if (z.color === color && z.scoring && Math.abs(z.points) > Math.abs(best)) best = z.points
   }
   return best
 }
@@ -377,24 +411,19 @@ export function signed(n: number): string {
 }
 
 export function zoneLabel(zone: Zone, ruleset: Ruleset): string {
+  const pts = (n: number) => `${signed(n)} pt${Math.abs(n) > 1 ? 's' : ''}`
+  if (zone.color === BLACK) return `Zone noire — ${pts(zone.points)}`
   // Une couleur interdite se compte comme le noir : le malus est déjà dans
   // `points`, il n'y a pas de barème de taille à rappeler.
-  if (zone.color !== BLACK && zone.points < 0) {
-    return `Zone interdite (${COLOR_NAMES[zone.color].toLowerCase()}) — ${signed(zone.points)} pt${
-      Math.abs(zone.points) > 1 ? 's' : ''
-    }`
-  }
-  if (zone.color === BLACK) {
-    return `Zone noire — ${signed(ruleset.blackPenalty)} pt${
-      Math.abs(ruleset.blackPenalty) > 1 ? 's' : ''
-    }`
+  if (!zone.scoring && zone.points !== 0) {
+    return `Zone interdite (${COLOR_NAMES[zone.color].toLowerCase()}) — ${pts(zone.points)}`
   }
   const suffix = zone.borders
     ? ` (dont ${zone.borders} bordure${zone.borders > 1 ? 's' : ''})`
     : ''
   const t = `${zone.span} tuile${zone.span > 1 ? 's' : ''}`
-  return zone.points > 0
-    ? `${t} — ${signed(zone.points)} pts${suffix}`
+  return zone.scoring
+    ? `${t} — ${pts(zone.points)}${suffix}`
     : `${t} — 0 pt (minimum ${ruleset.minSpan})${suffix}`
 }
 

@@ -9,7 +9,7 @@
  * Chaque carte est une fonction pure évaluée sur le plateau final.
  */
 import { quadGrid } from './board.ts'
-import { computeZones } from './scoring.ts'
+import { computeZones, scoreSign } from './scoring.ts'
 import type { Board, Color, Ruleset, ScoreBreakdown, Zone } from './types.ts'
 import { BLACK } from './types.ts'
 import { COLOR_NAMES } from './scoring.ts'
@@ -69,7 +69,7 @@ export function cardText(card: MissionCard, color?: Color): string {
 
 /** Chemins qui marquent : zones de couleur d'au moins `minSpan` tuiles. */
 function paths(ctx: CardContext): Zone[] {
-  return ctx.breakdown.zones.filter((z) => z.color !== BLACK && z.span >= ctx.ruleset.minSpan)
+  return ctx.breakdown.zones.filter((z) => z.scoring)
 }
 
 function plural(n: number, one: string, many = `${one}s`): string {
@@ -526,10 +526,15 @@ export function applyCards(
   let points = 0
   const labels: string[] = []
   let structural: boolean | undefined
+  // Scoring inversé : une mission accomplie coûte ce qu'elle rapportait. Les
+  // cartes structurelles n'ajoutent rien ici — leur effet passe par le barème,
+  // qui est déjà retourné.
+  const sign = scoreSign(ctx.ruleset)
   for (const id of cardIds) {
     const card = cardById(id)
     if (!card) continue
-    const r = card.evaluate({ ...ctx, breakdown: out, color: colors?.[id] })
+    const brut = card.evaluate({ ...ctx, breakdown: out, color: colors?.[id] })
+    const r = sign === 1 ? brut : { ...brut, points: -brut.points || 0 }
     points += r.points
     labels.push(cardIds.length > 1 ? `${card.name} : ${r.detail}` : r.detail)
     if (r.structural) structural = true
@@ -551,7 +556,9 @@ export function applyCard(
 ): ScoreBreakdown {
   const card = cardById(cardId)
   if (!card) return breakdown
-  const { points, detail, structural } = card.evaluate({ ...ctx, breakdown })
+  const brut = card.evaluate({ ...ctx, breakdown })
+  const { detail, structural } = brut
+  const points = scoreSign(ctx.ruleset) * brut.points || 0
   return {
     ...breakdown,
     cardPoints: points,

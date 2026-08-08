@@ -503,6 +503,12 @@ export function SetupScreen({
               </label>
             </VariantToggle>
             <VariantToggle
+              label="Scoring inversé"
+              on={!!variants.reverseScoring}
+              onChange={(v) => patchVariants({ reverseScoring: v })}
+              description="Tout le monde part à 20 points. Les zones noires en rapportent 2, les chemins coûtent ce qu’ils rapportaient. Les autres variantes suivent : ce qui faisait gagner fait perdre, et inversement."
+            />
+            <VariantToggle
               label="Barème perso"
               on={showScale}
               onChange={setShowScale}

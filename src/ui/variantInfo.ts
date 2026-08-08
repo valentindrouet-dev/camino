@@ -111,6 +111,11 @@ export function activeVariantInfos(options: GameOptions): VariantInfo[] {
     'Chaque joueur a reçu une couleur en secret : à la fin, son meilleur chemin de cette couleur est doublé.',
   )
   add(
+    v.reverseScoring,
+    'Scoring inversé',
+    'Chacun part à 20 points : les zones noires rapportent 2 points, les chemins coûtent ce qu’ils rapportaient, et toutes les autres variantes comptent à l’envers.',
+  )
+  add(
     v.forbiddenColor,
     (v.forbiddenColorCount ?? 1) > 1 ? 'Couleur interdite (2)' : 'Couleur interdite',
     (v.forbiddenColorCount ?? 1) > 1

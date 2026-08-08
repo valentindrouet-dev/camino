@@ -83,6 +83,12 @@ export interface Zone {
   stars: number
   /** Tuiles distinctes + bordures = ce qui détermine les points. */
   span: number
+  /**
+   * Chemin qui marque : zone de couleur (ni noire ni interdite) qui atteint le
+   * minimum de tuiles. C'est ce que regardent les trèfles et les cartes — et
+   * ça reste vrai en scoring inversé, où `points` devient négatif.
+   */
+  scoring: boolean
   points: number
 }
 
@@ -97,6 +103,8 @@ export interface ColorScore {
 
 export interface ScoreBreakdown {
   total: number
+  /** Points de départ (variante Scoring inversé : 20, sinon 0). */
+  basePoints: number
   /** Points des couleurs uniquement (hors noir et hors cartes). */
   colorPoints: number
   blackZones: number
@@ -166,6 +174,12 @@ export interface Variants {
   forbiddenColor?: boolean
   /** Nombre de couleurs interdites par joueur (1 par défaut, 2 au plus). */
   forbiddenColorCount?: number
+  /**
+   * Scoring inversé : on part de 20 points, les zones noires en rapportent et
+   * les chemins en coûtent. Tout ce que les autres variantes font gagner, elles
+   * le font perdre — et inversement.
+   */
+  reverseScoring?: boolean
 }
 
 /** Barème modifiable — c'est le cœur de l'outil d'équilibrage. */

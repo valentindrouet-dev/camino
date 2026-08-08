@@ -18,6 +18,7 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
   const scoring = PATH_COLORS.filter((c) => breakdown.byColor[c].points !== 0)
   const forbidden = breakdown.forbidden ?? []
   const rien =
+    breakdown.basePoints === 0 &&
     scoring.length === 0 &&
     breakdown.blackZones === 0 &&
     breakdown.starPoints === 0 &&
@@ -27,6 +28,18 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
   return (
     <div>
       {!dense && rien && <p className="note" style={{ margin: '2px 0 8px' }}>Aucun point pour l’instant.</p>}
+
+      {!dense && breakdown.basePoints !== 0 && (
+        <div className="score-line" title="Scoring inversé : points de départ">
+          <span className="swatch mission" style={{ background: '#C9B8A0' }}>
+            ↺
+          </span>
+          <span className="bar">
+            <i style={{ width: '100%', background: '#C9B8A0' }} />
+          </span>
+          <span className="val pos">{breakdown.basePoints} pts</span>
+        </div>
+      )}
 
       {!dense &&
         scoring.map((c) => {
@@ -89,7 +102,9 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
           <span className="bar">
             <i style={{ width: '100%', background: '#FFD23F' }} />
           </span>
-          <span className="val pos">+{breakdown.starPoints}</span>
+          <span className={`val ${breakdown.starPoints > 0 ? 'pos' : 'neg'}`}>
+            {signed(breakdown.starPoints)}
+          </span>
         </div>
       )}
 
@@ -107,7 +122,7 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
         </div>
       )}
 
-      {!dense && breakdown.secretPoints > 0 && (
+      {!dense && breakdown.secretPoints !== 0 && (
         <div className="score-line" title="Couleur secrète : meilleur chemin doublé">
           <span className="swatch mission" style={{ background: '#8E6BB5' }}>
             ?
@@ -115,7 +130,9 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
           <span className="bar">
             <i style={{ width: '100%', background: '#8E6BB5' }} />
           </span>
-          <span className="val pos">+{breakdown.secretPoints}</span>
+          <span className={`val ${breakdown.secretPoints > 0 ? 'pos' : 'neg'}`}>
+            {signed(breakdown.secretPoints)}
+          </span>
         </div>
       )}
 
@@ -127,13 +144,17 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
           <span className="bar">
             <i
               style={{
-                width: breakdown.cardPoints > 0 ? '100%' : '0%',
+                width: breakdown.cardPoints !== 0 ? '100%' : '0%',
                 background: '#F9B515',
               }}
             />
           </span>
-          <span className={`val ${breakdown.cardPoints > 0 ? 'pos' : ''}`}>
-            {breakdown.cardPoints > 0 ? `+${breakdown.cardPoints}` : '—'}
+          <span
+            className={`val ${
+              breakdown.cardPoints > 0 ? 'pos' : breakdown.cardPoints < 0 ? 'neg' : ''
+            }`}
+          >
+            {breakdown.cardPoints !== 0 ? signed(breakdown.cardPoints) : '—'}
           </span>
         </div>
       )}

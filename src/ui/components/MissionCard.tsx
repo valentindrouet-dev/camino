@@ -1,4 +1,4 @@
-import { cardText } from '../../engine/index.ts'
+import { cardText, signed } from '../../engine/index.ts'
 import type { Color, MissionCard } from '../../engine/index.ts'
 
 interface Props {
@@ -42,8 +42,12 @@ export function MissionCardView({
       <span className="mission-badge">{card.badge}</span>
       <span className="mission-text">{cardText(card, color)}</span>
       {points !== undefined && (
-        <span className={`mission-score ${points > 0 || structural ? 'pos' : ''}`}>
-          {!structural && (points > 0 ? `+${points}` : '0')}
+        <span
+          className={`mission-score ${
+            structural || points > 0 ? 'pos' : points < 0 ? 'neg' : ''
+          }`}
+        >
+          {!structural && (points !== 0 ? signed(points) : '0')}
           {detail && <em>{detail}</em>}
         </span>
       )}

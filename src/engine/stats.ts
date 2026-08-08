@@ -42,15 +42,19 @@ export function playerStats(state: GameState): PlayerStats[] {
           state.cardColors,
         )
       : base
-    const scoring = breakdown.zones.filter((z) => z.color !== BLACK && z.points > 0)
+    // `scoring` porte le drapeau : en scoring inversé un chemin qui compte a
+    // des points négatifs, il n'en reste pas moins un chemin qui compte.
+    const scoring = breakdown.zones.filter((z) => z.scoring)
     const wasted = breakdown.zones
-      .filter((z) => z.color !== BLACK && z.points === 0)
+      .filter((z) => z.color !== BLACK && !z.scoring && z.points === 0)
       .reduce((n, z) => n + z.span, 0)
     const picks = state.log.filter((l) => l.playerId === player.id)
+    // Meilleure couleur : la plus grosse en valeur absolue, pour rester juste
+    // quand le scoring est inversé et que tous les chemins sont négatifs.
     let bestColor: Color | null = null
     let bestPts = 0
     for (const c of PATH_COLORS) {
-      if (breakdown.byColor[c].points > bestPts) {
+      if (Math.abs(breakdown.byColor[c].points) > Math.abs(bestPts)) {
         bestPts = breakdown.byColor[c].points
         bestColor = c
       }
@@ -137,7 +141,7 @@ export function playOneGame(config: GameConfig, seed: string): SimGameRecord {
       byColor: Object.fromEntries(
         PATH_COLORS.map((c) => [c, s.breakdown.byColor[c].points]),
       ) as Record<Color, number>,
-      spans: s.breakdown.zones.filter((z) => z.color !== BLACK && z.points > 0).map((z) => z.span),
+      spans: s.breakdown.zones.filter((z) => z.scoring).map((z) => z.span),
       win: s.breakdown.total === best ? 1 / winners : 0,
     })),
   }

@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.35',
+    date: '2026-08-07',
+    changes: [
+      'Nouvelle variante « Scoring inversé » : chacun part à 20 points, les zones noires en rapportent 2 et les chemins coûtent ce qu’ils rapportaient.',
+      'Toutes les autres variantes comptent à l’envers avec elle — étoiles, trèfles, couleur secrète, couleur interdite et cartes missions : ce qui faisait gagner fait perdre.',
+      'Le plateau, le barème de la colonne de droite et le détail du score affichent le barème réellement appliqué, et les bots jouent le miroir.',
+    ],
+  },
+  {
     version: '1.34',
     date: '2026-08-07',
     changes: [

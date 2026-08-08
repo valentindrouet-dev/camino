@@ -627,3 +627,111 @@ test('1er joueur aléatoire : le sac ne part plus toujours du joueur 1', () => {
     b.pool.map((t) => t.tileId),
   )
 })
+
+test('scoring inversé : 20 points de départ, le noir rapporte, les chemins coûtent', () => {
+  // un chemin rouge de 3 tuiles (3 pts) et une zone noire (−2)
+  const rows = ['RRRRRRKK', 'RRRRRRKK', VIDE, VIDE, VIDE, VIDE, VIDE, VIDE]
+  const board = boardFrom(rows)
+  const normal = E.scoreBoard(board, R)
+  assert.equal(normal.total, 3 + R.blackPenalty)
+  assert.equal(normal.basePoints, 0)
+
+  const envers = E.scoreBoard(board, withVariants({ reverseScoring: true }))
+  assert.equal(envers.basePoints, 20)
+  assert.equal(envers.colorPoints, -3, 'le chemin coûte ce qu’il rapportait')
+  assert.equal(envers.blackPoints, 2, 'la zone noire rapporte')
+  assert.equal(envers.total, 20 - 3 + 2)
+  // miroir exact : 20 − score normal
+  assert.equal(envers.total, 20 - normal.total)
+  // les pastilles du plateau suivent le même signe
+  const zones = E.computeZones(board, withVariants({ reverseScoring: true }))
+  const chemin = zones.find((z) => z.color === 'R')
+  const noire = zones.find((z) => z.color === 'K')
+  assert.equal(chemin.points, -3)
+  assert.ok(chemin.scoring, 'un chemin qui compte reste un chemin qui compte')
+  assert.equal(noire.points, 2)
+})
+
+test('scoring inversé : les autres variantes comptent aussi à l’envers', () => {
+  const rows = ['RRRRRRRR', 'RRRRRRRR', VIDE, VIDE, VIDE, VIDE, VIDE, VIDE]
+  const board = boardFrom(rows)
+  const paires = [
+    { magicStars: true },
+    { clovers: true },
+    { secretColor: true },
+    { forbiddenColor: true },
+  ]
+  for (const v of paires) {
+    const who = { secretColor: 'R', forbiddenColors: ['R'] }
+    const droit = E.scoreBoard(board, withVariants(v), who)
+    const envers = E.scoreBoard(board, withVariants({ ...v, reverseScoring: true }), who)
+    assert.equal(envers.starPoints, -droit.starPoints || 0, `étoiles ${JSON.stringify(v)}`)
+    assert.equal(
+      envers.cloverPoints,
+      -droit.cloverPoints || 0,
+      `trèfles ${JSON.stringify(v)}`,
+    )
+    assert.equal(
+      envers.secretPoints,
+      -droit.secretPoints || 0,
+      `couleur secrète ${JSON.stringify(v)}`,
+    )
+    assert.equal(envers.total, 20 - droit.total, `total ${JSON.stringify(v)}`)
+  }
+})
+
+test('scoring inversé : une carte mission accomplie coûte ses points', () => {
+  const partie = (variants) =>
+    E.createGame({
+      players: [
+        { name: 'A', kind: 'human', boardColor: 'O' },
+        { name: 'B', kind: 'human', boardColor: 'B' },
+      ],
+      options: {
+        ...E.defaultOptions('carte-envers'),
+        useCards: true,
+        cardId: 'exact-4',
+        ruleset: withVariants(variants),
+      },
+    })
+  // un chemin rouge de 4 tuiles : la carte « chemins de 4 » est accomplie
+  const rows = ['RRRRRRRR', 'RRRRRRRR', VIDE, VIDE, VIDE, VIDE, VIDE, VIDE]
+  const board = boardFrom(rows)
+  const points = (variants) => {
+    const s = partie(variants)
+    const joueurs = s.players.map((p) => ({ ...p, board }))
+    const etat = { ...s, players: joueurs }
+    return E.scorePlayer(joueurs[0], etat).cardPoints
+  }
+  const droit = points({})
+  assert.ok(droit > 0, `la carte rapporte en jeu normal (${droit})`)
+  assert.equal(points({ reverseScoring: true }), -droit)
+})
+
+test('scoring inversé : les bots jouent le miroir', () => {
+  const jouer = (variants, seed) => {
+    let s = E.createGame({
+      players: [
+        { name: 'A', kind: 'bot-smart', boardColor: 'O' },
+        { name: 'B', kind: 'bot-smart', boardColor: 'B' },
+      ],
+      options: { ...E.defaultOptions(seed), ruleset: withVariants(variants) },
+    })
+    while (s.phase === 'playing') {
+      s = E.applyMove(s, E.bestMove(s, s.players[E.currentPlayerId(s)].kind))
+    }
+    return s
+  }
+  let mieux = 0
+  for (let i = 0; i < 4; i++) {
+    const s = jouer({ reverseScoring: true }, `envers-${i}`)
+    for (const p of s.players) {
+      const envers = E.scoreBoard(p.board, s.options.ruleset, p)
+      // le même plateau jugé au barème normal : il doit être mauvais
+      const droit = E.scoreBoard(p.board, R, p)
+      assert.equal(envers.total, 20 - droit.total)
+      if (envers.total > 20) mieux++
+    }
+  }
+  assert.ok(mieux > 0, 'un bot averti dépasse ses 20 points de départ')
+})

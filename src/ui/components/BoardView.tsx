@@ -1,6 +1,5 @@
 import { useId, useMemo, useState } from 'react'
 import {
-  BLACK,
   COLOR_HEX,
   WHITE,
   cloverQuadIndex,
@@ -11,6 +10,7 @@ import {
   quadGrid,
   scoreOf,
   tileOfQuad,
+  scoreSign,
   signed,
   starClusters,
   starQuadIndex,
@@ -118,16 +118,23 @@ export function BoardView({
     return out
   }, [board])
 
-  /** Quarts appartenant à un chemin qui marque — sert à colorer les trèfles. */
+  /**
+   * Quarts où un trèfle RAPPORTE des points : ceux d'un chemin qui marque —
+   * ou tous les autres quand le scoring est inversé, puisqu'alors le trèfle
+   * bien placé est celui qui reste en dehors.
+   */
   const scoringQuads = useMemo(() => {
     const s = new Set<number>()
     if (!ruleset.variants?.clovers) return s
     for (const z of zones) {
-      if (z.color === BLACK || z.points <= 0) continue
+      if (!z.scoring) continue
       for (const c of z.cells) s.add(c)
     }
-    return s
-  }, [zones, ruleset.variants?.clovers])
+    if (scoreSign(ruleset) === 1) return s
+    const tous = new Set<number>()
+    for (let i = 0; i < (n * 2) ** 2; i++) if (!s.has(i)) tous.add(i)
+    return tous
+  }, [zones, ruleset, n])
 
   /** Quarts dont l'étoile est reliée à au moins une autre : elle devient dorée. */
   const goldQuads = useMemo(() => {
@@ -544,6 +551,7 @@ export function BoardView({
               anchor={badgeAnchors.starAnchors.get(i) ?? g.cells[0]}
               n={n}
               bw={bw}
+              sign={scoreSign(ruleset)}
             />
           ) : null,
         )}
@@ -1090,8 +1098,9 @@ function ZoneOutline({
   highlight: boolean
 }) {
   const d = useMemo(() => zoneOutlinePath(zone, n, bw, spec), [zone, n, bw, spec])
-  // Noir — ou couleur interdite, dont la zone porte le même malus.
-  const color = zone.color === BLACK || zone.points < 0 ? BLACK_ACCENT : '#FFFFFF'
+  // Rouge dès que la zone coûte des points : noir, couleur interdite — ou
+  // n'importe quel chemin quand le scoring est inversé.
+  const color = zone.points < 0 ? BLACK_ACCENT : '#FFFFFF'
   return (
     <g pointerEvents="none">
       <path
@@ -1135,8 +1144,9 @@ function ZoneBadge({
   const cx = x + QUAD / 2
   const cy = y + QUAD / 2
   const label = signed(zone.points)
-  // Noir — ou couleur interdite, dont la zone porte le même malus.
-  const color = zone.color === BLACK || zone.points < 0 ? BLACK_ACCENT : '#FFFFFF'
+  // Rouge dès que la zone coûte des points : noir, couleur interdite — ou
+  // n'importe quel chemin quand le scoring est inversé.
+  const color = zone.points < 0 ? BLACK_ACCENT : '#FFFFFF'
   // À deux chiffres le texte doit rentrer dans le rond avec de la marge.
   const size = label.length <= 2 ? 15 : label.length === 3 ? 11 : 9.5
   return (
@@ -1186,20 +1196,23 @@ function StarBadge({
   anchor,
   n,
   bw,
+  sign,
 }: {
   cluster: { cells: number[]; count: number; points: number }
   /** Case (quart) voisine du groupe qui porte la pastille, sans collision. */
   anchor: number
   n: number
   bw: number
+  /** Signe du barème : en scoring inversé, les étoiles coûtent. */
+  sign: -1 | 1
 }) {
   const { x, y } = quadXY(anchor, n, bw)
   const cx = x + QUAD / 2
   const cy = y + QUAD / 2
-  const label = `+${cluster.points}`
+  const label = signed(sign * cluster.points)
   return (
     <g className="zone-badge" pointerEvents="none">
-      <title>{`${cluster.count} étoiles reliées — +${cluster.points} pts`}</title>
+      <title>{`${cluster.count} étoiles reliées — ${label} pts`}</title>
       <circle cx={cx} cy={cy} r="13" fill="#FFD23F" stroke="#FFFFFF" strokeWidth="2.5" />
       <circle cx={cx} cy={cy} r="14.5" fill="none" stroke="#00000022" strokeWidth="1" />
       <text

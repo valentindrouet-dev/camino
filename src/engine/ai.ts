@@ -1,7 +1,7 @@
 import { legalCells, neighbours, placeTile, quadGrid, tileOfQuad } from './board.ts'
 import { applyCards, cardTable, playerCardIds, rulesetForPlayer } from './cards.ts'
 import { Rng } from './rng.ts'
-import { computeZones, pointsForSpan, scoreBoard } from './scoring.ts'
+import { computeZones, pointsForSpan, scoreBoard, scoreSign } from './scoring.ts'
 import { distinctOrientations, tileQuads } from './tiles.ts'
 import type { Board, Color, GameState, PlayerKind, Rotation, Ruleset } from './types.ts'
 import { BLACK, PATH_COLORS } from './types.ts'
@@ -67,6 +67,13 @@ export function evaluateBoard(
   const zones = computeZones(board, ruleset, forbidden)
   const grid = quadGrid(board)
   const qs = grid.size
+  /*
+   * Scoring inversé : la partie est le miroir exact de la partie normale —
+   * maximiser 20 − S revient à minimiser S. On raisonne donc tout du long sur
+   * le barème à l'endroit (d'où le `sign *` qui remet `z.points` d'aplomb), et
+   * on retourne l'évaluation d'un seul coup à la fin.
+   */
+  const sign = scoreSign(ruleset)
   let value = 0
   let blackZones = 0
   const perColor = new Map<Color, number>()
@@ -79,11 +86,11 @@ export function evaluateBoard(
     // Couleur interdite : la zone coûte le malus, quelle que soit sa taille —
     // agrandir ne coûte rien, mais en ouvrir une deuxième coûte cher.
     if (forbidden.includes(z.color)) {
-      value += z.points
+      value += sign * z.points
       continue
     }
 
-    let zoneValue = z.points
+    let zoneValue = sign * z.points
 
     // Une zone ne peut grandir que si elle touche un quart encore vide.
     let openings = 0
@@ -101,7 +108,7 @@ export function evaluateBoard(
         zoneValue += AI_WEIGHTS.seedPotential * target * (z.span / ruleset.minSpan)
       } else {
         // Le barème accélère : viser le palier suivant vaut de plus en plus cher.
-        const gain = pointsForSpan(z.span + 1, ruleset) - z.points
+        const gain = pointsForSpan(z.span + 1, ruleset) - sign * z.points
         zoneValue += AI_WEIGHTS.growthPotential * gain
       }
     }
@@ -118,7 +125,7 @@ export function evaluateBoard(
   value += AI_WEIGHTS.focus * (potentials[0].potential + 0.6 * (potentials[1]?.potential ?? 0))
 
   value += blackZones * ruleset.blackPenalty
-  return value
+  return sign * value
 }
 
 /**
@@ -174,6 +181,9 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
   const before = scoreBoard(player.board, ruleset, player)
   const base = before.total
   const blackBefore = before.blackZones
+  // Scoring inversé : regrouper le noir, relier les couleurs, accomplir une
+  // mission — tout ce qui était payant se retourne.
+  const sign = scoreSign(ruleset)
   const out: ScoredMove[] = []
 
   // Cartes missions du joueur : les bots essaient de les accomplir. Les
@@ -240,8 +250,11 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
             cards,
             state.cardColors,
           ).cardPoints
+          // `missionPoints` porte déjà le signe en vigueur : en inversé, une
+          // mission accomplie coûte, et le bot s'en détourne de lui-même. La
+          // prime au progrès, elle, n'a de sens que quand la mission rapporte.
           value += AI_WEIGHTS.mission * missionPoints
-          if (missionPoints > missionBefore) {
+          if (sign === 1 && missionPoints > missionBefore) {
             value += AI_WEIGHTS.missionProgress * (missionPoints - missionBefore)
           }
         }
@@ -249,14 +262,14 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
         // Regrouper le noir : pénalise chaque zone noire créée en plus,
         // récompense les fusions.
         const blackAfter = breakdown.blackZones
-        value -= AI_WEIGHTS.blackMerge * Math.max(0, blackAfter - blackBefore)
+        value -= sign * AI_WEIGHTS.blackMerge * Math.max(0, blackAfter - blackBefore)
         if (blackAfter < blackBefore + countBlackQuads(cand.tileId) && blackAfter <= blackBefore) {
-          value += AI_WEIGHTS.blackMerge
+          value += sign * AI_WEIGHTS.blackMerge
         }
 
         // Relier plusieurs couleurs d'un coup.
         const linked = connectedColors(player.board, cell, cand.tileId, rot)
-        if (linked > 1) value += AI_WEIGHTS.multiColor * (linked - 1)
+        if (linked > 1) value += sign * AI_WEIGHTS.multiColor * (linked - 1)
 
         if (cand.personal) value -= AI_WEIGHTS.personalReserve
 
