@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.37',
+    date: '2026-08-07',
+    changes: [
+      'La carte « Le plus propre » est retirée : elle faisait double emploi avec « Économe », qui récompense déjà le plateau le moins noir de la table.',
+      'Une carte choisie puis retirée du jeu ne reste plus sélectionnée en silence dans la configuration sauvegardée — la partie repart sur un tirage au hasard au lieu de démarrer sans mission.',
+    ],
+  },
+  {
     version: '1.36',
     date: '2026-08-07',
     changes: [

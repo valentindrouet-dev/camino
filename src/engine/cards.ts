@@ -507,31 +507,6 @@ export const CARDS: MissionCard[] = [
         : { points: 0, detail: 'les 6 couleurs sont là' }
     },
   },
-  {
-    id: 'cleanest',
-    name: 'Le plus propre',
-    badge: '+10',
-    extra: true,
-    text:
-      '+10 points si vous avez strictement moins de zones noires que chacun des autres joueurs. Aucun point en cas d’égalité.',
-    evaluate(ctx) {
-      const mine = blackZones(ctx.breakdown.zones)
-      const autres = ctx.table
-        .filter((t) => t.playerId !== ctx.playerId)
-        .map((t) => blackZones(t.zones))
-      if (!autres.length) return { points: 10, detail: `${plural(mine, 'zone noire', 'zones noires')}, sans rival` }
-      const meilleur = Math.min(...autres)
-      return mine < meilleur
-        ? { points: 10, detail: `${mine} contre ${meilleur} au mieux` }
-        : {
-            points: 0,
-            detail:
-              mine === meilleur
-                ? `à égalité (${mine} zones noires)`
-                : `${mine} zones noires, un autre en a ${meilleur}`,
-          }
-    },
-  },
 ]
 export function cardById(id: string | undefined): MissionCard | undefined {
   return id ? CARDS.find((c) => c.id === id) : undefined

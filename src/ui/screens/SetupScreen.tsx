@@ -4,6 +4,7 @@ import {
   BOARD_COLOR_NAMES,
   BOARD_COLORS,
   CARDS,
+  cardById,
   configError,
   defaultOptions,
   defaultPlayers,
@@ -62,9 +63,12 @@ export function SetupScreen({
       ? saved.players
       : defaultPlayers(2),
   );
-  const [options, setOptions] = useState(
-    saved?.options ?? defaultOptions(randomSeed()),
-  );
+  const [options, setOptions] = useState(() => {
+    const o = saved?.options ?? defaultOptions(randomSeed());
+    // Une carte retirée du jeu depuis la dernière partie ne doit pas rester
+    // choisie en silence : sans ça, la partie démarrerait sans mission.
+    return o.cardId && !cardById(o.cardId) ? { ...o, cardId: undefined } : o;
+  });
   const [showScale, setShowScale] = useState(false);
 
   const config: GameConfig = { players, options };
