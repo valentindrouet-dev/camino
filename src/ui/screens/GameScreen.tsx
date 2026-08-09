@@ -760,9 +760,15 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                   <strong>{signed(signe)} pt</strong>
                 </div>
                 <div className="scoresheet-row star">
-                  <span className="k">★ reliée</span>
+                  <span className="k">
+                    {variants.starScoring === 'growing' ? '★ groupe de N' : '★ reliée'}
+                  </span>
                   <span className="eq">=</span>
-                  <strong>{signed(signe * 2)} pts</strong>
+                  <strong>
+                    {variants.starScoring === 'growing'
+                      ? `${signe < 0 ? '−' : ''}N pts chacune`
+                      : `${signed(signe * 2)} pts`}
+                  </strong>
                 </div>
               </>
             )}

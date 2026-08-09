@@ -18,6 +18,7 @@ import type {
   PlayerConfig,
   PlayerKind,
   Ruleset,
+  StarScoring,
   Variants,
 } from "../../engine/index.ts";
 import { loadLastConfig, saveLastConfig } from "../storage.ts";
@@ -70,6 +71,9 @@ export function SetupScreen({
     return o.cardId && !cardById(o.cardId) ? { ...o, cardId: undefined } : o;
   });
   const [showScale, setShowScale] = useState(false);
+  // Règles et matériel : deux dépliants de la page d'accueil, fermés au départ.
+  const [showRules, setShowRules] = useState(false);
+  const [showMaterial, setShowMaterial] = useState(false);
 
   const config: GameConfig = { players, options };
   const error = configError(config);
@@ -154,6 +158,7 @@ export function SetupScreen({
       </div>
 
       <div className="grid-2">
+        <div className="stack">
         <div className="panel stack">
           <h3>Joueurs</h3>
           <div className="row wrap">
@@ -309,8 +314,23 @@ export function SetupScreen({
             </div>
           )}
 
-          {/* ------------------------------------------------------ variantes */}
-          <div className="section-head">Variantes</div>
+        </div>
+
+          {error && <div className="warn">{error}</div>}
+
+          <button
+            className="btn primary"
+            style={{ padding: "12px 30px", alignSelf: "stretch" }}
+            disabled={!!error}
+            onClick={start}
+          >
+            Commencer la partie
+          </button>
+        </div>
+
+        {/* ---------------------------------------------------------- variantes */}
+        <div className="panel stack">
+          <h3>Variantes</h3>
           <div className="row wrap">
             <VariantToggle
               label="Cartes missions"
@@ -410,8 +430,25 @@ export function SetupScreen({
               label="Étoiles magiques"
               on={!!variants.magicStars}
               onChange={(v) => patchVariants({ magicStars: v })}
-              description="30 tuiles portent une étoile. Une étoile seule vaut 1 pt ; chaque étoile reliée à une autre en vaut 2 (3 reliées = 6 pts)."
-            />
+              description={
+                variants.starScoring === "growing"
+                  ? "30 tuiles portent une étoile. Dans un groupe de N étoiles reliées, chacune vaut N points : 2 reliées = 4 pts, 3 = 9 pts, 4 = 16 pts."
+                  : "30 tuiles portent une étoile. Une étoile seule vaut 1 pt ; chaque étoile reliée à une autre en vaut 2 (3 reliées = 6 pts)."
+              }
+            >
+              <label className="field variant-field">
+                <span>Barème des étoiles</span>
+                <select
+                  value={variants.starScoring ?? "linked"}
+                  onChange={(e) =>
+                    patchVariants({ starScoring: e.target.value as StarScoring })
+                  }
+                >
+                  <option value="linked">Reliée = 2 pts (officiel)</option>
+                  <option value="growing">Groupe de N = N pts chacune</option>
+                </select>
+              </label>
+            </VariantToggle>
             <VariantToggle
               label="Tuile personnelle"
               on={!!variants.personalTile}
@@ -652,49 +689,33 @@ export function SetupScreen({
             </div>
           )}
 
-          {error && <div className="warn">{error}</div>}
         </div>
       </div>
 
       <div
-        className="row"
+        className="row wrap"
         style={{ marginTop: 18, justifyContent: "center", gap: 12 }}
       >
-        <button
-          className="btn primary"
-          style={{ padding: "12px 30px" }}
-          disabled={!!error}
-          onClick={start}
-        >
-          Commencer la partie
-        </button>
         <button className="btn" onClick={onOpenLab}>
           Laboratoire d’équilibrage
         </button>
+        <button
+          className={`btn ${showRules ? "primary" : ""}`}
+          onClick={() => setShowRules((v) => !v)}
+        >
+          Règles du jeu
+        </button>
+        <button
+          className={`btn ${showMaterial ? "primary" : ""}`}
+          onClick={() => setShowMaterial((v) => !v)}
+        >
+          Matériel
+        </button>
       </div>
 
-      <div className="panel" style={{ marginTop: 22 }}>
-        <h3>Rappel des règles</h3>
-        <p className="note" style={{ fontSize: 13.5, lineHeight: 1.6 }}>
-          Chaque manche, on révèle autant de tuiles que de joueurs. Le porteur
-          du sac choisit en premier, puis les autres dans le sens horaire ;
-          chacun pose sa tuile sur son plateau dans l’orientation de son choix.
-          Toute tuile (sauf la première) doit toucher une tuile déjà posée. Le
-          sac passe ensuite au voisin de gauche. La partie s’arrête quand les
-          plateaux sont pleins.
-          <br />
-          <br />
-          <strong>Décompte :</strong> un chemin est un groupe de quarts de même
-          couleur reliés orthogonalement — même à travers la frontière de deux
-          tuiles. Ce qui compte, c’est le nombre de{" "}
-          <strong>tuiles différentes</strong> qu’il traverse : 3 → 3 pts, 4 → 5,
-          5 → 8, 6 → 12, 7 → 17, 8 → 23, 9 et + → 30. Chaque{" "}
-          <strong>zone noire</strong>, quelle que soit sa taille, coûte 2
-          points.
-        </p>
-      </div>
+      {showRules && <RulesSection />}
 
-      <MaterialSection />
+      {showMaterial && <MaterialSection />}
 
       <p className="note" style={{ textAlign: "center", marginTop: 18 }}>
         Version {VERSION} — compilée le {BUILD}
@@ -704,6 +725,92 @@ export function SetupScreen({
 }
 
 
+
+/** Les règles du jeu, dépliées depuis la page d'accueil. */
+function RulesSection() {
+  return (
+    <div className="panel stack" style={{ marginTop: 22 }}>
+      <h3>Règles du jeu</h3>
+
+      <div className="rules">
+        <section>
+          <h4>Mise en place</h4>
+          <p>
+            Chaque joueur prend un plateau 4 × 4 — les plateaux se distinguent
+            par la couleur de leur contour. Les 97 tuiles vont dans le sac. Le
+            premier porteur du sac est le joueur 1, ou un joueur tiré au sort si
+            l’option est cochée.
+          </p>
+        </section>
+
+        <section>
+          <h4>Déroulement d’une manche</h4>
+          <p>
+            On révèle au centre <strong>autant de tuiles que de joueurs</strong>.
+            Le porteur du sac choisit en premier, puis les autres dans le sens
+            horaire ; le dernier prend la tuile restante. Chacun pose la sienne
+            sur son plateau, dans l’orientation de son choix.
+          </p>
+          <p>
+            Toute tuile, sauf la première, doit <strong>toucher une tuile déjà
+            posée</strong> — par un côté, jamais par un coin. Le sac passe
+            ensuite au voisin de gauche, et une nouvelle manche commence. La
+            partie s’arrête quand les plateaux sont pleins, au bout de 16
+            manches.
+          </p>
+        </section>
+
+        <section>
+          <h4>Ce qu’est un chemin</h4>
+          <p>
+            Chaque tuile porte quatre quarts de couleur. Un <strong>chemin</strong>{" "}
+            est un groupe de quarts de <strong>même couleur</strong> qui se
+            touchent par un côté — y compris à travers la frontière entre deux
+            tuiles. Ce qui rapporte des points, ce n’est pas le nombre de quarts
+            mais le nombre de <strong>tuiles différentes</strong> que le chemin
+            traverse : repasser deux fois par la même tuile ne compte qu’une
+            fois.
+          </p>
+        </section>
+
+        <section>
+          <h4>Décompte</h4>
+          <div className="rules-scale">
+            {[
+              ["3 tuiles", "3 pts"],
+              ["4 tuiles", "5 pts"],
+              ["5 tuiles", "8 pts"],
+              ["6 tuiles", "12 pts"],
+              ["7 tuiles", "17 pts"],
+              ["8 tuiles", "23 pts"],
+              ["9 et +", "30 pts"],
+            ].map(([k, v]) => (
+              <span key={k}>
+                {k} <strong>{v}</strong>
+              </span>
+            ))}
+          </div>
+          <p>
+            Un chemin de <strong>moins de 3 tuiles ne rapporte rien</strong>.
+            Chaque <strong>zone noire</strong> coûte 2 points, quelle que soit sa
+            taille : mieux vaut réunir son noir en une seule tache que
+            l’éparpiller. Le total le plus élevé l’emporte.
+          </p>
+        </section>
+
+        <section>
+          <h4>Variantes</h4>
+          <p>
+            Toutes les variantes de la boîte se cochent dans la colonne de
+            droite, et se combinent librement. Cochez-en une : sa règle exacte
+            s’affiche juste en dessous, et elle vous sera rappelée en cours de
+            partie.
+          </p>
+        </section>
+      </div>
+    </div>
+  );
+}
 
 function Toggle({
   label,

@@ -735,3 +735,50 @@ test('scoring inversé : les bots jouent le miroir', () => {
   }
   assert.ok(mieux > 0, 'un bot averti dépasse ses 20 points de départ')
 })
+
+test('étoiles : deux barèmes au choix', () => {
+  // groupe seul, puis groupes de 2, 3 et 4
+  assert.equal(E.starClusterPoints(1), 1)
+  assert.equal(E.starClusterPoints(1, 'growing'), 1)
+  for (const [n, relie, croissant] of [
+    [2, 4, 4],
+    [3, 6, 9],
+    [4, 8, 16],
+    [5, 10, 25],
+  ]) {
+    assert.equal(E.starClusterPoints(n), relie, `${n} reliées, barème officiel`)
+    assert.equal(E.starClusterPoints(n, 'linked'), relie)
+    assert.equal(E.starClusterPoints(n, 'growing'), croissant, `${n} reliées, barème croissant`)
+  }
+
+  // Sur un vrai plateau : quatre tuiles étoilées en carré, tournées pour que
+  // leurs étoiles se rejoignent au centre — un groupe de 4.
+  const etoilees = [...E.STARS.keys()].slice(0, 4)
+  const board = E.createBoard(4)
+  // quarts qui se touchent au point de rencontre des cases 0, 1, 4 et 5
+  const cibles = [
+    [0, 2],
+    [1, 3],
+    [4, 1],
+    [5, 0],
+  ]
+  cibles.forEach(([cell, quad], i) => {
+    const id = etoilees[i]
+    const rot = (quad - E.STARS.get(id) + 4) % 4
+    board.cells[cell] = { tileId: id, rot, round: 0 }
+  })
+  const groupes = (mode) => E.starClusters(board, mode)
+  assert.equal(groupes('linked').length, 1, 'une seule constellation')
+  assert.equal(groupes('linked')[0].count, 4, 'de quatre étoiles')
+  const relie = groupes('linked')[0].points
+  const croissant = groupes('growing')[0].points
+  assert.equal(relie, 8)
+  assert.equal(croissant, 16)
+
+  // et le décompte suit le réglage de la variante
+  const rs = (starScoring) => withVariants({ magicStars: true, ...(starScoring ? { starScoring } : {}) })
+  assert.equal(E.scoreBoard(board, rs()).starPoints, relie, 'par défaut, barème officiel')
+  assert.equal(E.scoreBoard(board, rs('linked')).starPoints, relie)
+  assert.equal(E.scoreBoard(board, rs('growing')).starPoints, croissant)
+  assert.equal(E.scoreBoard(board, R).starPoints, 0, 'sans la variante, rien')
+})

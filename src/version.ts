@@ -15,6 +15,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.38',
+    date: '2026-08-07',
+    changes: [
+      'Les Étoiles magiques ont désormais deux barèmes au choix, dans un menu déroulant : l’officiel (une étoile reliée vaut 2 points) ou le croissant, où dans un groupe de N chaque étoile vaut N — 4 étoiles reliées passent de 8 à 16 points.',
+      'La page d’accueil est réorganisée : les Options de partie et le bouton « Commencer la partie » passent dans la colonne de gauche, sous les joueurs ; les Variantes occupent seules la colonne de droite.',
+      'Deux boutons rejoignent le Laboratoire d’équilibrage : « Règles du jeu » et « Matériel » déplient leur section sur la page d’accueil au lieu de l’occuper en permanence.',
+      'Les règles du jeu sont écrites en entier — mise en place, déroulement, ce qu’est un chemin, décompte — au lieu du seul rappel de fin de page.',
+    ],
+  },
+  {
     version: '1.37',
     date: '2026-08-07',
     changes: [

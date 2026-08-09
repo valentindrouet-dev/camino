@@ -61,7 +61,9 @@ export function activeVariantInfos(options: GameOptions): VariantInfo[] {
   add(
     v.magicStars,
     'Étoiles magiques',
-    '30 tuiles portent une étoile. Une étoile seule vaut 1 pt ; chaque étoile reliée à une autre en vaut 2 (3 reliées = 6 pts).',
+    v.starScoring === 'growing'
+      ? '30 tuiles portent une étoile. Dans un groupe de N étoiles reliées, chacune vaut N points : 2 reliées = 4 pts, 3 = 9 pts, 4 = 16 pts.'
+      : '30 tuiles portent une étoile. Une étoile seule vaut 1 pt ; chaque étoile reliée à une autre en vaut 2 (3 reliées = 6 pts).',
   )
   add(
     v.personalTile,

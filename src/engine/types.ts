@@ -127,6 +127,9 @@ export interface ScoreBreakdown {
   zones: Zone[]
 }
 
+/** Les deux barèmes possibles des étoiles magiques. */
+export type StarScoring = 'linked' | 'growing'
+
 /** Variantes de la boîte — toutes optionnelles, certaines exclusives. */
 export interface Variants {
   /** Le dernier à choisir peut piocher au hasard au lieu de la tuile restante. */
@@ -144,6 +147,12 @@ export interface Variants {
   whiteTiles?: boolean
   /** Étoiles sur 30 tuiles ; les relier rapporte des points. */
   magicStars?: boolean
+  /**
+   * Barème des étoiles (variante Étoiles magiques) :
+   *  - `linked` : une étoile seule vaut 1, une étoile reliée vaut 2 ;
+   *  - `growing` : dans un groupe de N, chaque étoile vaut N.
+   */
+  starScoring?: StarScoring
   /** Une tuile personnelle par joueur, jouable à tout moment. */
   personalTile?: boolean
   /** Chaque tuile peut être retournée sur sa face miroir. */

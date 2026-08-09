@@ -102,8 +102,11 @@ export function BoardView({
     [board, ruleset, compact, bannedKey],
   )
   const starGroups = useMemo(
-    () => (ruleset.variants?.magicStars ? starClusters(board) : []),
-    [board, ruleset.variants?.magicStars],
+    () =>
+      ruleset.variants?.magicStars
+        ? starClusters(board, ruleset.variants.starScoring ?? 'linked')
+        : [],
+    [board, ruleset.variants?.magicStars, ruleset.variants?.starScoring],
   )
   /** Tuiles dont les quatre quarts sont irisés : un seul grand carré à l'écran. */
   const rainbowTiles = useMemo(() => {

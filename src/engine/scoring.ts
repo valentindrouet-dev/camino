@@ -1,6 +1,15 @@
 import { quadGrid, tileOfQuad } from './board.ts'
 import { cloverQuadIndex, faultAxis, starQuadIndex } from './tiles.ts'
-import type { Board, Color, ColorScore, Ruleset, ScoreBreakdown, Side, Zone } from './types.ts'
+import type {
+  Board,
+  Color,
+  ColorScore,
+  Ruleset,
+  ScoreBreakdown,
+  Side,
+  StarScoring,
+  Zone,
+} from './types.ts'
 import { BLACK, COLORS, PATH_COLORS, WHITE } from './types.ts'
 
 /**
@@ -37,11 +46,16 @@ export function pointsForSpan(span: number, ruleset: Ruleset): number {
 }
 
 /**
- * Points d'un groupe d'étoiles : une étoile seule vaut 1 point, chaque étoile
- * reliée à au moins une autre en vaut 2 — un groupe de N ≥ 2 vaut donc 2×N.
+ * Points d'un groupe d'étoiles, selon le barème choisi :
+ *
+ *  - `linked` (par défaut) : une étoile seule vaut 1 point, chaque étoile
+ *    reliée à au moins une autre en vaut 2 — un groupe de N ≥ 2 vaut 2×N ;
+ *  - `growing` : dans un groupe de N, chaque étoile vaut N — le groupe vaut
+ *    donc N², et les grandes constellations s'envolent.
  */
-export function starClusterPoints(count: number): number {
-  return count <= 1 ? Math.max(0, count) : 2 * count
+export function starClusterPoints(count: number, mode: StarScoring = 'linked'): number {
+  if (count <= 1) return Math.max(0, count)
+  return mode === 'growing' ? count * count : 2 * count
 }
 
 /**
@@ -228,7 +242,7 @@ export interface StarCluster {
  * Les étoiles se groupent par simple ADJACENCE de leurs quarts (orthogonale,
  * frontières de tuiles comprises) — pas besoin d'être reliées par un chemin.
  */
-export function starClusters(board: Board): StarCluster[] {
+export function starClusters(board: Board, mode: StarScoring = 'linked'): StarCluster[] {
   const qs = board.size * 2
   const starred = new Set<number>()
   for (let i = 0; i < board.cells.length; i++) {
@@ -262,15 +276,15 @@ export function starClusters(board: Board): StarCluster[] {
     clusters.push({
       cells: cells.sort((a, b) => a - b),
       count: cells.length,
-      points: starClusterPoints(cells.length),
+      points: starClusterPoints(cells.length, mode),
     })
   }
   return clusters
 }
 
-function countStars(board: Board): number {
+function countStars(board: Board, mode: StarScoring): number {
   let total = 0
-  for (const c of starClusters(board)) total += c.points
+  for (const c of starClusters(board, mode)) total += c.points
   return total
 }
 
@@ -317,7 +331,9 @@ export function scoreBoard(
   // Les variantes suivent le même signe : ce qui rapportait coûte, et
   // réciproquement (c'est la règle du scoring inversé).
   const sign = scoreSign(ruleset)
-  const starPoints = ruleset.variants?.magicStars ? flip(sign, countStars(board)) : 0
+  const starPoints = ruleset.variants?.magicStars
+    ? flip(sign, countStars(board, ruleset.variants.starScoring ?? 'linked'))
+    : 0
   const cloverPoints = ruleset.variants?.clovers ? flip(sign, countClovers(board, zones)) : 0
   // Une couleur secrète interdite ne doublerait qu'un malus : on n'y touche pas.
   const secretPoints =
