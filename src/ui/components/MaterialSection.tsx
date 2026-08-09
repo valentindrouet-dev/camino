@@ -45,7 +45,7 @@ export function MaterialSection() {
           97 tuiles
         </button>
         <button className={tab === 'cartes' ? 'on' : ''} onClick={() => setTab('cartes')}>
-          12 cartes
+          {CARDS.length} cartes
         </button>
         <button className={tab === 'variantes' ? 'on' : ''} onClick={() => setTab('variantes')}>
           Variantes

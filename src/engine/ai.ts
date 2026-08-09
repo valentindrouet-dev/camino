@@ -5,7 +5,7 @@ import { computeZones, pointsForSpan, scoreBoard, scoreSign } from './scoring.ts
 import { distinctOrientations, tileQuads } from './tiles.ts'
 import type { Board, Color, GameState, PlayerKind, Rotation, Ruleset } from './types.ts'
 import { BLACK, PATH_COLORS } from './types.ts'
-import { availableTiles, currentPlayer, type Move } from './game.ts'
+import { availableTiles, canFlipTile, currentPlayer, type Move } from './game.ts'
 
 export interface ScoredMove extends Move {
   /** Score réel du plateau après le coup. */
@@ -46,6 +46,8 @@ export const AI_WEIGHTS = {
   mission: 1,
   /** Prime au progrès vers une mission encore inachevée. */
   missionProgress: 0.35,
+  /** Poids des points de cristaux (variante) : préserver les siens. */
+  crystal: 1,
 }
 
 interface ColorPotential {
@@ -63,6 +65,8 @@ export function evaluateBoard(
   ruleset: Ruleset,
   /** Couleurs interdites du joueur (variante) : leurs zones coûtent le malus. */
   forbidden: Color[] = [],
+  /** Plateau commun : seules les zones où le joueur a une tuile comptent. */
+  ownTiles: Set<number> | null = null,
 ): number {
   const zones = computeZones(board, ruleset, forbidden)
   const grid = quadGrid(board)
@@ -79,6 +83,8 @@ export function evaluateBoard(
   const perColor = new Map<Color, number>()
 
   for (const z of zones) {
+    // Plateau commun : un chemin sans aucune de ses tuiles ne lui doit rien.
+    if (ownTiles && !z.tiles.some((t) => ownTiles.has(t))) continue
     if (z.color === BLACK) {
       blackZones++
       continue
@@ -178,6 +184,8 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
   const cells = legalCells(player.board, ruleset.requireAdjacency)
   // Couleurs interdites du joueur (variante) : les bots les évitent.
   const forbidden = ruleset.variants?.forbiddenColor ? (player.forbiddenColors ?? []) : []
+  // Plateau commun : l'évaluation ne compte que les zones où le joueur a posé.
+  const shared = Boolean(ruleset.variants?.sharedBoard)
   const before = scoreBoard(player.board, ruleset, player)
   const base = before.total
   const blackBefore = before.blackZones
@@ -209,6 +217,7 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
         },
         cards,
         state.cardColors,
+        state.cardAxes,
       ).cardPoints
     : 0
 
@@ -230,10 +239,23 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
   for (const cand of candidates) {
     for (const { rot, flipped } of distinctOrientations(cand.tileId, allowFlip)) {
       for (const cell of cells) {
-        const board = placeTile(player.board, cell, cand.tileId, rot, state.round, flipped)
+        const board = placeTile(
+          player.board,
+          cell,
+          cand.tileId,
+          rot,
+          shared ? state.round * state.players.length + state.turnIndex : state.round,
+          flipped,
+          shared ? player.id : undefined,
+        )
         const breakdown = scoreBoard(board, ruleset, player)
         const score = breakdown.total
-        let value = evaluateBoard(board, ruleset, forbidden)
+        const ownTiles = shared
+          ? new Set(
+              board.cells.map((p, i) => (p && p.by === player.id ? i : -1)).filter((i) => i >= 0),
+            )
+          : null
+        let value = evaluateBoard(board, ruleset, forbidden, ownTiles)
         value += AI_WEIGHTS.centrality * neighbours(player.board.size, cell).length
 
         // Missions : ce que la pose rapporte déjà, plus une prime au progrès
@@ -249,6 +271,7 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
             { playerId: player.id, board, ruleset, table },
             cards,
             state.cardColors,
+            state.cardAxes,
           ).cardPoints
           // `missionPoints` porte déjà le signe en vigueur : en inversé, une
           // mission accomplie coûte, et le bot s'en détourne de lui-même. La
@@ -270,6 +293,12 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
         // Relier plusieurs couleurs d'un coup.
         const linked = connectedColors(player.board, cell, cand.tileId, rot)
         if (linked > 1) value += sign * AI_WEIGHTS.multiColor * (linked - 1)
+
+        // Cristaux : la pose qui brise le sien (ou préserve) est déjà chiffrée
+        // dans le décompte — on la fait peser sur le choix.
+        if (ruleset.variants?.crystals) {
+          value += AI_WEIGHTS.crystal * (breakdown.crystalPoints - before.crystalPoints)
+        }
 
         if (cand.personal) value -= AI_WEIGHTS.personalReserve
 
@@ -295,6 +324,18 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
  * échange la tuile restante quand le meilleur coup qu'elle permet reste
  * clairement perdant.
  */
+/**
+ * Politique de verso des bots (variante Verso aléatoire) : on retourne la
+ * tuile du meilleur coup quand même lui reste clairement perdant.
+ */
+export function botWantsFlip(state: GameState): number | null {
+  const moves = enumerateMoves(state)
+  if (!moves.length) return null
+  const best = moves.reduce((m, x) => (x.value > m.value ? x : m))
+  if (best.delta > -2 || best.personal) return null
+  return canFlipTile(state, best.tileId) ? best.tileId : null
+}
+
 export function botWantsRedraw(state: GameState): boolean {
   const moves = enumerateMoves(state)
   if (!moves.length) return false

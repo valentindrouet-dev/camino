@@ -1,8 +1,8 @@
 import { useId } from 'react'
-import { CLOVERS, FAULTS, STARS, tileQuads, WHITE } from '../../engine/index.ts'
+import { CLOVERS, COLOR_HEX, CRYSTALS, DYES, FAULTS, STARS, tileQuads, WHITE, WINDMILLS } from '../../engine/index.ts'
 import type { Rotation } from '../../engine/index.ts'
 import { IridescentDefs, quadFill, Sheen } from './Iridescent.tsx'
-import { CloverMark, FaultMark } from './TileMarks.tsx'
+import { CloverMark, CrystalMark, DyeMark, FaultMark, WindmillMark } from './TileMarks.tsx'
 
 interface Props {
   tileId: number
@@ -16,6 +16,12 @@ interface Props {
   showFault?: boolean
   /** Affiche le trèfle si la tuile en porte un (variante). */
   showClover?: boolean
+  /** Affiche le cristal si la tuile en porte un (variante). */
+  showCrystal?: boolean
+  /** Affiche la teinture si la tuile en porte une (variante). */
+  showDye?: boolean
+  /** Affiche le moulin si la tuile en porte un (variante). */
+  showWindmill?: boolean
   /**
    * Angle affiché en degrés. Permet de faire tourner la tuile « à 360° » :
    * l'angle s'accumule (90, 180, 270, 360, 450...) pour que l'animation
@@ -37,6 +43,9 @@ export function TileGlyph({
   showStar = false,
   showFault = false,
   showClover = false,
+  showCrystal = false,
+  showDye = false,
+  showWindmill = false,
   angle,
   size = 64,
   className,
@@ -49,6 +58,8 @@ export function TileGlyph({
   const starAt = starQuad === null ? null : flipped ? FLIP[starQuad] : starQuad
   const cloverQuad = showClover ? (CLOVERS.get(tileId) ?? null) : null
   const cloverAt = cloverQuad === null ? null : flipped ? FLIP[cloverQuad] : cloverQuad
+  const dye = showDye ? (DYES.get(tileId) ?? null) : null
+  const dyeAtQuad = dye === null ? null : flipped ? FLIP[dye.quad] : dye.quad
   const STAR_XY = [
     [25, 25],
     [75, 25],
@@ -95,6 +106,16 @@ export function TileGlyph({
             size={30}
           />
         )}
+        {showCrystal && CRYSTALS.has(tileId) && <CrystalMark cx={50} cy={50} size={34} />}
+        {showDye && dye !== null && dyeAtQuad !== null && (
+          <DyeMark
+            cx={STAR_XY[dyeAtQuad][0]}
+            cy={STAR_XY[dyeAtQuad][1]}
+            size={28}
+            color={COLOR_HEX[dye.color]}
+          />
+        )}
+        {showWindmill && WINDMILLS.has(tileId) && <WindmillMark cx={50} cy={50} size={36} />}
         {starAt !== null && (
           <text
             x={STAR_XY[starAt][0]}

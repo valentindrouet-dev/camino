@@ -29,6 +29,8 @@ export interface CardContext {
   table: CardTableEntry[]
   /** Couleur tirée pour cette carte, quand elle en dépend (`colorized`). */
   color?: Color
+  /** Axe tiré pour cette carte, quand elle en dépend (`randomAxis`). */
+  axis?: 'col' | 'row'
 }
 
 export interface CardResult {
@@ -55,16 +57,24 @@ export interface MissionCard {
   name: string
   /** La couleur visée est tirée au hasard au début de chaque partie. */
   colorized?: boolean
+  /** L'axe visé (colonne ou ligne) est tiré au hasard au début de chaque partie. */
+  randomAxis?: boolean
   /** Carte d'extension (affichée dans une autre couleur que celles de la boîte). */
   extra?: boolean
   evaluate(ctx: CardContext): CardResult
 }
 
-/** Texte d'une carte, couleur tirée comprise. */
-export function cardText(card: MissionCard, color?: Color): string {
-  if (!card.colorized) return card.text
-  const nom = color ? COLOR_NAMES[color].toLowerCase() : 'de la couleur tirée'
-  return card.text.replace('{couleur}', nom)
+/** Texte d'une carte, couleur et axe tirés compris. */
+export function cardText(card: MissionCard, color?: Color, axis?: 'col' | 'row'): string {
+  let text = card.text
+  if (card.colorized) {
+    const nom = color ? COLOR_NAMES[color].toLowerCase() : 'de la couleur tirée'
+    text = text.replace('{couleur}', nom)
+  }
+  if (card.randomAxis) {
+    text = text.replace('{axe}', axis === 'row' ? 'ligne' : 'colonne')
+  }
+  return text
 }
 
 /** Chemins qui marquent : zones de couleur d'au moins `minSpan` tuiles. */
@@ -507,6 +517,74 @@ export const CARDS: MissionCard[] = [
         : { points: 0, detail: 'les 6 couleurs sont là' }
     },
   },
+  {
+    id: 'mapper',
+    name: 'Cartographe',
+    badge: '+8',
+    extra: true,
+    randomAxis: true,
+    text: '+8 points si chaque {axe} du plateau contient au moins 4 quarts appartenant à des chemins qui marquent.',
+    evaluate(ctx) {
+      const n = ctx.board.size
+      const qs = n * 2
+      const axis = ctx.axis ?? 'col'
+      const parLigne = new Array(n).fill(0)
+      for (const z of ctx.breakdown.zones) {
+        if (!z.scoring) continue
+        for (const c of z.cells) {
+          parLigne[axis === 'row' ? Math.floor(Math.floor(c / qs) / 2) : Math.floor((c % qs) / 2)]++
+        }
+      }
+      const pleines = parLigne.filter((x) => x >= 4).length
+      const nom = axis === 'row' ? 'ligne' : 'colonne'
+      return pleines >= n
+        ? { points: 8, detail: `les ${n} ${nom}s marquent` }
+        : { points: 0, detail: `${pleines} ${nom}${pleines > 1 ? 's' : ''} sur ${n}` }
+    },
+  },
+  {
+    id: 'four-sides',
+    name: 'Les 4 bords',
+    badge: '+8',
+    extra: true,
+    text: '+8 points si chaque bord du plateau est touché par un chemin qui marque.',
+    evaluate(ctx) {
+      const qs = ctx.board.size * 2
+      const touches = new Set<number>()
+      for (const z of ctx.breakdown.zones) {
+        if (!z.scoring) continue
+        for (const c of z.cells) {
+          const r = Math.floor(c / qs)
+          const col = c % qs
+          if (r === 0) touches.add(0)
+          if (col === qs - 1) touches.add(1)
+          if (r === qs - 1) touches.add(2)
+          if (col === 0) touches.add(3)
+        }
+      }
+      return touches.size === 4
+        ? { points: 8, detail: 'les 4 bords sont touchés' }
+        : { points: 0, detail: `${touches.size} bord${touches.size > 1 ? 's' : ''} sur 4` }
+    },
+  },
+  {
+    id: 'black-belt',
+    name: 'Ceinture noire',
+    badge: '+12',
+    extra: true,
+    text: '+12 points si vous avez une seule zone noire — et qu’elle traverse au moins 4 tuiles.',
+    evaluate(ctx) {
+      const noires = ctx.breakdown.zones.filter((z) => z.color === BLACK)
+      if (noires.length === 1 && noires[0].span >= 4) {
+        return { points: 12, detail: `une seule zone noire, ${noires[0].span} tuiles` }
+      }
+      if (noires.length === 0) return { points: 0, detail: 'aucune zone noire' }
+      if (noires.length > 1) {
+        return { points: 0, detail: `${noires.length} zones noires au lieu d’une` }
+      }
+      return { points: 0, detail: `une zone noire de ${noires[0].span} tuile${noires[0].span > 1 ? 's' : ''} (minimum 4)` }
+    },
+  },
 ]
 export function cardById(id: string | undefined): MissionCard | undefined {
   return id ? CARDS.find((c) => c.id === id) : undefined
@@ -578,10 +656,12 @@ export function activeRuleset(state: {
 /** Applique une LISTE de cartes : les bonus se cumulent. */
 export function applyCards(
   breakdown: ScoreBreakdown,
-  ctx: Omit<CardContext, 'breakdown' | 'color'>,
+  ctx: Omit<CardContext, 'breakdown' | 'color' | 'axis'>,
   cardIds: string[],
   /** Couleurs tirées en début de partie pour les cartes qui en dépendent. */
   colors?: Record<string, Color>,
+  /** Axes (colonne/ligne) tirés en début de partie, même principe. */
+  axes?: Record<string, 'col' | 'row'>,
 ): ScoreBreakdown {
   let out = breakdown
   let points = 0
@@ -594,7 +674,7 @@ export function applyCards(
   for (const id of cardIds) {
     const card = cardById(id)
     if (!card) continue
-    const brut = card.evaluate({ ...ctx, breakdown: out, color: colors?.[id] })
+    const brut = card.evaluate({ ...ctx, breakdown: out, color: colors?.[id], axis: axes?.[id] })
     const r = sign === 1 ? brut : { ...brut, points: -brut.points || 0 }
     points += r.points
     labels.push(cardIds.length > 1 ? `${card.name} : ${r.detail}` : r.detail)

@@ -255,3 +255,89 @@ export function cloverQuadIndex(tileId: number, rot: Rotation, flipped = false):
   const afterFlip = flipped ? FLIP[base] : base
   return (afterFlip + rot) % 4
 }
+
+// ---------------------------------------------------------------------------
+// Cristaux (variante) : un cristal orne les tuiles dont 3 ou 4 quarts portent
+// la MÊME couleur de chemin — il n'apparaît nulle part ailleurs. Il vaut
+// +4 points si, après sa pose, aucune tuile n'est jamais venue se coller à la
+// sienne. L'attribution est fixe (tuiles imprimées) : 18 tuiles, 3 par couleur.
+// ---------------------------------------------------------------------------
+
+export const CRYSTALS: ReadonlySet<number> = (() => {
+  const set = new Set<number>()
+  const PATHS: Color[] = ['Y', 'O', 'R', 'G', 'B', 'P']
+  for (let id = 0; id < TILE_COUNT; id++) {
+    const quads = TILES[id].quads
+    if (PATHS.some((c) => quads.filter((q) => q === c).length >= 3)) set.add(id)
+  }
+  return set
+})()
+
+// ---------------------------------------------------------------------------
+// Teintures (variante) : un pot de couleur sur ~20 % des tuiles, 3 par couleur,
+// toujours posé sur un quart d'une AUTRE couleur que la sienne. Si la tuile est
+// posée avec la teinture adjacente à une zone noire, la zone prend la couleur
+// de la teinture. L'attribution est fixe (tuiles imprimées).
+// ---------------------------------------------------------------------------
+
+export interface Dye {
+  /** Quart qui porte le pot (0..3, avant rotation). */
+  quad: number
+  /** Couleur du pigment — jamais celle du quart qui le porte. */
+  color: Color
+}
+
+export const DYES: ReadonlyMap<number, Dye> = (() => {
+  const rng = new Rng('camino-teintures')
+  const map = new Map<number, Dye>()
+  const used = new Set<number>()
+  const PATHS: Color[] = ['Y', 'O', 'R', 'G', 'B', 'P']
+  for (const color of PATHS) {
+    // ni sur une tuile à cristal, ni sur un quart noir ou de la couleur du pot ;
+    // on évite aussi les quarts déjà étoilés ou trèflés pour rester lisible.
+    const candidates: number[] = []
+    for (let id = 0; id < TILE_COUNT; id++) {
+      if (used.has(id) || CRYSTALS.has(id)) continue
+      const quads = TILES[id].quads
+      if ([0, 1, 2, 3].some((q) => quads[q] !== 'K' && quads[q] !== color)) candidates.push(id)
+    }
+    for (const id of rng.shuffle(candidates).slice(0, 3)) {
+      used.add(id)
+      const quads = TILES[id].quads
+      const libres = [0, 1, 2, 3].filter(
+        (q) =>
+          quads[q] !== 'K' && quads[q] !== color && STARS.get(id) !== q && CLOVERS.get(id) !== q,
+      )
+      const options = libres.length
+        ? libres
+        : [0, 1, 2, 3].filter((q) => quads[q] !== 'K' && quads[q] !== color)
+      map.set(id, { quad: options[rng.int(options.length)], color })
+    }
+  }
+  return map
+})()
+
+/** Teinture d'une tuile après orientation (quart 0..3 dans la tuile posée). */
+export function dyeAt(tileId: number, rot: Rotation, flipped = false): Dye | null {
+  const base = DYES.get(tileId)
+  if (base === undefined) return null
+  const FLIP: number[] = [1, 0, 3, 2]
+  const afterFlip = flipped ? FLIP[base.quad] : base.quad
+  return { quad: (afterFlip + rot) % 4, color: base.color }
+}
+
+// ---------------------------------------------------------------------------
+// Moulins (variante) : 15 % des tuiles portent un moulin. À la pose, toutes
+// les tuiles orthogonalement adjacentes DÉJÀ posées tournent d'un quart de
+// tour vers la gauche. L'attribution est fixe (tuiles imprimées).
+// ---------------------------------------------------------------------------
+
+export const WINDMILLS: ReadonlySet<number> = (() => {
+  const rng = new Rng('camino-moulins')
+  // jamais sur une tuile à cristal ou à teinture : une seule mécanique par tuile
+  const candidates: number[] = []
+  for (let id = 0; id < TILE_COUNT; id++) {
+    if (!CRYSTALS.has(id) && !DYES.has(id)) candidates.push(id)
+  }
+  return new Set(rng.shuffle(candidates).slice(0, 15))
+})()

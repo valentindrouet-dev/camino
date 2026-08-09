@@ -147,6 +147,18 @@ code {
   color: var(--ink);
 }
 
+/* Tuile retournée sur son verso (variante Verso aléatoire) */
+.pool-tile.verso .frame {
+  outline: 2px dashed #8e6bb5;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.pool-tile.verso small {
+  color: #8e6bb5;
+  font-weight: 700;
+}
+
 /* Chrono de la partie : chiffres à chasse fixe, sinon l'étiquette tressaute
    à chaque seconde. Une fois la partie finie, le total se met en avant. */
 .tag.chrono strong {

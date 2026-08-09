@@ -83,6 +83,8 @@ export function defaultOptions(seed: string): GameOptions {
 
 /** Nombre de tuiles révélées au centre à chaque tour. */
 export function tilesPerRound(ruleset: Ruleset, playerCount: number): number {
+  // Partie synchrone : une seule tuile, la même pour tout le monde.
+  if (ruleset.variants?.syncDraw) return 1
   const extra = ruleset.variants?.extraTile ? 1 : 0
   if (ruleset.tilesPerRound > 0) return ruleset.tilesPerRound + extra
   // Règle officielle : autant de tuiles que de joueurs.
@@ -90,12 +92,23 @@ export function tilesPerRound(ruleset: Ruleset, playerCount: number): number {
   return (playerCount === 1 ? 2 : playerCount) + extra
 }
 
+/** Côté du plateau partagé (variante Plateau commun) : 6×6, ou 8×8 à 4+. */
+export function sharedBoardSize(playerCount: number): number {
+  return playerCount <= 3 ? 6 : 8
+}
+
 /**
  * Nombre de manches d'une partie : une par case du plateau, moins la tuile de
- * départ déjà posée (variante).
+ * départ déjà posée (variante). En Plateau commun, chaque manche remplit une
+ * case PAR JOUEUR : on joue tant qu'il reste une case pour chacun.
  */
-export function roundsFor(ruleset: Ruleset): number {
-  return ruleset.boardSize * ruleset.boardSize - (ruleset.variants?.startTile ? 1 : 0)
+export function roundsFor(ruleset: Ruleset, playerCount = 0): number {
+  const start = ruleset.variants?.startTile ? 1 : 0
+  if (ruleset.variants?.sharedBoard && playerCount > 0) {
+    const size = sharedBoardSize(playerCount)
+    return Math.floor((size * size - start) / playerCount)
+  }
+  return ruleset.boardSize * ruleset.boardSize - start
 }
 
 /** Manche où les cartes Rotation sont retournées (variante Échange de plateaux). */
@@ -106,10 +119,15 @@ export function swapRound(ruleset: Ruleset): number {
 /** Nombre de tuiles nécessaires pour aller au bout de la partie. */
 export function tilesNeeded(ruleset: Ruleset, playerCount: number): number {
   const reserve = ruleset.variants?.personalTile ? playerCount : 0
-  // Chaque manche consomme une tuile par joueur ; celles qui restent au centre
-  // repartent au sac. Il faut simplement de quoi garnir la dernière manche.
-  const perRound = playerCount === 1 ? 1 : playerCount
-  return roundsFor(ruleset) * perRound + (tilesPerRound(ruleset, playerCount) - perRound) + reserve
+  // Chaque manche consomme une tuile par joueur — une seule en Partie
+  // synchrone ; celles qui restent au centre repartent au sac. Il faut
+  // simplement de quoi garnir la dernière manche.
+  const perRound = ruleset.variants?.syncDraw ? 1 : playerCount === 1 ? 1 : playerCount
+  return (
+    roundsFor(ruleset, playerCount) * perRound +
+    (tilesPerRound(ruleset, playerCount) - perRound) +
+    reserve
+  )
 }
 
 /** Taille du sac selon les variantes actives. */
@@ -133,6 +151,15 @@ export function configError(config: GameConfig): string | null {
   }
   if (config.options.personalCards && config.options.useCards) {
     return 'Cartes missions persos et cartes de la table ne peuvent pas être activées en même temps.'
+  }
+  if (v?.sharedBoard && (v?.coloredBorders || v?.multiBorders)) {
+    return 'Le Plateau commun n’a pas de bordures : décochez les Bordures colorées ou multicolores.'
+  }
+  if (v?.sharedBoard && v?.boardSwap) {
+    return 'Échange de plateaux et Plateau commun sont incompatibles : il n’y a qu’un seul plateau.'
+  }
+  if (v?.syncDraw && (v?.extraTile || v?.lastPickRandom || v?.randomBack)) {
+    return 'La Partie synchrone révèle une seule tuile, la même pour tous : Tuile supplémentaire, Dernier choix aléatoire et Verso aléatoire n’ont plus de sens avec elle.'
   }
   const needed = tilesNeeded(config.options.ruleset, n)
   const available = bagSize(config.options.ruleset)
@@ -175,8 +202,10 @@ export function bordersFor(ruleset: Ruleset, boardColor: BoardColor): BorderSpec
 
 export function createGame(config: GameConfig): GameState {
   const rng = new Rng(config.options.seed)
-  const size = config.options.ruleset.boardSize
   const ruleset = config.options.ruleset
+  // Plateau commun : un seul grand plateau, sa taille suit le nombre de joueurs.
+  const shared = Boolean(ruleset.variants?.sharedBoard)
+  const size = shared ? sharedBoardSize(config.players.length) : ruleset.boardSize
   const players: Player[] = config.players.map((p, i) => ({
     id: i,
     name: p.name.trim() || `Joueur ${i + 1}`,
@@ -185,6 +214,12 @@ export function createGame(config: GameConfig): GameState {
     color: BOARD_COLOR_HEX[p.boardColor],
     board: { ...createBoard(size), borders: bordersFor(ruleset, p.boardColor) },
   }))
+
+  // Plateau commun : tout le monde regarde — et remplit — le même plateau.
+  if (shared) {
+    const commun = createBoard(size)
+    for (const p of players) p.board = commun
+  }
 
   // Cartes missions : une ou plusieurs pour la table, ou une par joueur.
   let cardId: string | undefined
@@ -212,18 +247,26 @@ export function createGame(config: GameConfig): GameState {
     // Multicolore : une seule tuile à quatre couleurs, la même pour tous, pour
     // que personne ne démarre avec un avantage. Monochrome : la couleur du
     // plateau de chacun.
-    const multi = ruleset.variants.startTileMulti
-      ? MULTI_START_TILE_IDS[rng.int(MULTI_START_TILE_IDS.length)]
-      : null
-    for (const p of players) {
-      p.board = {
-        ...p.board,
-        cells: p.board.cells.slice(),
-      }
-      p.board.cells[cell] = {
-        tileId: multi ?? COLOR_TILE_IDS[p.boardColor],
-        rot: 0,
-        round: -1,
+    const multi =
+      ruleset.variants.startTileMulti || shared
+        ? MULTI_START_TILE_IDS[rng.int(MULTI_START_TILE_IDS.length)]
+        : null
+    if (shared) {
+      // une seule tuile de départ, neutre : la multicolore, la même pour tous
+      const commun = { ...players[0].board, cells: players[0].board.cells.slice() }
+      commun.cells[cell] = { tileId: multi as number, rot: 0, round: -1 }
+      for (const p of players) p.board = commun
+    } else {
+      for (const p of players) {
+        p.board = {
+          ...p.board,
+          cells: p.board.cells.slice(),
+        }
+        p.board.cells[cell] = {
+          tileId: multi ?? COLOR_TILE_IDS[p.boardColor],
+          rot: 0,
+          round: -1,
+        }
       }
     }
   }
@@ -274,6 +317,11 @@ export function createGame(config: GameConfig): GameState {
   for (const card of CARDS) {
     if (card.colorized) cardColors[card.id] = PATH_COLORS[rng.int(PATH_COLORS.length)]
   }
+  // Axe (colonne ou ligne) des cartes qui en dépendent — même principe.
+  const cardAxes: Record<string, 'col' | 'row'> = {}
+  for (const card of CARDS) {
+    if (card.randomAxis) cardAxes[card.id] = rng.int(2) === 0 ? 'col' : 'row'
+  }
 
   const state: GameState = {
     phase: 'playing',
@@ -281,6 +329,7 @@ export function createGame(config: GameConfig): GameState {
     cardId,
     cardIds,
     cardColors,
+    cardAxes,
     swapCard: ruleset.variants?.boardSwap
       ? rng.int(2) === 0
         ? 'rotate'
@@ -290,7 +339,7 @@ export function createGame(config: GameConfig): GameState {
     bag,
     pool: [],
     round: 0,
-    totalRounds: roundsFor(ruleset),
+    totalRounds: roundsFor(ruleset, players.length),
     // Premier porteur du sac : le joueur 1, ou un joueur au hasard (option).
     // Le tirage est fait en dernier pour ne pas décaler le mélange du sac.
     bagHolder: config.options.randomFirst ? rng.int(players.length) : 0,
@@ -304,8 +353,11 @@ export function createGame(config: GameConfig): GameState {
 function drawPool(state: GameState): GameState {
   const count = tilesPerRound(state.options.ruleset, state.players.length)
   // Les tuiles restées au centre (tuile supplémentaire non prise, ou tuile
-  // personnelle jouée à la place) sont REMÉLANGÉES dans le sac.
-  const leftovers = state.pool.filter((p) => p.takenBy === null).map((p) => p.tileId)
+  // personnelle jouée à la place) sont REMÉLANGÉES dans le sac. Pas en Partie
+  // synchrone : la tuile commune a été jouée par tout le monde.
+  const leftovers = state.options.ruleset.variants?.syncDraw
+    ? []
+    : state.pool.filter((p) => p.takenBy === null).map((p) => p.tileId)
   const bag = leftovers.length
     ? new Rng(`${state.options.seed}-melange-${state.round}`).shuffle([...leftovers, ...state.bag])
     : state.bag
@@ -349,6 +401,8 @@ export function isLegalMove(state: GameState, move: Move): boolean {
   const player = currentPlayer(state)
   const variants = state.options.ruleset.variants
   if (move.flipped && !variants?.mirrorTiles) return false
+  // Verso aléatoire : après avoir retourné une tuile, on doit la prendre.
+  if (state.mustTakeTileId !== undefined && move.tileId !== state.mustTakeTileId) return false
   if (move.personal) {
     if (!variants?.personalTile) return false
     if (player.personalTileId !== move.tileId || player.personalUsed) return false
@@ -369,6 +423,7 @@ export function canRedrawLastTile(state: GameState): boolean {
   return Boolean(
     state.phase === 'playing' &&
       state.options.ruleset.variants?.lastPickRandom &&
+      state.mustTakeTileId === undefined &&
       !state.redrawUsed &&
       state.turnIndex === state.players.length - 1 &&
       availableTiles(state).length === 1 &&
@@ -387,6 +442,36 @@ export function redrawLastTile(state: GameState): GameState {
     p.tileId === remaining.tileId ? { tileId: drawn, takenBy: null } : p,
   )
   return { ...state, bag, pool, redrawUsed: true }
+}
+
+/**
+ * Variante Verso aléatoire : à son tour, un joueur peut retourner une tuile du
+ * centre encore libre. Sa nouvelle face est tirée du sac — l'ancienne
+ * disparaît, c'est la même tuile physique — et il doit la prendre : on ne
+ * revient jamais en arrière. Une tuile ne se retourne qu'une fois.
+ */
+export function canFlipTile(state: GameState, tileId: number): boolean {
+  const v = state.options.ruleset.variants
+  if (!v?.randomBack || state.phase !== 'playing') return false
+  if (state.mustTakeTileId !== undefined) return false
+  const pool = state.pool.find((p) => p.tileId === tileId)
+  if (!pool || pool.takenBy !== null || pool.flipped) return false
+  // L'ancienne face ne revient pas au sac : il faut garder de quoi finir la
+  // partie. On exige une tuile d'avance sur les manches restantes.
+  const perRound = tilesPerRound(state.options.ruleset, state.players.length)
+  const futures = Math.max(0, state.totalRounds - state.round - 1) * perRound
+  return state.bag.length >= futures + 1
+}
+
+export function flipTile(state: GameState, tileId: number): GameState {
+  if (!canFlipTile(state, tileId)) return state
+  const rng = new Rng(`${state.options.seed}-verso-${state.round}-${state.turnIndex}`)
+  const bag = state.bag.slice()
+  const drawn = bag.splice(rng.int(bag.length), 1)[0]
+  const pool = state.pool.map((p) =>
+    p.tileId === tileId ? { tileId: drawn, takenBy: null, flipped: true } : p,
+  )
+  return { ...state, bag, pool, mustTakeTileId: drawn }
 }
 
 /**
@@ -421,25 +506,38 @@ export function applyMove(state: GameState, move: Move): GameState {
   // Barème en vigueur : la carte « zones noires positives » en fait partie.
   const ruleset = activeRuleset(state)
 
+  const variants = state.options.ruleset.variants
+  const shared = Boolean(variants?.sharedBoard)
+  const sync = Boolean(variants?.syncDraw)
+
   const before = scoreOf(player.board, ruleset, player)
+  // En Plateau commun, chaque manche pose un rang de plus : le numéro de tour
+  // doit rester unique par tuile pour l'ordre de pose (teintures, cristaux…).
+  const roundStamp = shared ? state.round * state.players.length + state.turnIndex : state.round
   const board = placeTile(
     player.board,
     move.cell,
     move.tileId,
     move.rot,
-    state.round,
+    roundStamp,
     move.flipped,
+    shared ? playerId : undefined,
   )
   const after = scoreOf(board, ruleset, player)
 
-  const players = state.players.slice()
-  players[playerId] = move.personal
-    ? { ...player, board, personalUsed: true }
-    : { ...player, board }
+  // Plateau commun : tout le monde regarde le même plateau, il change pour tous.
+  const players = state.players.map((q, i) => {
+    if (i === playerId) {
+      return move.personal ? { ...q, board, personalUsed: true } : { ...q, board }
+    }
+    return shared ? { ...q, board } : q
+  })
 
-  const pool = move.personal
-    ? state.pool
-    : state.pool.map((p) => (p.tileId === move.tileId ? { ...p, takenBy: playerId } : p))
+  // Partie synchrone : la tuile commune reste disponible pour les suivants.
+  const pool =
+    move.personal || sync
+      ? state.pool
+      : state.pool.map((p) => (p.tileId === move.tileId ? { ...p, takenBy: playerId } : p))
 
   const log = state.log.concat({
     round: state.round,
@@ -453,7 +551,14 @@ export function applyMove(state: GameState, move: Move): GameState {
     delta: after - before,
   })
 
-  let next: GameState = { ...state, players, pool, log, turnIndex: state.turnIndex + 1 }
+  let next: GameState = {
+    ...state,
+    players,
+    pool,
+    log,
+    turnIndex: state.turnIndex + 1,
+    mustTakeTileId: undefined,
+  }
 
   // Fin du tour : tous les joueurs ont choisi une tuile.
   if (next.turnIndex >= next.players.length) {
@@ -497,6 +602,7 @@ function roundTotals(state: GameState, baseRuleset: Ruleset): number[] {
       { playerId: p.id, board: p.board, ruleset, table },
       playerCardIds(state, p.id),
       state.cardColors,
+      state.cardAxes,
     ).total
   })
 }

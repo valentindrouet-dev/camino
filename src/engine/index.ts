@@ -1,6 +1,6 @@
 import { applyCards, cardById, cardTable, playerCardIds, rulesetForPlayer } from './cards.ts'
 import type { MissionCard } from './cards.ts'
-import { scoreBoard } from './scoring.ts'
+import { scoreBoard, scoreSign } from './scoring.ts'
 import type { Color, GameState, Player, ScoreBreakdown } from './types.ts'
 
 export * from './types.ts'
@@ -33,6 +33,7 @@ export function scorePlayer(player: Player, state: GameState): ScoreBreakdown {
     },
     cards,
     state.cardColors,
+    state.cardAxes,
   )
 }
 
@@ -52,6 +53,8 @@ export function cardResults(
   structural?: boolean
   /** Couleur tirée pour cette carte, si elle en dépend. */
   color?: Color
+  /** Axe tiré pour cette carte, si elle en dépend. */
+  axis?: 'col' | 'row'
 }[] {
   const ids = playerCardIds(state, playerId)
   if (!ids.length) return []
@@ -64,7 +67,10 @@ export function cardResults(
     const card = cardById(id)
     if (!card) return []
     const color = state.cardColors?.[id]
-    const r = card.evaluate({ playerId, board: player.board, breakdown, ruleset, table, color })
-    return [{ card, points: r.points, detail: r.detail, structural: r.structural, color }]
+    const axis = state.cardAxes?.[id]
+    const brut = card.evaluate({ playerId, board: player.board, breakdown, ruleset, table, color, axis })
+    // Scoring inversé : une mission accomplie coûte ce qu'elle rapportait.
+    const points = scoreSign(ruleset) * brut.points || 0
+    return [{ card, points, detail: brut.detail, structural: brut.structural, color, axis }]
   })
 }

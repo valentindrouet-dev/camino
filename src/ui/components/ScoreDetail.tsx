@@ -23,6 +23,7 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
     breakdown.blackZones === 0 &&
     breakdown.starPoints === 0 &&
     breakdown.cloverPoints === 0 &&
+    breakdown.crystalPoints === 0 &&
     breakdown.secretPoints === 0 &&
     !breakdown.cardLabel
   return (
@@ -118,6 +119,20 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
           </span>
           <span className={`val ${breakdown.cloverPoints > 0 ? 'pos' : 'neg'}`}>
             {signed(breakdown.cloverPoints)}
+          </span>
+        </div>
+      )}
+
+      {!dense && breakdown.crystalPoints !== 0 && (
+        <div className="score-line" title="Cristaux : +4 par cristal resté intact">
+          <span className="swatch mission" style={{ background: '#9FE8FF' }}>
+            ◆
+          </span>
+          <span className="bar">
+            <i style={{ width: '100%', background: '#9FE8FF' }} />
+          </span>
+          <span className={`val ${breakdown.crystalPoints > 0 ? 'pos' : 'neg'}`}>
+            {signed(breakdown.crystalPoints)}
           </span>
         </div>
       )}

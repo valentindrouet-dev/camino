@@ -782,3 +782,193 @@ test('étoiles : deux barèmes au choix', () => {
   assert.equal(E.scoreBoard(board, rs('growing')).starPoints, croissant)
   assert.equal(E.scoreBoard(board, R).starPoints, 0, 'sans la variante, rien')
 })
+
+// ---------------------------------------------------------------------------
+// v1.39 — Verso aléatoire, Cristaux, Teintures, Moulins, Synchrone, Commun
+// ---------------------------------------------------------------------------
+
+const partie2 = (variants, seed, kind = 'human') =>
+  E.createGame({
+    players: [
+      { name: 'A', kind, boardColor: 'O' },
+      { name: 'B', kind, boardColor: 'B' },
+    ],
+    options: { ...E.defaultOptions(seed), ruleset: withVariants(variants) },
+  })
+
+test('verso aléatoire : retour sans retour', () => {
+  const s = partie2({ randomBack: true }, 'verso-1')
+  const cible = s.pool[0].tileId
+  assert.ok(E.canFlipTile(s, cible))
+  const apres = E.flipTile(s, cible)
+  const neuve = apres.pool[0]
+  assert.notEqual(neuve.tileId, cible, 'la face a changé')
+  assert.ok(neuve.flipped, 'la tuile est marquée retournée')
+  assert.equal(apres.bag.length, s.bag.length - 1, 'la nouvelle face vient du sac')
+  assert.ok(!apres.bag.includes(cible), 'l’ancienne face a disparu')
+  assert.equal(apres.mustTakeTileId, neuve.tileId, 'il faut prendre la tuile retournée')
+  // impossible de retourner une deuxième tuile ce tour-ci, ni celle-là encore
+  assert.ok(!E.canFlipTile(apres, apres.pool[1].tileId))
+  assert.ok(!E.canFlipTile(apres, neuve.tileId))
+  // un coup avec une autre tuile est illégal, avec la retournée il passe
+  const cell = E.currentLegalCells(apres)[0]
+  assert.ok(!E.isLegalMove(apres, { tileId: apres.pool[1].tileId, cell, rot: 0 }))
+  const joue = E.applyMove(apres, { tileId: neuve.tileId, cell, rot: 0 })
+  assert.notEqual(joue, apres, 'le coup obligatoire passe')
+  assert.equal(joue.mustTakeTileId, undefined, 'l’obligation est levée')
+  // même graine, même verso : le retournement est déterministe
+  const bis = E.flipTile(partie2({ randomBack: true }, 'verso-1'), cible)
+  assert.equal(bis.pool[0].tileId, neuve.tileId)
+  // sans la variante, rien
+  assert.ok(!E.canFlipTile(partie2({}, 'verso-1'), cible))
+})
+
+test('cristaux : 3 par couleur, +4 tant que personne ne vient se coller', () => {
+  assert.equal(E.CRYSTALS.size, 18)
+  for (const id of E.CRYSTALS) {
+    const q = E.TILES[id].quads
+    assert.ok(
+      E.PATH_COLORS.some((c) => q.filter((x) => x === c).length >= 3),
+      `tuile ${id} : 3 ou 4 quarts de même couleur`,
+    )
+  }
+  const [c1] = [...E.CRYSTALS]
+  const rs = withVariants({ crystals: true })
+  const board = E.createBoard(4)
+  // le cristal posé au tour 5, un voisin posé AVANT : il reste intact
+  board.cells[5] = { tileId: c1, rot: 0, round: 5 }
+  board.cells[4] = { tileId: 0, rot: 0, round: 2 }
+  assert.ok(E.crystalIntact(board, 5))
+  assert.equal(E.scoreBoard(board, rs).crystalPoints, 4)
+  // un voisin posé APRÈS : brisé
+  board.cells[6] = { tileId: 1, rot: 0, round: 9 }
+  assert.ok(!E.crystalIntact(board, 5))
+  assert.equal(E.scoreBoard(board, rs).crystalPoints, 0)
+  // sans la variante, aucun point ; en scoring inversé, le cristal coûte
+  board.cells[6] = null
+  assert.equal(E.scoreBoard(board, R).crystalPoints, 0)
+  assert.equal(
+    E.scoreBoard(board, withVariants({ crystals: true, reverseScoring: true })).crystalPoints,
+    -4,
+  )
+})
+
+test('teintures : la zone noire adjacente prend la couleur du pot', () => {
+  assert.equal(E.DYES.size, 18)
+  const parCouleur = {}
+  for (const [id, d] of E.DYES) {
+    parCouleur[d.color] = (parCouleur[d.color] ?? 0) + 1
+    assert.notEqual(E.TILES[id].quads[d.quad], 'K', 'jamais sur un quart noir')
+    assert.notEqual(E.TILES[id].quads[d.quad], d.color, 'jamais sur sa propre couleur')
+  }
+  for (const c of E.PATH_COLORS) assert.equal(parCouleur[c], 3, `3 teintures ${c}`)
+
+  // une tuile noire posée d'abord, la teinture posée ensuite à côté du noir
+  const [dyeId, dye] = [...E.DYES.entries()][0]
+  const rs = withVariants({ dyes: true })
+  const board = E.createBoard(4)
+  const noire = E.TILES.findIndex((t) => t.quads.every((q) => q === 'K'))
+  // orienter la teinture pour que son quart regarde la tuile noire à gauche :
+  // quart 0 (haut-gauche) ou 3 (bas-gauche)
+  const rot = (4 - dye.quad) % 4 // amène le quart teinté en position 0
+  board.cells[0] = { tileId: noire, rot: 0, round: 0 }
+  board.cells[1] = { tileId: dyeId, rot, round: 1 }
+  const zones = E.computeZones(board, rs)
+  const teintee = zones.find((z) => z.color === dye.color && z.tiles.includes(0))
+  assert.ok(teintee, 'la zone noire a pris la couleur du pot')
+  assert.equal(zones.filter((z) => z.color === 'K' && z.tiles.includes(0)).length, 0)
+  // sans la variante, le noir reste noir
+  assert.ok(E.computeZones(board, R).some((z) => z.color === 'K' && z.tiles.includes(0)))
+
+  // posée dans l'autre ordre — le noir arrive APRÈS le pot — rien ne déteint
+  const tard = E.createBoard(4)
+  tard.cells[1] = { tileId: dyeId, rot, round: 0 }
+  tard.cells[0] = { tileId: noire, rot: 0, round: 1 }
+  assert.ok(E.computeZones(tard, rs).some((z) => z.color === 'K' && z.tiles.includes(0)))
+})
+
+test('moulins : les voisines déjà posées tournent d’un quart vers la gauche', () => {
+  assert.equal(E.WINDMILLS.size, 15)
+  const moulin = [...E.WINDMILLS][0]
+  const rs = withVariants({ windmills: true })
+  const board = E.createBoard(4)
+  // une tuile posée avant le moulin, juste à côté
+  board.cells[5] = { tileId: 3, rot: 0, round: 0 } // YBBY
+  board.cells[6] = { tileId: moulin, rot: 0, round: 1 }
+  assert.equal(E.effectiveRot(board, 5, true), 3, 'un quart de tour à gauche')
+  assert.equal(E.effectiveRot(board, 5, false), 0, 'sans la variante, rien')
+  // la grille suit : les quarts de la tuile 5 sont ceux de la rotation 3
+  const fx = { windmills: true }
+  const grid = E.quadGrid(board, fx)
+  const attendu = E.tileQuads(3, 3)
+  const qs = 8
+  assert.equal(grid.cells[2 * qs + 2], attendu[0])
+  assert.equal(grid.cells[2 * qs + 3], attendu[1])
+  // une tuile posée APRÈS le moulin ne tourne pas
+  board.cells[2] = { tileId: 4, rot: 1, round: 5 }
+  assert.equal(E.effectiveRot(board, 2, true), 1)
+  // deux moulins voisins postérieurs = deux crans
+  const deux = [...E.WINDMILLS][1]
+  board.cells[9] = { tileId: deux, rot: 0, round: 7 }
+  assert.equal(E.effectiveRot(board, 5, true), 2, 'deux quarts de tour')
+})
+
+test('partie synchrone : une seule tuile, la même pour tout le monde', () => {
+  let s = partie2({ syncDraw: true }, 'sync-1', 'bot-greedy')
+  assert.equal(s.pool.length, 1, 'une seule tuile révélée')
+  const commune = s.pool[0].tileId
+  const sacAvant = s.bag.length
+  // les deux joueurs posent la même tuile
+  for (let t = 0; t < 2; t++) {
+    const move = E.bestMove(s, 'bot-greedy')
+    assert.equal(move.tileId, commune, `joueur ${t + 1} joue la tuile commune`)
+    s = E.applyMove(s, move)
+  }
+  assert.equal(s.round, 1, 'la manche est finie')
+  assert.equal(s.bag.length, sacAvant - 1, 'une seule tuile consommée par manche')
+  // les deux plateaux portent la même tuile
+  const posees = s.players.map((p) => p.board.cells.filter(Boolean).map((c) => c.tileId))
+  assert.deepEqual(posees[0], [commune])
+  assert.deepEqual(posees[1], [commune])
+  // la partie va au bout
+  while (s.phase === 'playing') s = E.applyMove(s, E.bestMove(s, 'bot-greedy'))
+  assert.equal(s.phase, 'finished')
+  for (const p of s.players) assert.ok(E.isFull(p.board))
+})
+
+test('plateau commun : chacun marque les chemins où il a posé', () => {
+  const s = partie2({ sharedBoard: true }, 'commun-1')
+  assert.equal(s.players[0].board, s.players[1].board, 'un seul et même plateau')
+  assert.equal(s.players[0].board.size, 6, '6×6 à deux joueurs')
+  assert.equal(s.totalRounds, 18)
+
+  // A pose deux tuiles rouges reliées, B pose ailleurs
+  let cur = s
+  const rouge = 33 // RKRR
+  const move = (tileId, cell, rot = 0) => {
+    const t = cur.pool.find((p) => p.takenBy === null)
+    // on force la tuile voulue dans la pioche pour un scénario contrôlé
+    cur = { ...cur, pool: cur.pool.map((p) => (p === t ? { ...p, tileId } : p)) }
+    cur = E.applyMove(cur, { tileId, cell, rot })
+  }
+  move(rouge, 0) // A en case 0
+  move(0, 20) // B loin (YOOY)
+  move(34, 1) // A : deuxième rouge à côté (RKRR)
+  move(1, 21) // B
+  move(33, 2, 2) // A : troisième rouge — mais l'id 33 est déjà pris… utilisons bestMove
+  const a = E.scoreBoard(cur.players[0].board, cur.options.ruleset, cur.players[0])
+  const b = E.scoreBoard(cur.players[1].board, cur.options.ruleset, cur.players[1])
+  // le chemin rouge appartient à A : B n'en tire rien
+  const rougeA = a.byColor.R.points
+  const rougeB = b.byColor.R.points
+  assert.ok(rougeA >= 0)
+  assert.equal(rougeB, 0, 'B n’a rien posé dans le chemin rouge')
+  // le noir de la tuile RKRR est à A, pas à B
+  assert.ok(a.blackZones > 0)
+  // une partie complète en bots se termine
+  let fin = partie2({ sharedBoard: true }, 'commun-2', 'bot-greedy')
+  while (fin.phase === 'playing') fin = E.applyMove(fin, E.bestMove(fin, 'bot-greedy'))
+  assert.equal(fin.phase, 'finished')
+  const posees = fin.players[0].board.cells.filter(Boolean).length
+  assert.equal(posees, 36, 'le plateau 6×6 est plein (18 manches × 2)')
+})

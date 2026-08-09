@@ -3,6 +3,12 @@ import {
   COLOR_HEX,
   WHITE,
   cloverQuadIndex,
+  crystalIntact,
+  CRYSTALS,
+  dyeAt,
+  effectiveRot,
+  gridEffects,
+  WINDMILLS,
   computeZones,
   faultAxis,
   legalCells as computeLegalCells,
@@ -19,7 +25,7 @@ import {
 } from '../../engine/index.ts'
 import type { Board, Color, Rotation, Ruleset, Zone } from '../../engine/index.ts'
 import { IridescentDefs, quadFill, Sheen } from './Iridescent.tsx'
-import { CloverMark, FaultMark } from './TileMarks.tsx'
+import { CloverMark, CrystalMark, DyeMark, FaultMark, WindmillMark } from './TileMarks.tsx'
 
 /**
  * Reproduction du plateau de la boîte : un contour de couleur propre à chaque
@@ -91,7 +97,9 @@ export function BoardView({
   // Seules les bordures multicolores réservent une couronne de carrés.
   const bw = board.borders?.kind === 'multi' ? BORDER_W : 0
   const side = PAD * 2 + 2 * bw + n * PITCH + GAP
-  const grid = useMemo(() => quadGrid(board), [board])
+  // Effets de variantes portés par la grille : moulins, teintures, failles.
+  const fx = useMemo(() => gridEffects(ruleset), [ruleset])
+  const grid = useMemo(() => quadGrid(board, fx), [board, fx])
   // En vignette on n'affiche ni contour ni pastille, mais les zones restent
   // nécessaires dès qu'il y a des trèfles : c'est ce qui décide de leur couleur.
   const banned = forbidden?.length && ruleset.variants?.forbiddenColor ? forbidden : EMPTY
@@ -104,9 +112,9 @@ export function BoardView({
   const starGroups = useMemo(
     () =>
       ruleset.variants?.magicStars
-        ? starClusters(board, ruleset.variants.starScoring ?? 'linked')
+        ? starClusters(board, ruleset.variants.starScoring ?? 'linked', fx?.windmills)
         : [],
-    [board, ruleset.variants?.magicStars, ruleset.variants?.starScoring],
+    [board, ruleset.variants?.magicStars, ruleset.variants?.starScoring, fx],
   )
   /** Tuiles dont les quatre quarts sont irisés : un seul grand carré à l'écran. */
   const rainbowTiles = useMemo(() => {
@@ -159,7 +167,7 @@ export function BoardView({
     for (let i = 0; i < board.cells.length; i++) {
       const placed = board.cells[i]
       if (!placed) continue
-      const cq = cloverQuadIndex(placed.tileId, placed.rot, placed.flipped)
+      const cq = cloverQuadIndex(placed.tileId, effectiveRot(board, i, fx?.windmills), placed.flipped)
       if (cq === null) continue
       const r = Math.floor(i / n) * 2 + (cq >= 2 ? 1 : 0)
       const c = (i % n) * 2 + (cq === 1 || cq === 2 ? 1 : 0)
@@ -331,7 +339,7 @@ export function BoardView({
       {ruleset.variants?.faultTiles &&
         board.cells.map((placed, i) => {
           if (!placed) return null
-          const axis = faultAxis(placed.tileId, placed.rot, placed.flipped)
+          const axis = faultAxis(placed.tileId, effectiveRot(board, i, fx?.windmills), placed.flipped)
           if (axis === null) return null
           const { x, y } = cellXY(i)
           return <FaultMark key={`f${i}`} x={x} y={y} size={TILEW} axis={axis} />
@@ -341,7 +349,7 @@ export function BoardView({
       {ruleset.variants?.clovers &&
         board.cells.map((placed, i) => {
           if (!placed) return null
-          const cq = cloverQuadIndex(placed.tileId, placed.rot, placed.flipped)
+          const cq = cloverQuadIndex(placed.tileId, effectiveRot(board, i, fx?.windmills), placed.flipped)
           if (cq === null) return null
           const { x, y } = cellXY(i)
           const [dx, dy] = QUAD_OFFSETS[cq]
@@ -355,6 +363,51 @@ export function BoardView({
               size={QUAD * 0.62}
               state={scoringQuads.has(r * n * 2 + c) ? 'scoring' : 'lost'}
             />
+          )
+        })}
+
+      {/* cristaux : brillants tant qu'intacts, brisés dès qu'on s'y colle */}
+      {ruleset.variants?.crystals &&
+        board.cells.map((placed, i) => {
+          if (!placed || !CRYSTALS.has(placed.tileId)) return null
+          const { x, y } = cellXY(i)
+          return (
+            <CrystalMark
+              key={`cr${i}`}
+              cx={x + TILEW / 2}
+              cy={y + TILEW / 2}
+              size={QUAD * 0.66}
+              intact={crystalIntact(board, i)}
+            />
+          )
+        })}
+
+      {/* teintures : le pot, posé sur son quart */}
+      {ruleset.variants?.dyes &&
+        board.cells.map((placed, i) => {
+          if (!placed) return null
+          const dye = dyeAt(placed.tileId, effectiveRot(board, i, fx?.windmills), placed.flipped)
+          if (!dye) return null
+          const { x, y } = cellXY(i)
+          const [dx, dy] = QUAD_OFFSETS[dye.quad]
+          return (
+            <DyeMark
+              key={`d${i}`}
+              cx={x + dx + QUAD / 2}
+              cy={y + dy + QUAD / 2}
+              size={QUAD * 0.56}
+              color={COLOR_HEX[dye.color]}
+            />
+          )
+        })}
+
+      {/* moulins : ils ont fait tourner leurs voisines à la pose */}
+      {ruleset.variants?.windmills &&
+        board.cells.map((placed, i) => {
+          if (!placed || !WINDMILLS.has(placed.tileId)) return null
+          const { x, y } = cellXY(i)
+          return (
+            <WindmillMark key={`w${i}`} cx={x + TILEW / 2} cy={y + TILEW / 2} size={QUAD * 0.7} />
           )
         })}
 
@@ -377,7 +430,7 @@ export function BoardView({
       {ruleset.variants?.magicStars &&
         board.cells.map((placed, i) => {
           if (!placed) return null
-          const sq = starQuadIndex(placed.tileId, placed.rot, placed.flipped)
+          const sq = starQuadIndex(placed.tileId, effectiveRot(board, i, fx?.windmills), placed.flipped)
           if (sq === null) return null
           const { x, y } = cellXY(i)
           const [dx, dy] = QUAD_OFFSETS[sq]

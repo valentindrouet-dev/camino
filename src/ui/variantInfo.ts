@@ -113,6 +113,36 @@ export function activeVariantInfos(options: GameOptions): VariantInfo[] {
     'Chaque joueur a reçu une couleur en secret : à la fin, son meilleur chemin de cette couleur est doublé.',
   )
   add(
+    v.randomBack,
+    'Verso aléatoire',
+    'À son tour, un joueur peut retourner une tuile du centre : sa nouvelle face sort du sac, et il doit la poser — sans retour possible (touche V).',
+  )
+  add(
+    v.crystals,
+    'Cristaux',
+    '18 tuiles portent un cristal : +4 points s’il reste intact, c’est-à-dire si aucune tuile n’est venue se coller à la sienne après sa pose.',
+  )
+  add(
+    v.dyes,
+    'Teintures',
+    '18 pots de couleur : posé adjacent à une zone noire, le pot déteint et la zone prend sa couleur — définitivement. Le noir arrivé plus tard reste noir.',
+  )
+  add(
+    v.windmills,
+    'Moulins',
+    '15 tuiles à moulin : à la pose, les tuiles adjacentes déjà posées tournent d’un quart de tour vers la gauche.',
+  )
+  add(
+    v.syncDraw,
+    'Partie synchrone',
+    'Une seule tuile par manche, la même pour tout le monde — plus de choix au centre, plus d’ordre de pioche.',
+  )
+  add(
+    v.sharedBoard,
+    'Plateau commun',
+    'Un seul grand plateau pour la table : chacun marque les chemins contenant au moins une tuile qu’il a posée, et le noir partagé se paie.',
+  )
+  add(
     v.reverseScoring,
     'Scoring inversé',
     'Chacun part à 20 points : les zones noires rapportent 2 points, les chemins coûtent ce qu’ils rapportaient, et toutes les autres variantes comptent à l’envers.',

@@ -190,7 +190,7 @@ export default function App() {
               />
               Points par Zone visible
             </label>
-            {state.players.length > 1 && (
+            {state.players.length > 1 && !state.options.ruleset.variants?.sharedBoard && (
               <label className={`toggle ${state.options.allBoards ? 'on' : ''}`}>
                 <input
                   type="checkbox"

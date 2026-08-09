@@ -1,5 +1,5 @@
-import { quadGrid, tileOfQuad } from './board.ts'
-import { cloverQuadIndex, faultAxis, starQuadIndex } from './tiles.ts'
+import { effectiveRot, faultBlocks, gridEffects, neighbours, quadGrid, tileOfQuad } from './board.ts'
+import { cloverQuadIndex, CRYSTALS, starQuadIndex } from './tiles.ts'
 import type {
   Board,
   Color,
@@ -58,24 +58,6 @@ export function starClusterPoints(count: number, mode: StarScoring = 'linked'): 
   return mode === 'growing' ? count * count : 2 * count
 }
 
-/**
- * Variante Failles : la faille coupe une tuile en deux moitiés qui ne se
- * relient pas entre elles. Seules les arêtes INTERNES à une tuile peuvent être
- * bloquées — la frontière entre deux tuiles n'est jamais concernée.
- */
-function faultBlocks(board: Board, a: number, b: number): boolean {
-  const tile = tileOfQuad(board.size, a)
-  if (tile !== tileOfQuad(board.size, b)) return false
-  const placed = board.cells[tile]
-  if (!placed) return false
-  const axis = faultAxis(placed.tileId, placed.rot, placed.flipped)
-  if (axis === null) return false
-  const qs = board.size * 2
-  // faille verticale (0) : elle sépare la gauche de la droite, donc bloque les
-  // voisins horizontaux ; faille horizontale (1) : l'inverse.
-  return axis === 0 ? a % qs !== b % qs : Math.floor(a / qs) !== Math.floor(b / qs)
-}
-
 /** Cases de bordure adjacentes à un quart donné, avec leur couleur. */
 function borderNeighbours(board: Board, qi: number): { id: number; color: Color }[] {
   const spec = board.borders
@@ -119,11 +101,15 @@ export function computeZones(
   /** Couleurs interdites du joueur (variante) : leurs zones coûtent le malus. */
   forbidden: Color[] = [],
 ): Zone[] {
-  const grid = quadGrid(board)
+  // La grille porte déjà les effets de variantes : rotations de moulins et
+  // zones noires teintées. Zones, score et IA les voient sans code particulier.
+  const fx = gridEffects(ruleset)
+  const grid = quadGrid(board, fx)
   const qs = grid.size
   const zones: Zone[] = []
   const stack: number[] = []
-  const faults = Boolean(ruleset.variants?.faultTiles)
+  const faults = Boolean(fx?.faults)
+  const wind = Boolean(fx?.windmills)
   // Scoring inversé : les valeurs sont retournées ici, une bonne fois — le
   // plateau, le décompte et l'IA lisent tous `points` et suivent donc.
   const sign = scoreSign(ruleset)
@@ -145,7 +131,7 @@ export function computeZones(
         const r = Math.floor(cur / qs)
         const c = cur % qs
         for (const n of [r > 0 ? cur - qs : -1, r < qs - 1 ? cur + qs : -1, c > 0 ? cur - 1 : -1, c < qs - 1 ? cur + 1 : -1]) {
-          if (n >= 0 && !seen[n] && grid.cells[n] === BLACK && !(faults && faultBlocks(board, cur, n))) {
+          if (n >= 0 && !seen[n] && grid.cells[n] === BLACK && !(faults && faultBlocks(board, cur, n, wind))) {
             seen[n] = 1
             stack.push(n)
           }
@@ -188,7 +174,7 @@ export function computeZones(
         const c = cur % qs
         for (const n of [r > 0 ? cur - qs : -1, r < qs - 1 ? cur + qs : -1, c > 0 ? cur - 1 : -1, c < qs - 1 ? cur + 1 : -1]) {
           if (n < 0 || seen[n]) continue
-          if (faults && faultBlocks(board, cur, n)) continue
+          if (faults && faultBlocks(board, cur, n, wind)) continue
           const nc = grid.cells[n]
           if (nc === color || nc === WHITE) {
             seen[n] = 1
@@ -242,13 +228,18 @@ export interface StarCluster {
  * Les étoiles se groupent par simple ADJACENCE de leurs quarts (orthogonale,
  * frontières de tuiles comprises) — pas besoin d'être reliées par un chemin.
  */
-export function starClusters(board: Board, mode: StarScoring = 'linked'): StarCluster[] {
+export function starClusters(
+  board: Board,
+  mode: StarScoring = 'linked',
+  /** Variante Moulins : les étoiles tournent avec leur tuile. */
+  windmills = false,
+): StarCluster[] {
   const qs = board.size * 2
   const starred = new Set<number>()
   for (let i = 0; i < board.cells.length; i++) {
     const placed = board.cells[i]
     if (!placed) continue
-    const starQuad = starQuadIndex(placed.tileId, placed.rot, placed.flipped)
+    const starQuad = starQuadIndex(placed.tileId, effectiveRot(board, i, windmills), placed.flipped)
     if (starQuad === null) continue
     const r = Math.floor(i / board.size) * 2 + (starQuad >= 2 ? 1 : 0)
     const c = (i % board.size) * 2 + (starQuad === 1 || starQuad === 2 ? 1 : 0)
@@ -282,9 +273,50 @@ export function starClusters(board: Board, mode: StarScoring = 'linked'): StarCl
   return clusters
 }
 
-function countStars(board: Board, mode: StarScoring): number {
+/**
+ * Points d'étoiles d'un joueur. En Plateau commun, chaque étoile va au joueur
+ * qui a posé sa tuile : dans un groupe de N, chacune vaut sa part du groupe.
+ */
+function countStars(
+  board: Board,
+  mode: StarScoring,
+  windmills: boolean,
+  ownTiles: Set<number> | null,
+): number {
   let total = 0
-  for (const c of starClusters(board, mode)) total += c.points
+  for (const c of starClusters(board, mode, windmills)) {
+    if (!ownTiles) {
+      total += c.points
+      continue
+    }
+    const perStar = c.points / c.count
+    for (const cell of c.cells) {
+      if (ownTiles.has(tileOfQuad(board.size, cell))) total += perStar
+    }
+  }
+  return total
+}
+
+/**
+ * Cristaux (variante) : +4 par cristal resté « intact » — aucune tuile n'est
+ * venue se coller à la sienne après sa pose. Les voisines déjà en place au
+ * moment de la pose ne le dérangent pas.
+ */
+export function crystalIntact(board: Board, cell: number): boolean {
+  const placed = board.cells[cell]
+  if (!placed || !CRYSTALS.has(placed.tileId)) return false
+  return neighbours(board.size, cell).every((n) => {
+    const p = board.cells[n]
+    return !p || p.round <= placed.round
+  })
+}
+
+function countCrystals(board: Board, ownTiles: Set<number> | null): number {
+  let total = 0
+  for (let i = 0; i < board.cells.length; i++) {
+    if (ownTiles && !ownTiles.has(i)) continue
+    if (crystalIntact(board, i)) total += 4
+  }
   return total
 }
 
@@ -300,6 +332,16 @@ export function scoreBoard(
   const byColor = {} as Record<Color, ColorScore>
   for (const c of COLORS) byColor[c] = { color: c, points: 0, scoringZones: [], zones: [] }
 
+  // Plateau commun : chacun ne marque que les zones contenant au moins une
+  // tuile qu'il a posée — bonnes comme mauvaises, le noir partagé se paie.
+  const ownTiles =
+    ruleset.variants?.sharedBoard && who.id !== undefined
+      ? new Set(
+          board.cells.map((p, i) => (p && p.by === who.id ? i : -1)).filter((i) => i >= 0),
+        )
+      : null
+  const mine = (z: Zone) => !ownTiles || z.tiles.some((t) => ownTiles.has(t))
+
   let colorPoints = 0
   let blackZones = 0
   let blackPoints = 0
@@ -309,6 +351,7 @@ export function scoreBoard(
   // compris) : il n'y a plus qu'à additionner.
   for (const z of zones) {
     byColor[z.color].zones.push(z)
+    if (!mine(z)) continue
     if (z.color === BLACK) {
       blackZones++
       blackPoints += z.points
@@ -331,25 +374,38 @@ export function scoreBoard(
   // Les variantes suivent le même signe : ce qui rapportait coûte, et
   // réciproquement (c'est la règle du scoring inversé).
   const sign = scoreSign(ruleset)
+  const wind = Boolean(ruleset.variants?.windmills)
   const starPoints = ruleset.variants?.magicStars
-    ? flip(sign, countStars(board, ruleset.variants.starScoring ?? 'linked'))
+    ? flip(sign, countStars(board, ruleset.variants.starScoring ?? 'linked', wind, ownTiles))
     : 0
-  const cloverPoints = ruleset.variants?.clovers ? flip(sign, countClovers(board, zones)) : 0
+  const cloverPoints = ruleset.variants?.clovers
+    ? flip(sign, countClovers(board, zones, wind, ownTiles))
+    : 0
+  const crystalPoints = ruleset.variants?.crystals
+    ? flip(sign, countCrystals(board, ownTiles))
+    : 0
   // Une couleur secrète interdite ne doublerait qu'un malus : on n'y touche pas.
   const secretPoints =
     ruleset.variants?.secretColor && secretColor && !forbidden.includes(secretColor)
-      ? secretBonus(zones, secretColor)
+      ? secretBonus(zones.filter(mine), secretColor)
       : 0
   const basePoints = ruleset.variants?.reverseScoring ? REVERSED_BASE : 0
   return {
     total:
-      basePoints + colorPoints + blackPoints + starPoints + cloverPoints + secretPoints,
+      basePoints +
+      colorPoints +
+      blackPoints +
+      starPoints +
+      cloverPoints +
+      crystalPoints +
+      secretPoints,
     basePoints,
     colorPoints,
     blackZones,
     blackPoints,
     starPoints,
     cloverPoints,
+    crystalPoints,
     secretPoints,
     ...(forbidden.length ? { forbidden, forbiddenZones } : {}),
     cardPoints: 0,
@@ -363,7 +419,14 @@ export function scoreBoard(
  * sinon il coûte 3 points. Un trèfle sur un quart blanc profite de n'importe
  * quel chemin qui marque et le traverse.
  */
-export function countClovers(board: Board, zones: Zone[]): number {
+export function countClovers(
+  board: Board,
+  zones: Zone[],
+  /** Variante Moulins : les trèfles tournent avec leur tuile. */
+  windmills = false,
+  /** Plateau commun : seuls les trèfles des tuiles de ce joueur comptent. */
+  ownTiles: Set<number> | null = null,
+): number {
   const qs = board.size * 2
   const scoring = new Set<number>()
   for (const z of zones) {
@@ -374,7 +437,8 @@ export function countClovers(board: Board, zones: Zone[]): number {
   for (let i = 0; i < board.cells.length; i++) {
     const placed = board.cells[i]
     if (!placed) continue
-    const cq = cloverQuadIndex(placed.tileId, placed.rot, placed.flipped)
+    if (ownTiles && !ownTiles.has(i)) continue
+    const cq = cloverQuadIndex(placed.tileId, effectiveRot(board, i, windmills), placed.flipped)
     if (cq === null) continue
     const r = Math.floor(i / board.size) * 2 + (cq >= 2 ? 1 : 0)
     const c = (i % board.size) * 2 + (cq === 1 || cq === 2 ? 1 : 0)
@@ -388,6 +452,8 @@ export function countClovers(board: Board, zones: Zone[]): number {
  * qui dépendent de lui et non du plateau seul.
  */
 export interface PlayerScoring {
+  /** Identité du joueur — en Plateau commun, seuls ses chemins comptent. */
+  id?: number
   /** Son meilleur chemin de cette couleur est doublé (variante). */
   secretColor?: Color
   /** Les points de ses chemins de ces couleurs lui sont infligés en négatif. */

@@ -42,6 +42,8 @@ export interface PlacedTile {
   flipped?: boolean
   /** Numéro du tour où la tuile a été posée (pour le rejeu / les stats). */
   round: number
+  /** Joueur qui l'a posée — renseigné en Plateau commun, pour l'attribution. */
+  by?: number
 }
 
 /** Côtés d'un plateau, dans l'ordre haut, droite, bas, gauche. */
@@ -113,6 +115,8 @@ export interface ScoreBreakdown {
   starPoints: number
   /** Trèfles (variante) : +3 dans un chemin qui marque, −3 sinon. */
   cloverPoints: number
+  /** Cristaux (variante) : +4 par cristal resté intact. */
+  crystalPoints: number
   /** Couleur secrète (variante) : le meilleur chemin de cette couleur double. */
   secretPoints: number
   /** Couleurs interdites (variante) : leurs zones se comptent comme le noir. */
@@ -189,6 +193,21 @@ export interface Variants {
    * le font perdre — et inversement.
    */
   reverseScoring?: boolean
+  /**
+   * Verso aléatoire : à son tour, un joueur peut retourner une tuile du centre.
+   * Sa nouvelle face est tirée du sac — et on ne revient jamais en arrière.
+   */
+  randomBack?: boolean
+  /** Cristaux : +4 si aucune tuile n'est venue se coller à la sienne après sa pose. */
+  crystals?: boolean
+  /** Teintures : posée adjacente à une zone noire, la zone prend la couleur du pot. */
+  dyes?: boolean
+  /** Moulins : à la pose, les tuiles adjacentes tournent d'un quart vers la gauche. */
+  windmills?: boolean
+  /** Partie synchrone : une seule tuile par manche, la même pour tout le monde. */
+  syncDraw?: boolean
+  /** Plateau commun : un seul grand plateau partagé, chacun marque ses chemins. */
+  sharedBoard?: boolean
 }
 
 /** Barème modifiable — c'est le cœur de l'outil d'équilibrage. */
@@ -253,6 +272,8 @@ export interface PoolTile {
   tileId: number
   /** id du joueur qui l'a prise, sinon null. */
   takenBy: number | null
+  /** Déjà retournée sur son verso (variante Verso aléatoire) : plus jamais. */
+  flipped?: boolean
 }
 
 export type Phase = 'setup' | 'playing' | 'finished'
@@ -320,6 +341,13 @@ export interface GameState {
   swapCard?: 'rotate' | 'stay'
   /** Le dernier joueur du tour a déjà repioché (variante Dernier choix). */
   redrawUsed?: boolean
+  /**
+   * Variante Verso aléatoire : le joueur courant vient de retourner cette
+   * tuile — il doit la prendre, et ne peut plus rien retourner ce tour-ci.
+   */
+  mustTakeTileId?: number
+  /** Axe tiré pour les cartes qui en dépendent (id de carte → colonne/ligne). */
+  cardAxes?: Record<string, 'col' | 'row'>
   players: Player[]
   /** Pioche restante (ids de tuiles), mélangée. */
   bag: number[]

@@ -7,7 +7,10 @@ import {
   currentPlayerId,
   botWantsRedraw,
   cardResults,
+  canFlipTile,
   canRedrawLastTile,
+  botWantsFlip,
+  flipTile,
   isBot,
   redrawLastTile,
   COLOR_NAMES,
@@ -114,7 +117,8 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
    * Écran partagé : tous les plateaux au centre, la colonne de gauche s'efface.
    * Au-delà de deux plateaux, la grille se resserre pour que tout tienne.
    */
-  const multi = Boolean(options.allBoards) && state.players.length > 1
+  const multi =
+    Boolean(options.allBoards) && state.players.length > 1 && !variants?.sharedBoard
   const cols = state.players.length <= 2 ? 2 : state.players.length === 4 ? 2 : 3
   const rows = Math.ceil(state.players.length / cols)
 
@@ -192,6 +196,26 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
     [onHistory],
   )
 
+  // Verso aléatoire : retourner la tuile sélectionnée — sans retour possible.
+  const flipPossible =
+    selected !== null && !fromPersonal && canFlipTile(state, selected)
+  const flipSelected = useCallback(() => {
+    if (selected === null) return
+    onHistory((h) => {
+      const cur = h[h.length - 1]
+      if (!canFlipTile(cur, selected)) return h
+      return [...h, flipTile(cur, selected)]
+    })
+  }, [selected, onHistory])
+
+  // La tuile retournée doit être prise : on la sélectionne d'office.
+  useEffect(() => {
+    if (state.mustTakeTileId !== undefined) {
+      setSelected(state.mustTakeTileId)
+      setFromPersonal(false)
+    }
+  }, [state.mustTakeTileId])
+
   const flip = useCallback(() => {
     if (variants?.mirrorTiles) setFlipped((f) => !f)
   }, [variants?.mirrorTiles])
@@ -204,6 +228,17 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
       if (canRedrawLastTile(state) && botWantsRedraw(state)) {
         onHistory((h) => [...h, redrawLastTile(h[h.length - 1])])
         return // le nouvel état relance cet effet, le bot jouera au tour suivant
+      }
+      // Verso aléatoire : le bot tente sa chance quand son meilleur coup perd.
+      if (variants?.randomBack && active.kind === 'bot-smart') {
+        const tuile = botWantsFlip(state)
+        if (tuile !== null) {
+          onHistory((h) => {
+            const cur = h[h.length - 1]
+            return canFlipTile(cur, tuile) ? [...h, flipTile(cur, tuile)] : h
+          })
+          return
+        }
       }
       const move = bestMove(state, active.kind)
       if (move) onHistory((h) => [...h, applyMove(h[h.length - 1], move)])
@@ -232,6 +267,9 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
       else if (e.key === 's' || e.key === 'S') {
         if (redrawPossible && !isBot(active) && state.phase === 'playing') redraw()
       }
+      else if (e.key === 'v' || e.key === 'V') {
+        if (flipPossible && !isBot(active) && state.phase === 'playing') flipSelected()
+      }
       else if (e.key === 'Escape') setSelected(null)
       else if (e.key >= '1' && e.key <= '9') {
         const t = pool[Number(e.key) - 1]
@@ -243,7 +281,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [pool, rotate, undo, flip, redraw, redrawPossible, active, state.phase])
+  }, [pool, rotate, undo, flip, redraw, redrawPossible, flipPossible, flipSelected, active, state.phase])
 
   // Molette au-dessus du plateau = rotation (sans faire défiler la page).
   const stageRef = useRef<HTMLDivElement>(null)
@@ -329,16 +367,18 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
               </span>
               {options.liveScore && <span className="score-big">{breakdowns[i].total}</span>}
             </div>
-            <div className="mini-board">
-              <BoardView
-                board={p.board}
-                ruleset={rulesets[i]}
-                frameColor={p.color}
-                compact
-                showZones={false}
-                forbidden={p.forbiddenColors}
-              />
-            </div>
+            {!variants?.sharedBoard && (
+              <div className="mini-board">
+                <BoardView
+                  board={p.board}
+                  ruleset={rulesets[i]}
+                  frameColor={p.color}
+                  compact
+                  showZones={false}
+                  forbidden={p.forbiddenColors}
+                />
+              </div>
+            )}
             {state.bagHolder === p.id && state.phase === 'playing' && (
               <span className="note">🎒 a le sac ce tour-ci</span>
             )}
@@ -373,7 +413,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                 key={t.tileId}
                 className={`pool-tile ${selected === t.tileId ? 'selected' : ''} ${
                   taken ? 'taken' : ''
-                }`}
+                } ${t.flipped ? 'verso' : ''}`}
                 disabled={taken || !humanTurn}
                 onClick={() => {
                   setSelected(t.tileId)
@@ -392,11 +432,17 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                     showStar={Boolean(variants?.magicStars)}
                     showFault={Boolean(variants?.faultTiles)}
                     showClover={Boolean(variants?.clovers)}
+                    showCrystal={Boolean(variants?.crystals)}
+                    showDye={Boolean(variants?.dyes)}
+                    showWindmill={Boolean(variants?.windmills)}
                     angle={selected === t.tileId && !fromPersonal ? spin : 0}
                     size={selected === t.tileId && !fromPersonal ? 78 : 66}
                   />
                 </span>
-                <small>{taken ? (owner?.name ?? '—') : `touche ${i + 1}`}</small>
+                <small>
+                  {t.flipped ? '↷ verso · ' : ''}
+                  {taken ? (owner?.name ?? '—') : `touche ${i + 1}`}
+                </small>
               </button>
             )
           })}
@@ -419,6 +465,9 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                   showStar={Boolean(variants?.magicStars)}
                   showFault={Boolean(variants?.faultTiles)}
                   showClover={Boolean(variants?.clovers)}
+                  showCrystal={Boolean(variants?.crystals)}
+                  showDye={Boolean(variants?.dyes)}
+                  showWindmill={Boolean(variants?.windmills)}
                   angle={selected === active.personalTileId && fromPersonal ? spin : 0}
                   size={selected === active.personalTileId && fromPersonal ? 78 : 66}
                 />
@@ -429,10 +478,27 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
           {pool.length === 0 && <span className="note">Plus de tuiles au centre.</span>}
         </div>
 
+        {variants?.syncDraw && pool.length > 0 && (
+          <p className="note" style={{ textAlign: 'center', margin: '-4px 0 0' }}>
+            Partie synchrone : la même tuile pour tout le monde, chacun la pose sur son plateau.
+          </p>
+        )}
+
         {redrawPossible && humanTurn && (
           <button className="btn small" onClick={redraw} title="Raccourci : S">
             🎲 Refuser la tuile restante et piocher au hasard (S) — définitif
           </button>
+        )}
+
+        {flipPossible && humanTurn && (
+          <button className="btn small" onClick={flipSelected} title="Raccourci : V">
+            ↷ Retourner cette tuile sur son verso (V) — la nouvelle face sort du sac, sans retour
+          </button>
+        )}
+        {state.mustTakeTileId !== undefined && humanTurn && (
+          <p className="note" style={{ textAlign: 'center', margin: '-4px 0 0' }}>
+            Tuile retournée : c’est elle qu’il faut poser.
+          </p>
         )}
 
         {/* commandes de pose */}
@@ -464,6 +530,11 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
               {redrawPossible && (
                 <>
                   <span className="kbd">S</span> repiocher ·{' '}
+                </>
+              )}
+              {flipPossible && (
+                <>
+                  <span className="kbd">V</span> verso ·{' '}
                 </>
               )}
               molette sur le plateau · <span className="kbd">Échap</span> annuler
@@ -538,7 +609,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
             <div className="board-caption">
               <span className="who">
                 <span className="dot" style={{ background: viewed.color }} />
-                Plateau de {viewed.name}
+                {variants?.sharedBoard ? 'Plateau commun' : `Plateau de ${viewed.name}`}
                 {viewId !== activeId &&
                   (isBot(active) && pinned === null ? (
                     <span className="tag">{active.name} joue…</span>
@@ -556,7 +627,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
               <BoardView
                 board={viewed.board}
                 ruleset={ruleset}
-                frameColor={viewed.color}
+                frameColor={variants?.sharedBoard ? '#8D857A' : viewed.color}
                 showZones={options.showZones}
                 interactive={canPlaceHere}
                 legal={viewId === activeId ? legal : []}
@@ -771,6 +842,13 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                   </strong>
                 </div>
               </>
+            )}
+            {variants?.crystals && (
+              <div className="scoresheet-row star">
+                <span className="k">◆ intacte</span>
+                <span className="eq">=</span>
+                <strong>{signed(signe * 4)} pts</strong>
+              </div>
             )}
             {variants?.forbiddenColor && (
               <div className={`scoresheet-row banned ${envers ? 'pos' : 'neg'}`}>

@@ -15,6 +15,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.39',
+    date: '2026-08-07',
+    changes: [
+      'Quatre nouvelles tuiles en variantes : le Verso aléatoire (retourner une tuile du centre, sa nouvelle face sort du sac — sans retour, touche V), les Cristaux (+4 s’il reste intact, sur les 18 tuiles aux 3-4 quarts de même couleur), les Teintures (18 pots, 3 par couleur : adjacent à une zone noire à la pose, la zone prend sa couleur) et les Moulins (15 tuiles : les voisines déjà posées tournent d’un quart vers la gauche).',
+      'Deux variantes de structure : la Partie synchrone (une seule tuile par manche, la même pour tous — le duel à armes égales) et le Plateau commun (un seul plateau 6×6 ou 8×8, chacun marque les chemins où il a posé, le noir partagé se paie).',
+      'Trois cartes missions de plus : « Cartographe » (+8, chaque colonne — ou ligne, tirée en début de partie — doit marquer), « Les 4 bords » (+8) et « Ceinture noire » (+10 pour une seule zone noire d’au moins 4 tuiles).',
+      'Les bots savent tout jouer : ils retournent une tuile quand leur meilleur coup perd, protègent leurs cristaux et ne comptent que leurs propres chemins sur le plateau commun.',
+    ],
+  },
+  {
     version: '1.38',
     date: '2026-08-07',
     changes: [

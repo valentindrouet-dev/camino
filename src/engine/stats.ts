@@ -40,6 +40,7 @@ export function playerStats(state: GameState): PlayerStats[] {
           },
           cards,
           state.cardColors,
+          state.cardAxes,
         )
       : base
     // `scoring` porte le drapeau : en scoring inversé un chemin qui compte a

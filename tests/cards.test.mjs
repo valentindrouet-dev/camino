@@ -24,7 +24,7 @@ function boardFrom(rows) {
   return board
 }
 
-function evalCard(id, rows, extraBoards = []) {
+function evalCard(id, rows, extraBoards = [], extraCtx = {}) {
   const board = boardFrom(rows.map((s) => s.split('')))
   const breakdown = E.scoreBoard(board, R)
   const table = [
@@ -36,7 +36,10 @@ function evalCard(id, rows, extraBoards = []) {
   ]
   const card = E.cardById(id)
   assert.ok(card, `carte ${id} inconnue`)
-  return { ...card.evaluate({ playerId: 0, board, breakdown, ruleset: R, table }), breakdown }
+  return {
+    ...card.evaluate({ playerId: 0, board, breakdown, ruleset: R, table, ...extraCtx }),
+    breakdown,
+  }
 }
 
 // Grille de référence : l'exemple de la règle (jaune 0, orange 6, rouge 3,
@@ -52,10 +55,10 @@ const EXAMPLE = [
   'PPKKRYBG',
 ]
 
-test('12 cartes de la boîte + 9 cartes d’extension, toutes distinctes', () => {
-  assert.equal(E.CARDS.length, 21)
-  assert.equal(new Set(E.CARDS.map((c) => c.id)).size, 21)
-  assert.equal(E.CARDS.filter((c) => c.extra).length, 9)
+test('12 cartes de la boîte + 12 cartes d’extension, toutes distinctes', () => {
+  assert.equal(E.CARDS.length, 24)
+  assert.equal(new Set(E.CARDS.map((c) => c.id)).size, 24)
+  assert.equal(E.CARDS.filter((c) => c.extra).length, 12)
   // les deux cartes à couleur variable annoncent leur couleur dans leur texte
   const colorees = E.CARDS.filter((c) => c.colorized)
   assert.equal(colorees.length, 2)
@@ -323,7 +326,7 @@ test('les bots visent les cartes missions', () => {
         { name: 'B', kind: 'bot-smart', boardColor: 'B' },
       ],
       options: {
-        ...E.defaultOptions('missions-bots'),
+        ...E.defaultOptions('missions-bots-2'),
         useCards,
         ...(useCards ? { cardId: 'orange-paths' } : {}),
       },
@@ -425,4 +428,95 @@ test('les détails des cartes accordent leurs pluriels', () => {
   assert.match(evalCard('clean-edge', centre).detail, /^1 zone noire loin du bord$/)
   // l'exemple de la règle a 4 zones noires, dont 3 touchent le pourtour
   assert.match(evalCard('clean-edge', EXAMPLE).detail, /^3 zones noires sur le bord$/)
+})
+
+test('cartographe : chaque colonne — ou ligne, au tirage — doit marquer (+8)', () => {
+  // quatre chemins verticaux de 3 tuiles : les 4 colonnes marquent — mais la
+  // dernière ligne, toute noire, ne marque pas
+  const colonnes = [
+    'RRYYGGBB',
+    'RRYYGGBB',
+    'RRYYGGBB',
+    'RRYYGGBB',
+    'RRYYGGBB',
+    'RRYYGGBB',
+    'KKKKKKKK',
+    'KKKKKKKK',
+  ]
+  assert.equal(evalCard('mapper', colonnes, [], { axis: 'col' }).points, 8)
+  assert.equal(evalCard('mapper', colonnes, [], { axis: 'row' }).points, 0, 'la ligne du bas est noire')
+  // le tirage de l'axe est fait en début de partie et voyage avec l'état
+  const s = E.createGame({
+    players: [{ name: 'A', kind: 'human', boardColor: 'O' }],
+    options: { ...E.defaultOptions('axe-1'), useCards: true, cardId: 'mapper' },
+  })
+  assert.ok(['col', 'row'].includes(s.cardAxes?.mapper))
+  // le texte suit l'axe
+  const carte = E.cardById('mapper')
+  assert.match(E.cardText(carte, undefined, 'col'), /colonne/)
+  assert.match(E.cardText(carte, undefined, 'row'), /ligne/)
+  // et l'axe varie bien selon la graine
+  const tirages = new Set()
+  for (let i = 0; i < 12; i++) {
+    const g = E.createGame({
+      players: [{ name: 'A', kind: 'human', boardColor: 'O' }],
+      options: { ...E.defaultOptions(`axe-${i}`), useCards: true, cardId: 'mapper' },
+    })
+    tirages.add(g.cardAxes?.mapper)
+  }
+  assert.equal(tirages.size, 2, 'colonne et ligne sortent toutes les deux')
+})
+
+test('les 4 bords : chaque bord touché par un chemin qui marque (+8)', () => {
+  // un cadre orange qui fait le tour : les 4 bords sont touchés
+  const cadre = [
+    'OOOOOOOO',
+    'OOOOOOOO',
+    'RRKKGGBB',
+    'RRKKGGBB',
+    'YYPPKKRR',
+    'YYPPKKRR',
+    'OOOOOOOO',
+    'OOOOOOOO',
+  ]
+  assert.equal(evalCard('four-sides', cadre).points, 8)
+  // le même sans le bas : 3 bords sur 4
+  const sansBas = cadre.slice(0, 6).concat(['KKKKKKKK', 'KKKKKKKK'])
+  const r = evalCard('four-sides', sansBas)
+  assert.equal(r.points, 0)
+  assert.match(r.detail, /3 bords sur 4/)
+})
+
+test('ceinture noire : une seule zone noire d’au moins 4 tuiles (+12)', () => {
+  // un serpent noir de 4 tuiles, tout le reste en couleurs
+  const serpent = [
+    'KKKKKKKK',
+    'RRYYGGBB',
+    'RRYYGGBB',
+    'OOPPRRYY',
+    'OOPPRRYY',
+    'GGBBOOPP',
+    'GGBBOOPP',
+    'YYRRGGBB',
+  ]
+  const r = evalCard('black-belt', serpent)
+  assert.equal(r.points, 12, r.detail)
+  // l'exemple de la règle a 4 zones noires : rien
+  const ex = evalCard('black-belt', EXAMPLE)
+  assert.equal(ex.points, 0)
+  assert.match(ex.detail, /4 zones noires/)
+  // une seule zone noire mais trop courte : rien non plus
+  const courte = [
+    'KKKKRRBB',
+    'RRYYGGBB',
+    'RRYYGGBB',
+    'OOPPRRYY',
+    'OOPPRRYY',
+    'GGBBOOPP',
+    'GGBBOOPP',
+    'YYRRGGBB',
+  ]
+  const c = evalCard('black-belt', courte)
+  assert.equal(c.points, 0)
+  assert.match(c.detail, /minimum 4/)
 })

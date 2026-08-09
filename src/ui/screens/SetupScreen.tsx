@@ -544,6 +544,42 @@ export function SetupScreen({
               </label>
             </VariantToggle>
             <VariantToggle
+              label="Verso aléatoire"
+              on={!!variants.randomBack}
+              onChange={(v) => patchVariants({ randomBack: v })}
+              description="À son tour, un joueur peut retourner une tuile du centre : sa nouvelle face sort du sac, l’ancienne disparaît — et il doit la poser. On ne revient jamais en arrière (touche V)."
+            />
+            <VariantToggle
+              label="Cristaux"
+              on={!!variants.crystals}
+              onChange={(v) => patchVariants({ crystals: v })}
+              description="18 tuiles aux 3 ou 4 quarts de même couleur portent un cristal : +4 points si aucune tuile n’est venue se coller à la sienne après sa pose. Les voisines déjà en place ne le dérangent pas."
+            />
+            <VariantToggle
+              label="Teintures"
+              on={!!variants.dyes}
+              onChange={(v) => patchVariants({ dyes: v })}
+              description="18 tuiles portent un pot de couleur (3 par couleur). Posé adjacent à une zone noire, le pot déteint : toute la zone prend sa couleur, définitivement. Le noir arrivé plus tard reste noir."
+            />
+            <VariantToggle
+              label="Moulins"
+              on={!!variants.windmills}
+              onChange={(v) => patchVariants({ windmills: v })}
+              description="15 tuiles portent un moulin : à la pose, toutes les tuiles adjacentes déjà posées tournent d’un quart de tour vers la gauche. Les tuiles posées ensuite ne bougent plus."
+            />
+            <VariantToggle
+              label="Partie synchrone"
+              on={!!variants.syncDraw}
+              onChange={(v) => patchVariants({ syncDraw: v })}
+              description="Une seule tuile est révélée par manche, la même pour tout le monde : chacun la pose sur son plateau. Plus de choix au centre, plus d’ordre de pioche — un duel à armes strictement égales."
+            />
+            <VariantToggle
+              label="Plateau commun"
+              on={!!variants.sharedBoard}
+              onChange={(v) => patchVariants({ sharedBoard: v })}
+              description="Un seul grand plateau pour toute la table — 6×6 jusqu’à 3 joueurs, 8×8 au-delà. Chacun marque les chemins contenant au moins une tuile qu’il a posée : à plusieurs sur un chemin, tout le monde le marque… et le noir partagé se paie."
+            />
+            <VariantToggle
               label="Scoring inversé"
               on={!!variants.reverseScoring}
               onChange={(v) => patchVariants({ reverseScoring: v })}
