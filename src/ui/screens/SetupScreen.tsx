@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BOARD_COLOR_HEX,
   BOARD_COLOR_NAMES,
   BOARD_COLORS,
   cardById,
+  clearVariants,
   configError,
   defaultOptions,
   defaultPlayers,
@@ -13,6 +14,7 @@ import {
 import type {
   BoardColor,
   GameConfig,
+  GameOptions,
   PlayerConfig,
   PlayerKind,
 } from "../../engine/index.ts";
@@ -39,6 +41,26 @@ const HERO_COLORS = [
   "#6850A1",
 ];
 
+/*
+ * Chaque chargement de page repart d'une feuille blanche côté variantes : on
+ * ne remet pas en jeu, sans le dire, un réglage exotique de la veille. Les
+ * options de partie, elles, sont un confort personnel et restent en place.
+ *
+ * L'effacement ne vaut que pour le PREMIER passage sur l'accueil : revenir à
+ * l'accueil en cours de session ne doit pas effacer ce qu'on vient de régler.
+ * Le résultat est mémorisé, parce que StrictMode appelle l'initialiseur deux
+ * fois en développement — il doit donner la même réponse aux deux appels.
+ */
+let accueilDejaVu = false;
+let optionsNettoyees: GameOptions | null = null;
+
+function optionsDeDepart(saved?: GameOptions): GameOptions {
+  const base = saved ?? defaultOptions(randomSeed());
+  if (accueilDejaVu) return base;
+  optionsNettoyees ??= clearVariants(base);
+  return optionsNettoyees;
+}
+
 interface Props {
   onStart: (config: GameConfig) => void;
   onOpenLab: () => void;
@@ -60,11 +82,16 @@ export function SetupScreen({
       : defaultPlayers(2),
   );
   const [options, setOptions] = useState(() => {
-    const o = saved?.options ?? defaultOptions(randomSeed());
+    const o = optionsDeDepart(saved?.options);
     // Une carte retirée du jeu depuis la dernière partie ne doit pas rester
     // choisie en silence : sans ça, la partie démarrerait sans mission.
     return o.cardId && !cardById(o.cardId) ? { ...o, cardId: undefined } : o;
   });
+  // À partir d'ici, l'accueil a été vu : les prochains passages gardent les
+  // réglages tels quels. (Un double appel de StrictMode ne change rien.)
+  useEffect(() => {
+    accueilDejaVu = true;
+  }, []);
   const [showScale, setShowScale] = useState(false);
   // Règles et matériel : deux dépliants de la page d'accueil, fermés au départ.
   const [showRules, setShowRules] = useState(false);

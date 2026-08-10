@@ -1,5 +1,5 @@
 import type React from "react";
-import { CARDS, DEFAULT_RULESET } from "../../engine/index.ts";
+import { CARDS, clearVariants, DEFAULT_RULESET } from "../../engine/index.ts";
 import type {
   GameOptions,
   Ruleset,
@@ -39,14 +39,7 @@ export function VariantsPanel({
   /** Tout décocher : variantes, cartes, pose libre et barème perso. */
   const resetVariants = () => {
     setShowScale(false);
-    setOptions((o) => ({
-      ...o,
-      useCards: false,
-      cardCount: 1,
-      cardId: undefined,
-      personalCards: false,
-      ruleset: { ...o.ruleset, requireAdjacency: true, variants: {} },
-    }));
+    setOptions(clearVariants);
   };
 
   return (

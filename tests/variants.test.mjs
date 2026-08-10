@@ -1083,3 +1083,70 @@ test('simulation : les variantes et les nouvelles statistiques', () => {
   assert.equal(commun.games, 3)
   assert.ok(Number.isFinite(commun.mean))
 })
+
+test('feuille blanche : clearVariants efface les règles, pas le confort', () => {
+  const parti = {
+    ...E.defaultOptions('graine-gardee'),
+    // options de partie : à conserver
+    liveScore: false,
+    showZones: false,
+    showHints: true,
+    showLastPlaced: true,
+    randomFirst: true,
+    manualSeed: true,
+    allBoards: true,
+    // variantes et compagnie : à effacer
+    useCards: true,
+    cardCount: 3,
+    cardId: 'exact-4',
+    personalCards: true,
+    ruleset: {
+      ...R,
+      boardSize: 5,
+      minSpan: 4,
+      blackPenalty: -5,
+      requireAdjacency: false,
+      pointsBySpan: [0, 0, 0, 9, 9, 9, 9, 9, 9, 9],
+      variants: { magicStars: true, clovers: true, sharedBoard: true },
+    },
+  }
+  const propre = E.clearVariants(parti)
+
+  // ce qui reste
+  assert.equal(propre.seed, 'graine-gardee')
+  assert.equal(propre.liveScore, false)
+  assert.equal(propre.showZones, false)
+  assert.equal(propre.showHints, true)
+  assert.equal(propre.showLastPlaced, true)
+  assert.equal(propre.randomFirst, true)
+  assert.equal(propre.manualSeed, true)
+  assert.equal(propre.allBoards, true)
+
+  // ce qui saute
+  assert.equal(propre.useCards, false)
+  assert.equal(propre.cardCount, 1)
+  assert.equal(propre.cardId, undefined)
+  assert.equal(propre.personalCards, false)
+  assert.equal(propre.ruleset.variants, undefined, 'plus aucune variante')
+  assert.equal(propre.ruleset.boardSize, R.boardSize, 'barème officiel')
+  assert.equal(propre.ruleset.minSpan, R.minSpan)
+  assert.equal(propre.ruleset.blackPenalty, R.blackPenalty)
+  assert.equal(propre.ruleset.requireAdjacency, true, 'pose libre décochée')
+  assert.deepEqual(propre.ruleset.pointsBySpan, R.pointsBySpan)
+
+  // l'original n'est pas modifié : la fonction est pure
+  assert.equal(parti.useCards, true)
+  assert.equal(parti.ruleset.variants.magicStars, true)
+
+  // une partie lancée depuis ces options est bien une partie officielle
+  const s = E.createGame({
+    players: [
+      { name: 'A', kind: 'human', boardColor: 'O' },
+      { name: 'B', kind: 'human', boardColor: 'B' },
+    ],
+    options: propre,
+  })
+  assert.equal(s.totalRounds, 16)
+  assert.equal(s.cardId, undefined)
+  assert.equal(s.players[0].board.size, 4)
+})

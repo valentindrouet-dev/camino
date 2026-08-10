@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.42',
+    date: '2026-08-07',
+    changes: [
+      'Chaque chargement de page repart d’une feuille blanche côté variantes : plus aucune variante, carte mission, pose libre ni barème perso ne se rejoue en silence au rechargement. Les options de partie — score visible, indices, dernière tuile, 1er joueur aléatoire, graine — restent, elles, telles que vous les aimez.',
+      'Revenir à l’accueil en cours de session ne remet rien à zéro : seul le premier passage après le chargement fait le ménage.',
+      'Le bouton ↺ des variantes efface désormais aussi le barème perso, comme son intitulé « tout décocher » le promet.',
+    ],
+  },
+  {
     version: '1.41',
     date: '2026-08-07',
     changes: [

@@ -81,6 +81,26 @@ export function defaultOptions(seed: string): GameOptions {
   }
 }
 
+/**
+ * Options débarrassées de tout ce qui relève des variantes : les variantes
+ * elles-mêmes, les cartes missions, la pose libre et le barème perso — ces
+ * trois derniers vivant dans le même panneau. Ce qui relève de l'affichage
+ * et du confort (score visible, indices, dernière tuile, 1er joueur
+ * aléatoire, graine) est conservé tel quel.
+ */
+export function clearVariants(options: GameOptions): GameOptions {
+  return {
+    ...options,
+    useCards: false,
+    cardCount: 1,
+    cardId: undefined,
+    personalCards: false,
+    // DEFAULT_RULESET ne porte aucune variante : le barème repart officiel,
+    // pose libre comprise.
+    ruleset: { ...DEFAULT_RULESET },
+  }
+}
+
 /** Nombre de tuiles révélées au centre à chaque tour. */
 export function tilesPerRound(ruleset: Ruleset, playerCount: number): number {
   // Partie synchrone : une seule tuile, la même pour tout le monde.
