@@ -117,7 +117,7 @@ export function Bars({ items, format = (v) => v.toFixed(1) }: BarsProps) {
               }}
             />
           </span>
-          <span className="val pos">{format(it.value)}</span>
+          <span className={`val ${it.value < 0 ? 'neg' : 'pos'}`}>{format(it.value)}</span>
         </div>
       ))}
     </div>

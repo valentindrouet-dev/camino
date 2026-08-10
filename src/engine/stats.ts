@@ -104,11 +104,30 @@ export interface SimPlayerRecord {
   spans: number[]
   /** 1 pour le vainqueur, partagé en cas d'égalité. */
   win: number
+  /** Rang final (1 = premier), partagé en cas d'égalité. */
+  rank: number
+  /** Points apportés par chaque variante — ce qui fait le score, source par source. */
+  starPoints: number
+  cloverPoints: number
+  crystalPoints: number
+  secretPoints: number
+  cardPoints: number
+  basePoints: number
+  /** Carte mission accomplie (points strictement positifs). */
+  cardDone: number
+  /** Tuiles des chemins trop courts pour marquer : le potentiel gâché. */
+  wasted: number
+  /** Rang de choix moyen dans la manche (0 = sert en premier). */
+  pickOrder: number
 }
 
 export interface SimGameRecord {
   seed: string
   results: SimPlayerRecord[]
+  /** Nombre de manches effectivement jouées. */
+  rounds: number
+  /** Score moyen de la table à la fin de chaque manche. */
+  curve: number[]
 }
 
 /** Joue une partie entière avec des bots et renvoie ses résultats bruts. */
@@ -127,9 +146,18 @@ export function playOneGame(config: GameConfig, seed: string): SimGameRecord {
   const totals = stats.map((s) => s.breakdown.total)
   const best = Math.max(...totals)
   const winners = totals.filter((t) => t === best).length
+  // Courbe moyenne de la table : le score moyen après chaque manche.
+  const rounds = state.scoreHistory[0]?.length ?? 0
+  const curve = Array.from({ length: rounds }, (_, r) => {
+    let sum = 0
+    for (const h of state.scoreHistory) sum += h[r] ?? 0
+    return sum / (state.scoreHistory.length || 1)
+  })
 
   return {
     seed,
+    rounds,
+    curve,
     results: stats.map((s) => ({
       seat: s.player.id,
       kind: s.player.kind,
@@ -144,6 +172,16 @@ export function playOneGame(config: GameConfig, seed: string): SimGameRecord {
       ) as Record<Color, number>,
       spans: s.breakdown.zones.filter((z) => z.scoring).map((z) => z.span),
       win: s.breakdown.total === best ? 1 / winners : 0,
+      rank: s.rank,
+      starPoints: s.breakdown.starPoints,
+      cloverPoints: s.breakdown.cloverPoints,
+      crystalPoints: s.breakdown.crystalPoints,
+      secretPoints: s.breakdown.secretPoints,
+      cardPoints: s.breakdown.cardPoints,
+      basePoints: s.breakdown.basePoints,
+      cardDone: s.breakdown.cardPoints > 0 ? 1 : 0,
+      wasted: s.wastedPotential,
+      pickOrder: s.avgPickOrder,
     })),
   }
 }
@@ -169,9 +207,40 @@ export interface SimResult {
   meanBySeat: number[]
   winsByKind: Record<string, number>
   meanByKind: Record<string, number>
+  /** Nombre de joueurs observés pour chaque profil. */
+  countByKind: Record<string, number>
   /** Écart moyen entre le meilleur et le pire score d'une partie. */
   avgSpread: number
   durationMs: number
+
+  // --- d'où viennent les points ---------------------------------------------
+  /** Points moyens par source : couleurs, noir, étoiles, trèfles… */
+  sources: { key: string; label: string; value: number; color: string }[]
+
+  // --- serré ou écrasant ? --------------------------------------------------
+  /** Score moyen du vainqueur, et du dernier. */
+  winnerMean: number
+  lastMean: number
+  /** Part des parties décidées à 5 points ou moins. */
+  closeRate: number
+  /** Part des parties à égalité au sommet. */
+  tieRate: number
+
+  // --- rendement du plateau -------------------------------------------------
+  /** Tuiles gâchées : chemins trop courts pour marquer. */
+  avgWasted: number
+  /** Nombre moyen de manches d'une partie. */
+  avgRounds: number
+  /** Score moyen de la table après chaque manche. */
+  curve: number[]
+
+  // --- cartes missions ------------------------------------------------------
+  /** Part des joueurs qui accomplissent leur carte (0 si pas de carte). */
+  cardRate: number
+  avgCardPoints: number
+
+  /** Matrice sièges × rangs : part des parties où le siège finit à ce rang. */
+  rankBySeat: number[][]
 }
 
 /** Agrège des parties déjà jouées — sert à la simulation incrémentale de l'UI. */
@@ -192,11 +261,50 @@ export function aggregate(records: SimGameRecord[], seats: number, durationMs = 
   let longest = 0
   let spreadSum = 0
   let players = 0
+  // sources de points
+  let starSum = 0
+  let cloverSum = 0
+  let crystalSum = 0
+  let secretSum = 0
+  let cardSum = 0
+  let baseSum = 0
+  let colorSum = 0
+  let cardDone = 0
+  let wasted = 0
+  let winnerSum = 0
+  let lastSum = 0
+  let close = 0
+  let ties = 0
+  let roundsSum = 0
+  const rankBySeat: number[][] = Array.from({ length: seats }, () => new Array(seats).fill(0))
+  const curveSum: number[] = []
+  const curveCount: number[] = []
 
   for (const g of records) {
     const totals = g.results.map((r) => r.total)
-    spreadSum += Math.max(...totals) - Math.min(...totals)
+    const best = Math.max(...totals)
+    const worst = Math.min(...totals)
+    spreadSum += best - worst
+    winnerSum += best
+    lastSum += worst
+    if (best - worst <= 5) close++
+    if (totals.filter((t) => t === best).length > 1) ties++
+    roundsSum += g.rounds
+    g.curve.forEach((v, i) => {
+      curveSum[i] = (curveSum[i] ?? 0) + v
+      curveCount[i] = (curveCount[i] ?? 0) + 1
+    })
     for (const r of g.results) {
+      if (r.seat < seats && r.rank >= 1 && r.rank <= seats) rankBySeat[r.seat][r.rank - 1]++
+      starSum += r.starPoints
+      cloverSum += r.cloverPoints
+      crystalSum += r.crystalPoints
+      secretSum += r.secretPoints
+      cardSum += r.cardPoints
+      baseSum += r.basePoints
+      colorSum += r.colorPoints
+      cardDone += r.cardDone
+      wasted += r.wasted
       players++
       scores.push(r.total)
       sumBySeat[r.seat] += r.total
@@ -215,9 +323,23 @@ export function aggregate(records: SimGameRecord[], seats: number, durationMs = 
   }
 
   const div = players || 1
+  const nb = records.length || 1
   const sorted = scores.slice().sort((a, b) => a - b)
   const mean = scores.reduce((a, b) => a + b, 0) / div
   const variance = scores.reduce((a, b) => a + (b - mean) ** 2, 0) / div
+
+  // Une source qui ne rapporte jamais rien (variante éteinte) n'encombre pas
+  // le graphique : on ne garde que ce qui pèse.
+  const sources = [
+    { key: 'colors', label: 'Chemins', value: colorSum / div, color: '#40AE49' },
+    { key: 'black', label: 'Zones noires', value: blackPoints / div, color: '#4A4A4A' },
+    { key: 'stars', label: 'Étoiles', value: starSum / div, color: '#FFD23F' },
+    { key: 'clovers', label: 'Trèfles', value: cloverSum / div, color: '#2F8F3C' },
+    { key: 'crystals', label: 'Cristaux', value: crystalSum / div, color: '#9FE8FF' },
+    { key: 'secret', label: 'Couleur secrète', value: secretSum / div, color: '#8E6BB5' },
+    { key: 'cards', label: 'Cartes missions', value: cardSum / div, color: '#F9B515' },
+    { key: 'base', label: 'Points de départ', value: baseSum / div, color: '#C9B8A0' },
+  ].filter((x) => Math.abs(x.value) > 0.001)
 
   return {
     games: records.length,
@@ -240,13 +362,25 @@ export function aggregate(records: SimGameRecord[], seats: number, durationMs = 
     avgScoringPaths: paths / div,
     avgLongestPath: longest / div,
     winsBySeat,
-    meanBySeat: sumBySeat.map((s) => s / (records.length || 1)),
+    meanBySeat: sumBySeat.map((s) => s / nb),
     winsByKind,
     meanByKind: Object.fromEntries(
       Object.keys(sumByKind).map((k) => [k, sumByKind[k] / (countByKind[k] || 1)]),
     ),
-    avgSpread: spreadSum / (records.length || 1),
+    countByKind,
+    avgSpread: spreadSum / nb,
     durationMs,
+    sources,
+    winnerMean: winnerSum / nb,
+    lastMean: lastSum / nb,
+    closeRate: close / nb,
+    tieRate: ties / nb,
+    avgWasted: wasted / div,
+    avgRounds: roundsSum / nb,
+    curve: curveSum.map((v, i) => v / (curveCount[i] || 1)),
+    cardRate: cardDone / div,
+    avgCardPoints: cardSum / div,
+    rankBySeat: rankBySeat.map((row) => row.map((n) => n / nb)),
   }
 }
 

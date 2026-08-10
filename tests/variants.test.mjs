@@ -1036,3 +1036,50 @@ test('plateau commun : 2 colonnes de 8 par joueur, et les variantes se combinent
     null,
   )
 })
+
+test('simulation : les variantes et les nouvelles statistiques', () => {
+  const config = (variants, opts = {}) => ({
+    players: [
+      { name: 'J1', kind: 'bot-smart', boardColor: 'O' },
+      { name: 'J2', kind: 'bot-greedy', boardColor: 'B' },
+    ],
+    options: { ...E.defaultOptions('lab-1'), ...opts, ruleset: withVariants(variants) },
+  })
+
+  // une simulation traverse bien les variantes lourdes
+  const r = E.simulate(config({ magicStars: true, clovers: true, crystals: true }), 6)
+  assert.equal(r.games, 6)
+  assert.ok(r.curve.length > 1, 'la courbe de progression est renseignée')
+  assert.ok(r.avgRounds > 0)
+  assert.ok(r.sources.some((x) => x.key === 'stars'), 'les étoiles apparaissent dans les sources')
+  assert.ok(r.sources.some((x) => x.key === 'clovers'))
+  assert.ok(r.sources.every((x) => Math.abs(x.value) > 0.001), 'aucune source vide affichée')
+  // les rangs se répartissent sur tous les sièges
+  assert.equal(r.rankBySeat.length, 2)
+  for (const row of r.rankBySeat) {
+    const somme = row.reduce((a, b) => a + b, 0)
+    assert.ok(Math.abs(somme - 1) < 0.001, `chaque siège finit quelque part (${somme})`)
+  }
+  // vainqueur ≥ dernier, écart cohérent
+  assert.ok(r.winnerMean >= r.lastMean)
+  assert.ok(Math.abs(r.winnerMean - r.lastMean - r.avgSpread) < 0.001)
+  assert.ok(r.closeRate >= 0 && r.closeRate <= 1)
+  assert.equal(Object.keys(r.countByKind).sort().join(','), 'bot-greedy,bot-smart')
+
+  // sans variante, aucune source parasite
+  const nu = E.simulate(config({}), 4)
+  assert.ok(!nu.sources.some((x) => ['stars', 'clovers', 'crystals', 'base'].includes(x.key)))
+
+  // scoring inversé : les points de départ apparaissent comme source
+  const envers = E.simulate(config({ reverseScoring: true }), 4)
+  assert.ok(envers.sources.some((x) => x.key === 'base'))
+
+  // cartes missions : taux d'accomplissement mesuré
+  const cartes = E.simulate(config({}, { useCards: true, cardId: 'exact-4' }), 6)
+  assert.ok(cartes.cardRate >= 0 && cartes.cardRate <= 1)
+
+  // plateau commun : la simulation tient aussi
+  const commun = E.simulate(config({ sharedBoard: true }), 3)
+  assert.equal(commun.games, 3)
+  assert.ok(Number.isFinite(commun.mean))
+})

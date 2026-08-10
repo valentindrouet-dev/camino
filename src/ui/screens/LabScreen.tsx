@@ -6,22 +6,22 @@ import {
   configError,
   defaultOptions,
   defaultPlayers,
-  DEFAULT_RULESET,
   histogram,
   PATH_COLORS,
   playOneGame,
   randomSeed,
-  tilesPerRound,
 } from '../../engine/index.ts'
 import type {
   Color,
   GameConfig,
+  GameOptions,
   PlayerKind,
-  Ruleset,
   SimGameRecord,
   SimResult,
 } from '../../engine/index.ts'
-import { Bars, Histogram } from '../components/Charts.tsx'
+import { Bars, Histogram, ScoreLines } from '../components/Charts.tsx'
+import { Toggle, VariantsPanel } from '../components/VariantsPanel.tsx'
+import { activeVariantInfos } from '../variantInfo.ts'
 import {
   clearArchive,
   exportArchiveCsv,
@@ -38,8 +38,8 @@ const KIND_LABEL: Record<string, string> = {
   'bot-greedy': 'novice',
   'bot-smart': 'stratège',
 }
-/** Nombre de parties jouées entre deux rafraîchissements de l'écran. */
-const BATCH = 12
+/** Temps de calcul maximal par image, pour garder l'interface réactive. */
+const FRAME_MS = 28
 
 interface Props {
   onBack: () => void
@@ -71,15 +71,32 @@ export function LabScreen({ onBack, initialTab = 'sim' }: Props) {
 
 // ---------------------------------------------------------------- simulation
 
+/** Une campagne terminée, gardée pour comparer les réglages entre eux. */
+interface Campagne {
+  id: number
+  label: string
+  games: number
+  mean: number
+  stdev: number
+  spread: number
+  winJ1: number
+  closeRate: number
+}
+
 function SimPanel() {
   const [playerCount, setPlayerCount] = useState(4)
   const [kinds, setKinds] = useState<PlayerKind[]>(Array(6).fill('bot-smart'))
-  const [ruleset, setRuleset] = useState<Ruleset>({ ...DEFAULT_RULESET })
+  // Les mêmes options qu'une vraie partie : variantes, cartes, barème.
+  const [options, setOptions] = useState<GameOptions>(() => defaultOptions(randomSeed()))
+  const [showScale, setShowScale] = useState(false)
   const [target, setTarget] = useState(200)
   const [seed, setSeed] = useState(randomSeed())
   const [records, setRecords] = useState<SimGameRecord[]>([])
   const [running, setRunning] = useState(false)
+  const [history, setHistory] = useState<Campagne[]>([])
   const cancel = useRef(false)
+  const t0 = useRef(0)
+  const [elapsed, setElapsed] = useState(0)
 
   const config: GameConfig = useMemo(
     () => ({
@@ -88,17 +105,27 @@ function SimPanel() {
         name: `J${i + 1}`,
         kind: kinds[i],
       })),
-      options: { ...defaultOptions(seed), ruleset },
+      options: { ...options, seed },
     }),
-    [playerCount, kinds, ruleset, seed],
+    [playerCount, kinds, options, seed],
   )
   const error = configError(config)
   const result: SimResult | null = useMemo(
-    () => (records.length ? aggregate(records, playerCount) : null),
-    [records, playerCount],
+    () => (records.length ? aggregate(records, playerCount, elapsed) : null),
+    [records, playerCount, elapsed],
   )
+  /** Résumé lisible du réglage testé — sert d'étiquette aux campagnes. */
+  const label = useMemo(() => {
+    const infos = activeVariantInfos(options).map((v) => v.label)
+    const r = options.ruleset
+    if (r.boardSize !== 4) infos.unshift(`Plateau ${r.boardSize}×${r.boardSize}`)
+    if (r.blackPenalty !== -2) infos.unshift(`Noir ${r.blackPenalty}`)
+    if (r.minSpan !== 3) infos.unshift(`Min ${r.minSpan}`)
+    return infos.length ? infos.join(' · ') : 'Règles officielles'
+  }, [options])
 
-  // On joue par petits paquets pour ne pas figer l'interface.
+  // On joue par paquets pour ne pas figer l'interface. Le paquet s'adapte :
+  // une partie sur plateau commun 12×8 coûte bien plus qu'un 4×4.
   useEffect(() => {
     if (!running) return
     let stop = false
@@ -107,15 +134,18 @@ function SimPanel() {
       setRecords((prev) => {
         if (prev.length >= target) {
           setRunning(false)
+          setElapsed(Date.now() - t0.current)
           return prev
         }
         const next = prev.slice()
-        const n = Math.min(BATCH, target - prev.length)
-        for (let i = 0; i < n; i++) {
-          next.push(playOneGame(config, `${seed}#${prev.length + i}`))
+        const debut = Date.now()
+        // au moins une partie, puis on continue tant qu'on tient dans la frame
+        for (let i = 0; next.length < target && (i === 0 || Date.now() - debut < FRAME_MS); i++) {
+          next.push(playOneGame(config, `${seed}#${next.length}`))
         }
         return next
       })
+      setElapsed(Date.now() - t0.current)
       requestAnimationFrame(step)
     }
     const id = requestAnimationFrame(step)
@@ -125,8 +155,34 @@ function SimPanel() {
     }
   }, [running, target, config, seed])
 
+  // Campagne terminée : on la range dans l'historique pour comparer.
+  const done = !running && records.length >= target && records.length > 0
+  useEffect(() => {
+    if (!done || !result) return
+    setHistory((h) =>
+      h.some((c) => c.id === records.length && c.label === label && c.mean === result.mean)
+        ? h
+        : [
+            {
+              id: Date.now(),
+              label,
+              games: result.games,
+              mean: result.mean,
+              stdev: result.stdev,
+              spread: result.avgSpread,
+              winJ1: result.winsBySeat[0] / result.games,
+              closeRate: result.closeRate,
+            },
+            ...h,
+          ].slice(0, 8),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- une seule fois par campagne
+  }, [done])
+
   const run = () => {
     cancel.current = false
+    t0.current = Date.now()
+    setElapsed(0)
     setRecords([])
     setRunning(true)
   }
@@ -191,7 +247,25 @@ function SimPanel() {
             ))}
           </div>
 
-          <RulesetEditor ruleset={ruleset} onChange={setRuleset} playerCount={playerCount} />
+          {/* Les options de partie qui changent le jeu — les autres ne sont
+              qu'affichage et n'ont aucun effet sur une simulation. */}
+          <div className="row wrap" style={{ borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+            <Toggle
+              label="1er joueur aléatoire"
+              on={!!options.randomFirst}
+              onChange={(v) => setOptions((o) => ({ ...o, randomFirst: v }))}
+            />
+            <Toggle
+              label="Pose libre"
+              on={!options.ruleset.requireAdjacency}
+              onChange={(v) =>
+                setOptions((o) => ({
+                  ...o,
+                  ruleset: { ...o.ruleset, requireAdjacency: !v },
+                }))
+              }
+            />
+          </div>
 
           {error && <div className="warn">{error}</div>}
 
@@ -222,10 +296,56 @@ function SimPanel() {
             </div>
           )}
           <p className="note">
-            Les bots jouent le barème actuel : modifie-le puis relance pour comparer. La graine rend
-            chaque campagne reproductible.
+            Les bots jouent exactement la configuration ci-dessous, variantes comprises. Modifie,
+            relance, compare : la graine rend chaque campagne reproductible.
           </p>
         </div>
+
+        {/* le même panneau qu'à l'accueil : on teste ce qui se joue vraiment */}
+        <VariantsPanel
+          options={options}
+          setOptions={setOptions}
+          showScale={showScale}
+          setShowScale={setShowScale}
+        />
+
+        {history.length > 0 && (
+          <div className="panel">
+            <h3>Campagnes de cette session</h3>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Réglage</th>
+                  <th>Parties</th>
+                  <th>Moyenne</th>
+                  <th>Écart-type</th>
+                  <th>1er vs dernier</th>
+                  <th>Serrées</th>
+                  <th>J1 gagne</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((c) => (
+                  <tr key={c.id}>
+                    <td title={c.label} style={{ maxWidth: 220 }}>
+                      <span className="ellipsis">{c.label}</span>
+                    </td>
+                    <td>{c.games}</td>
+                    <td>{c.mean.toFixed(1)}</td>
+                    <td>{c.stdev.toFixed(1)}</td>
+                    <td>{c.spread.toFixed(1)}</td>
+                    <td>{(c.closeRate * 100).toFixed(0)} %</td>
+                    <td>{(c.winJ1 * 100).toFixed(1)} %</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="note">
+              Chaque campagne terminée s'ajoute ici : c'est la comparaison qui dit si une variante
+              resserre les scores ou creuse les écarts.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="stack">
@@ -241,17 +361,45 @@ function SimPanel() {
           <>
             <div className="panel">
               <h3>Scores ({result.games} parties)</h3>
+              <p className="note" style={{ margin: '-4px 0 10px' }}>{label}</p>
               <div className="kpi-grid">
                 <Kpi k="Moyenne" v={result.mean.toFixed(1)} s="points" />
                 <Kpi k="Médiane" v={result.median.toFixed(0)} s="points" />
                 <Kpi k="Écart-type" v={result.stdev.toFixed(1)} s="dispersion" />
                 <Kpi k="Min / Max" v={`${result.min} / ${result.max}`} s="observés" />
+                <Kpi
+                  k="Vainqueur"
+                  v={result.winnerMean.toFixed(1)}
+                  s={`dernier ${result.lastMean.toFixed(1)}`}
+                />
                 <Kpi k="Écart moyen" v={result.avgSpread.toFixed(1)} s="1er vs dernier" />
+                <Kpi
+                  k="Parties serrées"
+                  v={`${(result.closeRate * 100).toFixed(0)} %`}
+                  s={`décidées à ≤ 5 pts · ${(result.tieRate * 100).toFixed(0)} % à égalité`}
+                />
                 <Kpi
                   k="Zones noires"
                   v={result.avgBlackZones.toFixed(2)}
-                  s={`${result.avgBlackPoints.toFixed(1)} pts perdus`}
+                  s={`${result.avgBlackPoints.toFixed(1)} pts`}
                 />
+                <Kpi
+                  k="Potentiel gâché"
+                  v={result.avgWasted.toFixed(1)}
+                  s="tuiles hors chemin"
+                />
+                <Kpi
+                  k="Manches"
+                  v={result.avgRounds.toFixed(0)}
+                  s={`${(result.durationMs / (result.games || 1)).toFixed(0)} ms / partie`}
+                />
+                {result.avgCardPoints !== 0 && (
+                  <Kpi
+                    k="Cartes missions"
+                    v={`${(result.cardRate * 100).toFixed(0)} %`}
+                    s={`accomplies · ${result.avgCardPoints.toFixed(1)} pts`}
+                  />
+                )}
               </div>
               <div style={{ marginTop: 10 }}>
                 <Histogram buckets={histogram(result.scores, 5)} />
@@ -275,6 +423,38 @@ function SimPanel() {
               </p>
             </div>
 
+            {result.sources.length > 1 && (
+              <div className="panel">
+                <h3>D’où viennent les points</h3>
+                <Bars
+                  items={result.sources.map((x) => ({
+                    label: x.label,
+                    value: x.value,
+                    color: x.color,
+                  }))}
+                  format={(v) => `${v.toFixed(1)} pts`}
+                />
+                <p className="note">
+                  Points moyens par joueur et par source. C’est ici qu’on voit si une variante pèse
+                  trop lourd — ou ne sert à rien.
+                </p>
+              </div>
+            )}
+
+            {result.curve.length > 1 && (
+              <div className="panel">
+                <h3>Progression du score</h3>
+                <ScoreLines
+                  length={result.curve.length}
+                  series={[{ label: 'Score moyen', color: '#F7931D', values: result.curve }]}
+                />
+                <p className="note">
+                  Score moyen de la table après chaque manche : une courbe qui décolle tard signale
+                  une partie qui se joue dans les dernières poses.
+                </p>
+              </div>
+            )}
+
             <div className="panel">
               <h3>Longueur des chemins qui marquent</h3>
               <Histogram buckets={spans} color="#40AE49" suffix=" tuiles" />
@@ -293,6 +473,8 @@ function SimPanel() {
                     <th>Profil</th>
                     <th>Score moyen</th>
                     <th>Victoires</th>
+                    {playerCount > 1 &&
+                      result.rankBySeat[0].map((_, r) => <th key={r}>{r + 1}ᵉ</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -302,101 +484,56 @@ function SimPanel() {
                       <td>{KIND_LABEL[kinds[i]]}</td>
                       <td>{m.toFixed(1)}</td>
                       <td>{((result.winsBySeat[i] / result.games) * 100).toFixed(1)} %</td>
+                      {playerCount > 1 &&
+                        result.rankBySeat[i].map((v, r) => (
+                          <td key={r} className="note">
+                            {(v * 100).toFixed(0)} %
+                          </td>
+                        ))}
                     </tr>
                   ))}
                 </tbody>
               </table>
               <p className="note">
                 Le joueur J1 commence avec le sac à la première manche. Un taux de victoire très
-                supérieur à {(100 / playerCount).toFixed(0)} % traduit un avantage de position.
+                supérieur à {(100 / playerCount).toFixed(0)} % traduit un avantage de position ; les
+                colonnes de droite donnent la distribution complète des rangs.
               </p>
+
+              {Object.keys(result.meanByKind).length > 1 && (
+                <>
+                  <h3 style={{ marginTop: 14 }}>Force des profils</h3>
+                  <table className="data">
+                    <thead>
+                      <tr>
+                        <th>Profil</th>
+                        <th>Joueurs</th>
+                        <th>Score moyen</th>
+                        <th>Victoires</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.keys(result.meanByKind).map((k) => (
+                        <tr key={k}>
+                          <td>{KIND_LABEL[k] ?? k}</td>
+                          <td>{result.countByKind[k]}</td>
+                          <td>{result.meanByKind[k].toFixed(1)}</td>
+                          <td>
+                            {((result.winsByKind[k] / result.games) * 100).toFixed(1)} %
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="note">
+                    Faites s’affronter des profils différents pour mesurer ce que vaut vraiment une
+                    stratégie sous ce réglage.
+                  </p>
+                </>
+              )}
             </div>
           </>
         )}
-      </div>
-    </div>
-  )
-}
-
-function RulesetEditor({
-  ruleset,
-  onChange,
-  playerCount,
-}: {
-  ruleset: Ruleset
-  onChange: (r: Ruleset) => void
-  playerCount: number
-}) {
-  const patch = (p: Partial<Ruleset>) => onChange({ ...ruleset, ...p })
-  return (
-    <div className="stack" style={{ borderTop: '1px solid var(--line)', paddingTop: 10 }}>
-      <div className="row wrap">
-        <label className="field" style={{ width: 110 }}>
-          <span>Plateau</span>
-          <select value={ruleset.boardSize} onChange={(e) => patch({ boardSize: Number(e.target.value) })}>
-            {[3, 4, 5].map((n) => (
-              <option key={n} value={n}>
-                {n} × {n}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field" style={{ width: 130 }}>
-          <span>Tuiles / manche</span>
-          <select
-            value={ruleset.tilesPerRound}
-            onChange={(e) => patch({ tilesPerRound: Number(e.target.value) })}
-          >
-            <option value={0}>Auto ({tilesPerRound(ruleset, playerCount)})</option>
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field" style={{ width: 110 }}>
-          <span>Malus noir</span>
-          <input
-            type="number"
-            max={0}
-            value={ruleset.blackPenalty}
-            onChange={(e) => patch({ blackPenalty: Number(e.target.value) })}
-          />
-        </label>
-        <label className="field" style={{ width: 110 }}>
-          <span>Chemin min.</span>
-          <input
-            type="number"
-            min={2}
-            max={6}
-            value={ruleset.minSpan}
-            onChange={(e) => patch({ minSpan: Number(e.target.value) })}
-          />
-        </label>
-      </div>
-      <div className="row wrap">
-        {[3, 4, 5, 6, 7, 8, 9].map((span) => (
-          <label className="field" key={span} style={{ width: 66 }}>
-            <span>{span === 9 ? '9+' : span}</span>
-            <input
-              type="number"
-              value={ruleset.pointsBySpan[span] ?? 0}
-              onChange={(e) => {
-                const t = ruleset.pointsBySpan.slice()
-                t[span] = Number(e.target.value)
-                patch({ pointsBySpan: t })
-              }}
-            />
-          </label>
-        ))}
-        <button
-          className="btn small ghost"
-          style={{ alignSelf: 'flex-end' }}
-          onClick={() => onChange({ ...DEFAULT_RULESET })}
-        >
-          Barème officiel
-        </button>
       </div>
     </div>
   )

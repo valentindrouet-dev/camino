@@ -147,6 +147,15 @@ code {
   color: var(--ink);
 }
 
+/* libellé long tronqué proprement (tableaux du Laboratoire) */
+.ellipsis {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
 /* « Tching ! » : le delta encaissé à la pose s'élève et s'efface */
 .tching {
   animation: tching 1.6s ease-out forwards;

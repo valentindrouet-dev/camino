@@ -15,6 +15,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.41',
+    date: '2026-08-07',
+    changes: [
+      'Le Laboratoire teste enfin tout : le panneau des variantes de l’accueil y est repris à l’identique, avec les cartes missions, le barème perso, la pose libre et le 1er joueur aléatoire — on coche, on lance, on compare.',
+      'Beaucoup plus de statistiques : d’où viennent les points source par source, la courbe de progression du score, le score du vainqueur contre celui du dernier, la part de parties serrées et d’égalités, le potentiel gâché, la distribution complète des rangs par siège, la force comparée des profils de bots et le taux d’accomplissement des cartes.',
+      'Les campagnes terminées s’empilent dans un tableau récapitulatif : c’est la comparaison entre réglages qui dit si une variante resserre les scores ou creuse les écarts.',
+      'La simulation adapte la taille de ses paquets au coût réel d’une partie : un plateau commun 12×8 ne fige plus l’interface.',
+    ],
+  },
+  {
     version: '1.40',
     date: '2026-08-07',
     changes: [
