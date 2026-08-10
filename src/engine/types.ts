@@ -266,6 +266,8 @@ export interface Player {
   secretColor?: Color
   /** Couleurs interdites (variante) : leurs chemins comptent en négatif. */
   forbiddenColors?: Color[]
+  /** Plateau commun : points engrangés au moment de chaque pose. */
+  banked?: number
 }
 
 export interface PoolTile {

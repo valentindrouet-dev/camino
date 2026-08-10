@@ -936,39 +936,103 @@ test('partie synchrone : une seule tuile, la même pour tout le monde', () => {
   for (const p of s.players) assert.ok(E.isFull(p.board))
 })
 
-test('plateau commun : chacun marque les chemins où il a posé', () => {
+test('plateau commun : tching ! — chacun encaisse ses points à la pose', () => {
   const s = partie2({ sharedBoard: true }, 'commun-1')
   assert.equal(s.players[0].board, s.players[1].board, 'un seul et même plateau')
-  assert.equal(s.players[0].board.size, 6, '6×6 à deux joueurs')
-  assert.equal(s.totalRounds, 18)
+  assert.equal(s.players[0].board.size, 4, '4 tuiles de large à deux joueurs')
+  assert.equal(s.players[0].board.cells.length, 32, 'sur 8 de haut')
+  assert.equal(s.totalRounds, 16, '16 manches : le plateau finit plein')
 
-  // A pose deux tuiles rouges reliées, B pose ailleurs
+  // A pose trois tuiles rouges reliées : rien, rien, puis tching +3 au 3e coup.
+  // B pose des tuiles noires : −2 à la première, 0 quand il fusionne.
   let cur = s
-  const rouge = 33 // RKRR
   const move = (tileId, cell, rot = 0) => {
     const t = cur.pool.find((p) => p.takenBy === null)
-    // on force la tuile voulue dans la pioche pour un scénario contrôlé
     cur = { ...cur, pool: cur.pool.map((p) => (p === t ? { ...p, tileId } : p)) }
     cur = E.applyMove(cur, { tileId, cell, rot })
   }
-  move(rouge, 0) // A en case 0
-  move(0, 20) // B loin (YOOY)
-  move(34, 1) // A : deuxième rouge à côté (RKRR)
-  move(1, 21) // B
-  move(33, 2, 2) // A : troisième rouge — mais l'id 33 est déjà pris… utilisons bestMove
+  const noire = E.TILES.findIndex((t) => t.quads.every((q) => q === 'K'))
+  const rouge = () => E.TILES.push({ id: E.TILES.length, quads: ['R', 'R', 'R', 'R'] }) - 1
+
+  // plateau 4 de large : 0-1-2-3 en haut, 4 juste sous 0, 8 sous 4
+  move(rouge(), 0) // A : un chemin d'une tuile — 0 pt
+  assert.equal(cur.players[0].banked ?? 0, 0, 'une tuile : rien')
+  move(noire, 4) // B : une zone noire — tching −2
+  assert.equal(cur.players[1].banked, -2, 'le noir se paie à la pose')
+  move(rouge(), 1) // A : chemin de 2 — toujours 0
+  assert.equal(cur.players[0].banked ?? 0, 0)
+  move(noire, 8) // B : fusionne sa zone noire — −2 → −2, delta 0
+  assert.equal(cur.players[1].banked, -2, 'fusionner le noir ne coûte rien de plus')
+  move(rouge(), 2) // A : chemin de 3 — tching +3
+  assert.equal(cur.players[0].banked, 3, 'le chemin de 3 rapporte 3, encaissés à la pose')
+
+  // le score affiché suit la cagnotte, pas le plateau
   const a = E.scoreBoard(cur.players[0].board, cur.options.ruleset, cur.players[0])
   const b = E.scoreBoard(cur.players[1].board, cur.options.ruleset, cur.players[1])
-  // le chemin rouge appartient à A : B n'en tire rien
-  const rougeA = a.byColor.R.points
-  const rougeB = b.byColor.R.points
-  assert.ok(rougeA >= 0)
-  assert.equal(rougeB, 0, 'B n’a rien posé dans le chemin rouge')
-  // le noir de la tuile RKRR est à A, pas à B
-  assert.ok(a.blackZones > 0)
-  // une partie complète en bots se termine
+  assert.equal(a.total, 3)
+  assert.equal(b.total, -2)
+  // et le plateau, lui, est décrit en entier pour l'affichage
+  assert.ok(a.zones.length > 0)
+  assert.deepEqual(a.zones, b.zones)
+
+  // prolonger le chemin d'un AUTRE : c'est le prolongateur qui encaisse
+  move(rouge(), 3) // B : le chemin passe de 3 à 4 tuiles (3 pts → 5 pts)
+  assert.equal(cur.players[1].banked, 0, 'B encaisse le +2 du prolongement')
+  assert.equal(cur.players[0].banked, 3, 'A ne gagne rien sur la pose de B')
+
+  // une partie complète en bots se termine, plateau plein, cagnottes = classement
   let fin = partie2({ sharedBoard: true }, 'commun-2', 'bot-greedy')
   while (fin.phase === 'playing') fin = E.applyMove(fin, E.bestMove(fin, 'bot-greedy'))
   assert.equal(fin.phase, 'finished')
-  const posees = fin.players[0].board.cells.filter(Boolean).length
-  assert.equal(posees, 36, 'le plateau 6×6 est plein (18 manches × 2)')
+  assert.ok(E.isFull(fin.players[0].board), 'le plateau 4×8 est plein (16 manches × 2)')
+  for (const p of fin.players) assert.equal(typeof p.banked, 'number')
+  const totals = E.scoreAll(fin).map((b2) => b2.total)
+  assert.deepEqual(
+    totals,
+    fin.players.map((p) => p.banked),
+    'le score final est la cagnotte',
+  )
+})
+
+test('plateau commun : 2 colonnes de 8 par joueur, et les variantes se combinent', () => {
+  for (const [nb, w] of [[2, 4], [3, 6], [4, 8], [5, 10], [6, 12]]) {
+    const d = E.sharedBoardDims(nb)
+    assert.equal(d.w, w, `${nb} joueurs : ${w} de large`)
+    assert.equal(d.h, 8)
+  }
+  // à 3 joueurs : 6×8 = 48 cases = 16 manches × 3, le plateau finit plein
+  let s = E.createGame({
+    players: [
+      { name: 'A', kind: 'bot-greedy', boardColor: 'O' },
+      { name: 'B', kind: 'bot-greedy', boardColor: 'B' },
+      { name: 'C', kind: 'bot-greedy', boardColor: 'G' },
+    ],
+    options: {
+      ...E.defaultOptions('commun-3j'),
+      ruleset: withVariants({ sharedBoard: true, clovers: true, magicStars: true }),
+    },
+  })
+  assert.equal(s.players[0].board.size, 6)
+  assert.equal(s.players[0].board.cells.length, 48)
+  assert.equal(s.totalRounds, 16)
+  while (s.phase === 'playing') s = E.applyMove(s, E.bestMove(s, 'bot-greedy'))
+  assert.equal(s.phase, 'finished')
+  assert.ok(E.isFull(s.players[0].board))
+  // les cagnottes intègrent étoiles et trèfles via les deltas ; la somme des
+  // scores de plateau reste cohérente (pas de NaN, pas de zone perdue)
+  for (const p of s.players) assert.ok(Number.isFinite(p.banked))
+  // se combine désormais librement avec l'échange de plateaux (sans effet)
+  assert.equal(
+    E.configError({
+      players: [
+        { name: 'A', kind: 'human', boardColor: 'O' },
+        { name: 'B', kind: 'human', boardColor: 'B' },
+      ],
+      options: {
+        ...E.defaultOptions('x'),
+        ruleset: withVariants({ sharedBoard: true, boardSwap: true, syncDraw: true }),
+      },
+    }),
+    null,
+  )
 })

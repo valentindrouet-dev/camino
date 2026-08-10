@@ -140,7 +140,7 @@ export function activeVariantInfos(options: GameOptions): VariantInfo[] {
   add(
     v.sharedBoard,
     'Plateau commun',
-    'Un seul grand plateau pour la table : chacun marque les chemins contenant au moins une tuile qu’il a posée, et le noir partagé se paie.',
+    'Un seul grand plateau pour la table (2 colonnes de 8 par joueur). À chaque pose, le poseur encaisse immédiatement les points que sa tuile fait gagner — ou perdre — au plateau.',
   )
   add(
     v.reverseScoring,

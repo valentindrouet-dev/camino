@@ -329,6 +329,15 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
   const envers = Boolean(variants?.reverseScoring)
   const signe = envers ? -1 : 1
 
+  /** « Tching ! » : la dernière pose sur le plateau commun, pour l'animation. */
+  const flash = useMemo(() => {
+    if (!variants?.sharedBoard || !state.log.length) return null
+    const last = state.log[state.log.length - 1]
+    // une pose qui ne rapporte ni ne coûte rien ne fait pas tching
+    if (last.delta === 0) return null
+    return { cell: last.cell, delta: last.delta, key: state.log.length }
+  }, [variants?.sharedBoard, state.log])
+
   const humanTurn = !isBot(active) && state.phase === 'playing'
   const canPlaceHere = humanTurn && viewId === activeId && selected !== null
 
@@ -636,6 +645,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
                 lastPlaced={lastPlaced}
                 onPlace={play}
                 forbidden={viewed.forbiddenColors}
+                flash={flash}
               />
             </div>
 
@@ -652,6 +662,12 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
       <div className="col-right">
         <div className="panel">
           <h3>Score de {viewed.name}</h3>
+          {variants?.sharedBoard && (
+            <p className="note" style={{ margin: '0 0 8px' }}>
+              Plateau commun : chacun encaisse ses points au moment de la pose — le détail
+              ci-dessous décrit le plateau entier, le total est ce que {viewed.name} a engrangé.
+            </p>
+          )}
           {options.liveScore ? (
             <ScoreDetail breakdown={breakdowns[viewId]} />
           ) : (

@@ -5,6 +5,19 @@ export function createBoard(size: number): Board {
   return { size, cells: new Array(size * size).fill(null) }
 }
 
+/**
+ * Plateau rectangulaire (variante Plateau commun) : `size` reste la LARGEUR —
+ * c'est le pas d'indexation — et la hauteur se déduit du nombre de cases.
+ */
+export function createBoardRect(width: number, height: number): Board {
+  return { size: width, cells: new Array(width * height).fill(null) }
+}
+
+/** Hauteur d'un plateau en tuiles (= sa largeur, sauf plateau commun). */
+export function boardRows(board: Board): number {
+  return board.cells.length / board.size
+}
+
 export function cloneBoard(board: Board): Board {
   return { size: board.size, cells: board.cells.slice(), borders: board.borders }
 }
@@ -33,13 +46,17 @@ export function placedCount(board: Board): number {
   return board.cells.reduce((n, c) => n + (c ? 1 : 0), 0)
 }
 
-/** Voisins orthogonaux d'une case du plateau. */
-export function neighbours(size: number, i: number): number[] {
+/**
+ * Voisins orthogonaux d'une case du plateau. `size` est la largeur ;
+ * `cellCount` permet les plateaux rectangulaires (hauteur = cases / largeur).
+ */
+export function neighbours(size: number, i: number, cellCount = size * size): number[] {
+  const rows = cellCount / size
   const r = rowOf(size, i)
   const c = colOf(size, i)
   const out: number[] = []
   if (r > 0) out.push(i - size)
-  if (r < size - 1) out.push(i + size)
+  if (r < rows - 1) out.push(i + size)
   if (c > 0) out.push(i - 1)
   if (c < size - 1) out.push(i + 1)
   return out
@@ -52,7 +69,9 @@ export function neighbours(size: number, i: number): number[] {
 export function legalCells(board: Board, requireAdjacency = true): number[] {
   const empty = board.cells.map((c, i) => (c === null ? i : -1)).filter((i) => i >= 0)
   if (!requireAdjacency || isEmpty(board)) return empty
-  return empty.filter((i) => neighbours(board.size, i).some((n) => board.cells[n] !== null))
+  return empty.filter((i) =>
+    neighbours(board.size, i, board.cells.length).some((n) => board.cells[n] !== null),
+  )
 }
 
 export function placeTile(
@@ -106,7 +125,7 @@ export function effectiveRot(board: Board, cell: number, windmills = false): Rot
   const placed = board.cells[cell] as PlacedTile
   if (!windmills) return placed.rot
   let turns = 0
-  for (const n of neighbours(board.size, cell)) {
+  for (const n of neighbours(board.size, cell, board.cells.length)) {
     const p = board.cells[n]
     if (p && WINDMILLS.has(p.tileId) && p.round > placed.round) turns++
   }
@@ -143,7 +162,7 @@ export type QuadGrid = {
 
 export function quadGrid(board: Board, fx?: GridEffects): QuadGrid {
   const qs = board.size * 2
-  const cells: (Color | null)[] = new Array(qs * qs).fill(null)
+  const cells: (Color | null)[] = new Array(board.cells.length * 4).fill(null)
   for (let i = 0; i < board.cells.length; i++) {
     const placed = board.cells[i] as PlacedTile | null
     if (!placed) continue
@@ -175,11 +194,12 @@ function quadIndicesOf(boardSize: number, cell: number): [number, number, number
  */
 function applyDyes(board: Board, cells: (Color | null)[], fx: GridEffects): void {
   const qs = board.size * 2
+  const qh = cells.length / qs
   const order = board.cells
     .map((p, i) => (p ? { p: p as PlacedTile, i } : null))
     .filter((x): x is { p: PlacedTile; i: number } => x !== null)
     .sort((a, b) => a.p.round - b.p.round)
-  const revealed = new Uint8Array(qs * qs)
+  const revealed = new Uint8Array(cells.length)
   for (const { p, i } of order) {
     for (const qi of quadIndicesOf(board.size, i)) revealed[qi] = 1
     const dye = dyeAt(p.tileId, effectiveRot(board, i, fx.windmills), p.flipped)
@@ -189,7 +209,7 @@ function applyDyes(board: Board, cells: (Color | null)[], fx: GridEffects): void
     const dq = [tl, tr, br, bl][dye.quad]
     const r = Math.floor(dq / qs)
     const c = dq % qs
-    const voisins = [r > 0 ? dq - qs : -1, r < qs - 1 ? dq + qs : -1, c > 0 ? dq - 1 : -1, c < qs - 1 ? dq + 1 : -1]
+    const voisins = [r > 0 ? dq - qs : -1, r < qh - 1 ? dq + qs : -1, c > 0 ? dq - 1 : -1, c < qs - 1 ? dq + 1 : -1]
     for (const start of voisins) {
       if (start < 0 || !revealed[start] || cells[start] !== 'K') continue
       if (fx.faults && faultBlocks(board, dq, start, fx.windmills)) continue
@@ -200,7 +220,7 @@ function applyDyes(board: Board, cells: (Color | null)[], fx: GridEffects): void
         const cur = stack.pop() as number
         const cr = Math.floor(cur / qs)
         const cc = cur % qs
-        for (const n of [cr > 0 ? cur - qs : -1, cr < qs - 1 ? cur + qs : -1, cc > 0 ? cur - 1 : -1, cc < qs - 1 ? cur + 1 : -1]) {
+        for (const n of [cr > 0 ? cur - qs : -1, cr < qh - 1 ? cur + qs : -1, cc > 0 ? cur - 1 : -1, cc < qs - 1 ? cur + 1 : -1]) {
           if (n < 0 || !revealed[n] || cells[n] !== 'K') continue
           if (fx.faults && faultBlocks(board, cur, n, fx.windmills)) continue
           cells[n] = dye.color

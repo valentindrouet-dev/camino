@@ -147,6 +147,32 @@ code {
   color: var(--ink);
 }
 
+/* « Tching ! » : le delta encaissé à la pose s'élève et s'efface */
+.tching {
+  animation: tching 1.6s ease-out forwards;
+}
+
+@keyframes tching {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.7);
+  }
+  18% {
+    opacity: 1;
+    transform: translateY(0) scale(1.15);
+  }
+  38% {
+    transform: translateY(-6px) scale(1);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-26px) scale(0.95);
+  }
+}
+
 /* Tuile retournée sur son verso (variante Verso aléatoire) */
 .pool-tile.verso .frame {
   outline: 2px dashed #8e6bb5;

@@ -1,4 +1,4 @@
-import { createBoard, isFull, legalCells, placeTile } from './board.ts'
+import { createBoard, createBoardRect, isFull, legalCells, placeTile } from './board.ts'
 import { activeRuleset, applyCards, cardTable, CARDS, playerCardIds, rulesetForPlayer } from './cards.ts'
 import { Rng } from './rng.ts'
 import { scoreBoard, scoreOf } from './scoring.ts'
@@ -92,9 +92,13 @@ export function tilesPerRound(ruleset: Ruleset, playerCount: number): number {
   return (playerCount === 1 ? 2 : playerCount) + extra
 }
 
-/** Côté du plateau partagé (variante Plateau commun) : 6×6, ou 8×8 à 4+. */
-export function sharedBoardSize(playerCount: number): number {
-  return playerCount <= 3 ? 6 : 8
+/**
+ * Dimensions du plateau partagé (variante Plateau commun) : 2 colonnes de 8
+ * par joueur — 4×8 à deux, 6×8 à trois, 8×8 à quatre… Chaque joueur apporte
+ * ainsi exactement ses 16 tuiles, et le plateau finit plein.
+ */
+export function sharedBoardDims(playerCount: number): { w: number; h: number } {
+  return { w: 2 * Math.max(2, playerCount), h: 8 }
 }
 
 /**
@@ -105,8 +109,8 @@ export function sharedBoardSize(playerCount: number): number {
 export function roundsFor(ruleset: Ruleset, playerCount = 0): number {
   const start = ruleset.variants?.startTile ? 1 : 0
   if (ruleset.variants?.sharedBoard && playerCount > 0) {
-    const size = sharedBoardSize(playerCount)
-    return Math.floor((size * size - start) / playerCount)
+    const { w, h } = sharedBoardDims(playerCount)
+    return Math.floor((w * h - start) / playerCount)
   }
   return ruleset.boardSize * ruleset.boardSize - start
 }
@@ -155,9 +159,6 @@ export function configError(config: GameConfig): string | null {
   if (v?.sharedBoard && (v?.coloredBorders || v?.multiBorders)) {
     return 'Le Plateau commun n’a pas de bordures : décochez les Bordures colorées ou multicolores.'
   }
-  if (v?.sharedBoard && v?.boardSwap) {
-    return 'Échange de plateaux et Plateau commun sont incompatibles : il n’y a qu’un seul plateau.'
-  }
   if (v?.syncDraw && (v?.extraTile || v?.lastPickRandom || v?.randomBack)) {
     return 'La Partie synchrone révèle une seule tuile, la même pour tous : Tuile supplémentaire, Dernier choix aléatoire et Verso aléatoire n’ont plus de sens avec elle.'
   }
@@ -205,7 +206,7 @@ export function createGame(config: GameConfig): GameState {
   const ruleset = config.options.ruleset
   // Plateau commun : un seul grand plateau, sa taille suit le nombre de joueurs.
   const shared = Boolean(ruleset.variants?.sharedBoard)
-  const size = shared ? sharedBoardSize(config.players.length) : ruleset.boardSize
+  const size = ruleset.boardSize
   const players: Player[] = config.players.map((p, i) => ({
     id: i,
     name: p.name.trim() || `Joueur ${i + 1}`,
@@ -215,9 +216,11 @@ export function createGame(config: GameConfig): GameState {
     board: { ...createBoard(size), borders: bordersFor(ruleset, p.boardColor) },
   }))
 
-  // Plateau commun : tout le monde regarde — et remplit — le même plateau.
+  // Plateau commun : tout le monde regarde — et remplit — le même plateau,
+  // rectangulaire : 2 colonnes de 8 par joueur.
   if (shared) {
-    const commun = createBoard(size)
+    const dims = sharedBoardDims(players.length)
+    const commun = createBoardRect(dims.w, dims.h)
     for (const p of players) p.board = commun
   }
 
@@ -241,8 +244,10 @@ export function createGame(config: GameConfig): GameState {
   // Tuile de départ : une tuile monochrome à la couleur du plateau, posée au
   // centre. La même case pour tout le monde, tirée avec la graine.
   if (ruleset.variants?.startTile) {
-    const mid = size % 2 === 1 ? [(size - 1) / 2] : [size / 2 - 1, size / 2]
-    const centres = mid.flatMap((r) => mid.map((c) => r * size + c))
+    const w = players[0].board.size
+    const h = players[0].board.cells.length / w
+    const mids = (n: number) => (n % 2 === 1 ? [(n - 1) / 2] : [n / 2 - 1, n / 2])
+    const centres = mids(h).flatMap((r) => mids(w).map((c) => r * w + c))
     const cell = centres[rng.int(centres.length)]
     // Multicolore : une seule tuile à quatre couleurs, la même pour tous, pour
     // que personne ne démarre avec un avantage. Monochrome : la couleur du
@@ -510,7 +515,13 @@ export function applyMove(state: GameState, move: Move): GameState {
   const shared = Boolean(variants?.sharedBoard)
   const sync = Boolean(variants?.syncDraw)
 
-  const before = scoreOf(player.board, ruleset, player)
+  // Plateau commun : « tching ! » — le delta se mesure sur le PLATEAU entier,
+  // à travers la couleur secrète et les couleurs interdites du poseur, mais
+  // sans sa cagnotte (c'est elle qu'on alimente).
+  const lens = shared
+    ? { secretColor: player.secretColor, forbiddenColors: player.forbiddenColors }
+    : player
+  const before = scoreOf(player.board, ruleset, lens)
   // En Plateau commun, chaque manche pose un rang de plus : le numéro de tour
   // doit rester unique par tuile pour l'ordre de pose (teintures, cristaux…).
   const roundStamp = shared ? state.round * state.players.length + state.turnIndex : state.round
@@ -523,12 +534,16 @@ export function applyMove(state: GameState, move: Move): GameState {
     move.flipped,
     shared ? playerId : undefined,
   )
-  const after = scoreOf(board, ruleset, player)
+  const after = scoreOf(board, ruleset, lens)
 
-  // Plateau commun : tout le monde regarde le même plateau, il change pour tous.
+  // Plateau commun : tout le monde regarde le même plateau, il change pour
+  // tous — et le poseur encaisse son delta immédiatement.
   const players = state.players.map((q, i) => {
     if (i === playerId) {
-      return move.personal ? { ...q, board, personalUsed: true } : { ...q, board }
+      const banked = shared ? { banked: (q.banked ?? 0) + (after - before) } : {}
+      return move.personal
+        ? { ...q, board, personalUsed: true, ...banked }
+        : { ...q, board, ...banked }
     }
     return shared ? { ...q, board } : q
   })
@@ -547,7 +562,7 @@ export function applyMove(state: GameState, move: Move): GameState {
     cell: move.cell,
     pickOrder: state.turnIndex,
     choicesAvailable: availableTiles(state).length,
-    scoreAfter: after,
+    scoreAfter: shared ? (players[playerId].banked ?? 0) : after,
     delta: after - before,
   })
 

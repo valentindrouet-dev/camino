@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.40',
+    date: '2026-08-07',
+    changes: [
+      'Le Plateau commun change de règle : tching ! — à chaque pose, le poseur encaisse immédiatement les points que sa tuile fait gagner (ou perdre) au plateau, et son total s’incrémente en direct, delta animé sur la case posée.',
+      'Le plateau devient rectangulaire : 2 colonnes de 8 par joueur — 4×8 à deux, 6×8 à trois, 8×8 à quatre — si bien que chacun apporte exactement ses 16 tuiles et que le plateau finit plein.',
+      'La variante se combine désormais librement avec les autres : étoiles, trèfles, cristaux, teintures, moulins, couleurs secrètes et interdites passent tous par le delta de la pose — briser le cristal d’un autre, c’est le payer soi-même.',
+    ],
+  },
+  {
     version: '1.39',
     date: '2026-08-07',
     changes: [

@@ -577,7 +577,7 @@ export function SetupScreen({
               label="Plateau commun"
               on={!!variants.sharedBoard}
               onChange={(v) => patchVariants({ sharedBoard: v })}
-              description="Un seul grand plateau pour toute la table — 6×6 jusqu’à 3 joueurs, 8×8 au-delà. Chacun marque les chemins contenant au moins une tuile qu’il a posée : à plusieurs sur un chemin, tout le monde le marque… et le noir partagé se paie."
+              description="Un seul grand plateau pour toute la table — 2 colonnes de 8 par joueur : 4×8 à deux, 6×8 à trois, 8×8 à quatre… À chaque pose, tching ! : le poseur encaisse immédiatement les points que sa tuile fait gagner (ou perdre) au plateau."
             />
             <VariantToggle
               label="Scoring inversé"

@@ -184,10 +184,17 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
   const cells = legalCells(player.board, ruleset.requireAdjacency)
   // Couleurs interdites du joueur (variante) : les bots les évitent.
   const forbidden = ruleset.variants?.forbiddenColor ? (player.forbiddenColors ?? []) : []
-  // Plateau commun : l'évaluation ne compte que les zones où le joueur a posé.
+  // Plateau commun : « tching ! » — ce qui compte, c'est le delta du score du
+  // plateau au moment de la pose, lu à travers la loupe du joueur (couleur
+  // secrète, couleurs interdites) mais sans sa cagnotte.
   const shared = Boolean(ruleset.variants?.sharedBoard)
+  const lens = shared
+    ? { secretColor: player.secretColor, forbiddenColors: player.forbiddenColors }
+    : player
   const before = scoreBoard(player.board, ruleset, player)
   const base = before.total
+  const boardBefore = shared ? scoreBoard(player.board, ruleset, lens).total : 0
+  const evalBefore = shared ? evaluateBoard(player.board, ruleset, forbidden) : 0
   const blackBefore = before.blackZones
   // Scoring inversé : regrouper le noir, relier les couleurs, accomplir une
   // mission — tout ce qui était payant se retourne.
@@ -248,15 +255,15 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
           flipped,
           shared ? player.id : undefined,
         )
-        const breakdown = scoreBoard(board, ruleset, player)
-        const score = breakdown.total
-        const ownTiles = shared
-          ? new Set(
-              board.cells.map((p, i) => (p && p.by === player.id ? i : -1)).filter((i) => i >= 0),
-            )
-          : null
-        let value = evaluateBoard(board, ruleset, forbidden, ownTiles)
-        value += AI_WEIGHTS.centrality * neighbours(player.board.size, cell).length
+        const breakdown = scoreBoard(board, ruleset, lens)
+        // Plateau commun : le coup vaut son delta encaissé, plus un peu du
+        // potentiel qu'il crée — potentiel que les autres peuvent voler.
+        const deltaLens = shared ? breakdown.total - boardBefore : 0
+        const score = shared ? base + deltaLens : breakdown.total
+        let value = shared
+          ? 2 * deltaLens + 0.4 * (evaluateBoard(board, ruleset, forbidden) - evalBefore)
+          : evaluateBoard(board, ruleset, forbidden)
+        value += AI_WEIGHTS.centrality * neighbours(player.board.size, cell, player.board.cells.length).length
 
         // Missions : ce que la pose rapporte déjà, plus une prime au progrès
         // (une carte qui reste à 0 mais dont on se rapproche vaut mieux que rien).
@@ -282,22 +289,21 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
           }
         }
 
-        // Regrouper le noir : pénalise chaque zone noire créée en plus,
-        // récompense les fusions.
-        const blackAfter = breakdown.blackZones
-        value -= sign * AI_WEIGHTS.blackMerge * Math.max(0, blackAfter - blackBefore)
-        if (blackAfter < blackBefore + countBlackQuads(cand.tileId) && blackAfter <= blackBefore) {
-          value += sign * AI_WEIGHTS.blackMerge
-        }
+        // Regrouper le noir, relier les couleurs, préserver les cristaux : sur
+        // le plateau commun, tout est déjà chiffré dans le delta encaissé.
+        if (!shared) {
+          const blackAfter = breakdown.blackZones
+          value -= sign * AI_WEIGHTS.blackMerge * Math.max(0, blackAfter - blackBefore)
+          if (blackAfter < blackBefore + countBlackQuads(cand.tileId) && blackAfter <= blackBefore) {
+            value += sign * AI_WEIGHTS.blackMerge
+          }
 
-        // Relier plusieurs couleurs d'un coup.
-        const linked = connectedColors(player.board, cell, cand.tileId, rot)
-        if (linked > 1) value += sign * AI_WEIGHTS.multiColor * (linked - 1)
+          const linked = connectedColors(player.board, cell, cand.tileId, rot)
+          if (linked > 1) value += sign * AI_WEIGHTS.multiColor * (linked - 1)
 
-        // Cristaux : la pose qui brise le sien (ou préserve) est déjà chiffrée
-        // dans le décompte — on la fait peser sur le choix.
-        if (ruleset.variants?.crystals) {
-          value += AI_WEIGHTS.crystal * (breakdown.crystalPoints - before.crystalPoints)
+          if (ruleset.variants?.crystals) {
+            value += AI_WEIGHTS.crystal * (breakdown.crystalPoints - before.crystalPoints)
+          }
         }
 
         if (cand.personal) value -= AI_WEIGHTS.personalReserve

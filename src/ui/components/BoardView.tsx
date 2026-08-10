@@ -72,6 +72,12 @@ interface Props {
    * le noir et s'affichent donc en rouge, avec le malus.
    */
   forbidden?: Color[]
+  /**
+   * « Tching ! » (Plateau commun) : points encaissés par la dernière pose,
+   * affichés en pastille animée au-dessus de la case. `key` relance
+   * l'animation à chaque pose.
+   */
+  flash?: { cell: number; delta: number; key: number } | null
 }
 
 export function BoardView({
@@ -87,16 +93,20 @@ export function BoardView({
   onPlace,
   compact = false,
   forbidden,
+  flash = null,
 }: Props) {
   const [hover, setHover] = useState<number | null>(null)
   const [hoverZone, setHoverZone] = useState<number | null>(null)
   const irisId = useId()
 
   const n = board.size
+  /** Hauteur en tuiles : égale à la largeur, sauf Plateau commun (rectangle). */
+  const nh = board.cells.length / n
   // Bordures colorées : le cadre du plateau EST la bordure, rien à ajouter.
   // Seules les bordures multicolores réservent une couronne de carrés.
   const bw = board.borders?.kind === 'multi' ? BORDER_W : 0
   const side = PAD * 2 + 2 * bw + n * PITCH + GAP
+  const sideH = PAD * 2 + 2 * bw + nh * PITCH + GAP
   // Effets de variantes portés par la grille : moulins, teintures, failles.
   const fx = useMemo(() => gridEffects(ruleset), [ruleset])
   const grid = useMemo(() => quadGrid(board, fx), [board, fx])
@@ -143,9 +153,9 @@ export function BoardView({
     }
     if (scoreSign(ruleset) === 1) return s
     const tous = new Set<number>()
-    for (let i = 0; i < (n * 2) ** 2; i++) if (!s.has(i)) tous.add(i)
+    for (let i = 0; i < board.cells.length * 4; i++) if (!s.has(i)) tous.add(i)
     return tous
-  }, [zones, ruleset, n])
+  }, [zones, ruleset, board])
 
   /** Quarts dont l'étoile est reliée à au moins une autre : elle devient dorée. */
   const goldQuads = useMemo(() => {
@@ -178,6 +188,7 @@ export function BoardView({
 
   const badgeAnchors = useMemo(() => {
     const qs = n * 2
+    const qh = nh * 2
     // Une pastille ne se pose ni sur une étoile ni sur un trèfle : ce sont les
     // deux marques que le joueur doit pouvoir lire à tout moment.
     const starred = new Set([...starGroups.flatMap((g) => g.cells), ...cloverQuads])
@@ -208,7 +219,7 @@ export function BoardView({
         ]) {
           const nr = r + dr
           const nc = col + dc
-          if (nr < 0 || nc < 0 || nr >= qs || nc >= qs) continue
+          if (nr < 0 || nc < 0 || nr >= qh || nc >= qs) continue
           const q = nr * qs + nc
           if (!inSet.has(q)) out.add(q)
         }
@@ -273,7 +284,7 @@ export function BoardView({
   return (
     <svg
       className="board-svg"
-      viewBox={`0 0 ${side} ${side}`}
+      viewBox={`0 0 ${side} ${sideH}`}
       onMouseLeave={() => {
         setHover(null)
         setHoverZone(null)
@@ -287,7 +298,7 @@ export function BoardView({
         x="0"
         y="0"
         width={side}
-        height={side}
+        height={sideH}
         rx={compact ? 10 : 20}
         fill={board.borders?.kind === 'multi' ? '#FFFFFF' : frameColor}
         stroke={board.borders?.kind === 'multi' ? '#00000022' : 'none'}
@@ -298,7 +309,7 @@ export function BoardView({
         x={PAD + bw}
         y={PAD + bw}
         width={side - (PAD + bw) * 2}
-        height={side - (PAD + bw) * 2}
+        height={sideH - (PAD + bw) * 2}
         rx={compact ? 4 : 8}
         fill={GRID}
       />
@@ -571,6 +582,7 @@ export function BoardView({
               key={`z${i}`}
               zone={z}
               n={n}
+              nh={nh}
               bw={bw}
               spec={board.borders}
               highlight={hoverZone === i}
@@ -611,6 +623,25 @@ export function BoardView({
             />
           ) : null,
         )}
+
+      {/* « tching ! » : le delta encaissé s'envole de la case posée */}
+      {!compact && flash && (
+        <g key={`fl${flash.key}`} className="tching" pointerEvents="none">
+          <text
+            x={cellXY(flash.cell).x + TILEW / 2}
+            y={cellXY(flash.cell).y + TILEW / 2}
+            textAnchor="middle"
+            fontSize="30"
+            fontWeight="800"
+            fill={flash.delta < 0 ? '#FF6B6B' : '#FFFFFF'}
+            stroke={flash.delta < 0 ? '#5A0000' : '#00000088'}
+            strokeWidth="1.4"
+            paintOrder="stroke"
+          >
+            {signed(flash.delta)}
+          </text>
+        </g>
+      )}
 
       {/* meilleur coup (aide) */}
       {hint && board.cells[hint.cell] === null && (
@@ -921,10 +952,12 @@ function roundedPolygon(points: { x: number; y: number }[], radius: number): str
 function zoneOutlinePath(
   zone: Zone,
   n: number,
+  nh: number,
   bw: number,
   spec?: Board['borders'],
 ): string {
   const qs = n * 2
+  const qh = nh * 2
   const set = new Set(zone.cells)
   const inside: { x: number; y: number; w: number; h: number }[] = []
   const edges = new Map<string, number>()
@@ -1017,7 +1050,7 @@ function zoneOutlinePath(
     inside.push({ x, y, w: QUAD, h: QUAD })
 
     if (r === 0 || !set.has(c - qs)) add(x, y, x + QUAD, y)
-    if (r === qs - 1 || !set.has(c + qs)) {
+    if (r === qh - 1 || !set.has(c + qs)) {
       add(x, y + QUAD, x + QUAD, y + QUAD)
     } else if (r % 2 === 1) {
       // couloir vertical entre deux tuiles : ses deux bords ferment le contour
@@ -1037,7 +1070,7 @@ function zoneOutlinePath(
 
   // Croisement de quatre tuiles entièrement occupé : le carré central est
   // intérieur, sinon les bords des couloirs y dessinent un carré parasite.
-  for (let r = 1; r < qs - 1; r += 2) {
+  for (let r = 1; r < qh - 1; r += 2) {
     for (let col = 1; col < qs - 1; col += 2) {
       const a = r * qs + col
       if (!set.has(a) || !set.has(a + 1) || !set.has(a + qs) || !set.has(a + qs + 1)) continue
@@ -1143,17 +1176,20 @@ function zoneOutlinePath(
 function ZoneOutline({
   zone,
   n,
+  nh,
   bw,
   spec,
   highlight,
 }: {
   zone: Zone
   n: number
+  /** Hauteur du plateau en tuiles (rectangle du Plateau commun). */
+  nh: number
   bw: number
   spec?: Board['borders']
   highlight: boolean
 }) {
-  const d = useMemo(() => zoneOutlinePath(zone, n, bw, spec), [zone, n, bw, spec])
+  const d = useMemo(() => zoneOutlinePath(zone, n, nh, bw, spec), [zone, n, nh, bw, spec])
   // Rouge dès que la zone coûte des points : noir, couleur interdite — ou
   // n'importe quel chemin quand le scoring est inversé.
   const color = zone.points < 0 ? BLACK_ACCENT : '#FFFFFF'

@@ -106,6 +106,7 @@ export function computeZones(
   const fx = gridEffects(ruleset)
   const grid = quadGrid(board, fx)
   const qs = grid.size
+  const qh = grid.cells.length / qs
   const zones: Zone[] = []
   const stack: number[] = []
   const faults = Boolean(fx?.faults)
@@ -116,7 +117,7 @@ export function computeZones(
 
   // --- zones noires : inchangées, le blanc et les bordures ne comptent pas
   {
-    const seen = new Uint8Array(qs * qs)
+    const seen = new Uint8Array(grid.cells.length)
     for (let start = 0; start < grid.cells.length; start++) {
       if (grid.cells[start] !== BLACK || seen[start]) continue
       seen[start] = 1
@@ -130,7 +131,7 @@ export function computeZones(
         tiles.add(tileOfQuad(board.size, cur))
         const r = Math.floor(cur / qs)
         const c = cur % qs
-        for (const n of [r > 0 ? cur - qs : -1, r < qs - 1 ? cur + qs : -1, c > 0 ? cur - 1 : -1, c < qs - 1 ? cur + 1 : -1]) {
+        for (const n of [r > 0 ? cur - qs : -1, r < qh - 1 ? cur + qs : -1, c > 0 ? cur - 1 : -1, c < qs - 1 ? cur + 1 : -1]) {
           if (n >= 0 && !seen[n] && grid.cells[n] === BLACK && !(faults && faultBlocks(board, cur, n, wind))) {
             seen[n] = 1
             stack.push(n)
@@ -152,7 +153,7 @@ export function computeZones(
 
   // --- chemins de couleur : le blanc sert de joker, les bordures de rallonge
   for (const color of PATH_COLORS) {
-    const seen = new Uint8Array(qs * qs)
+    const seen = new Uint8Array(grid.cells.length)
     const colorZones: { cells: number[]; tiles: Set<number>; borderIds: Set<number> }[] = []
     for (let start = 0; start < grid.cells.length; start++) {
       // une zone part toujours d'un quart de la couleur elle-même
@@ -172,7 +173,7 @@ export function computeZones(
         }
         const r = Math.floor(cur / qs)
         const c = cur % qs
-        for (const n of [r > 0 ? cur - qs : -1, r < qs - 1 ? cur + qs : -1, c > 0 ? cur - 1 : -1, c < qs - 1 ? cur + 1 : -1]) {
+        for (const n of [r > 0 ? cur - qs : -1, r < qh - 1 ? cur + qs : -1, c > 0 ? cur - 1 : -1, c < qs - 1 ? cur + 1 : -1]) {
           if (n < 0 || seen[n]) continue
           if (faults && faultBlocks(board, cur, n, wind)) continue
           const nc = grid.cells[n]
@@ -235,6 +236,7 @@ export function starClusters(
   windmills = false,
 ): StarCluster[] {
   const qs = board.size * 2
+  const qh = (board.cells.length * 4) / qs
   const starred = new Set<number>()
   for (let i = 0; i < board.cells.length; i++) {
     const placed = board.cells[i]
@@ -257,7 +259,7 @@ export function starClusters(
       cells.push(cur)
       const r = Math.floor(cur / qs)
       const c = cur % qs
-      for (const n of [r > 0 ? cur - qs : -1, r < qs - 1 ? cur + qs : -1, c > 0 ? cur - 1 : -1, c < qs - 1 ? cur + 1 : -1]) {
+      for (const n of [r > 0 ? cur - qs : -1, r < qh - 1 ? cur + qs : -1, c > 0 ? cur - 1 : -1, c < qs - 1 ? cur + 1 : -1]) {
         if (n >= 0 && starred.has(n) && !seen.has(n)) {
           seen.add(n)
           stack.push(n)
@@ -305,7 +307,7 @@ function countStars(
 export function crystalIntact(board: Board, cell: number): boolean {
   const placed = board.cells[cell]
   if (!placed || !CRYSTALS.has(placed.tileId)) return false
-  return neighbours(board.size, cell).every((n) => {
+  return neighbours(board.size, cell, board.cells.length).every((n) => {
     const p = board.cells[n]
     return !p || p.round <= placed.round
   })
@@ -332,16 +334,6 @@ export function scoreBoard(
   const byColor = {} as Record<Color, ColorScore>
   for (const c of COLORS) byColor[c] = { color: c, points: 0, scoringZones: [], zones: [] }
 
-  // Plateau commun : chacun ne marque que les zones contenant au moins une
-  // tuile qu'il a posée — bonnes comme mauvaises, le noir partagé se paie.
-  const ownTiles =
-    ruleset.variants?.sharedBoard && who.id !== undefined
-      ? new Set(
-          board.cells.map((p, i) => (p && p.by === who.id ? i : -1)).filter((i) => i >= 0),
-        )
-      : null
-  const mine = (z: Zone) => !ownTiles || z.tiles.some((t) => ownTiles.has(t))
-
   let colorPoints = 0
   let blackZones = 0
   let blackPoints = 0
@@ -351,7 +343,6 @@ export function scoreBoard(
   // compris) : il n'y a plus qu'à additionner.
   for (const z of zones) {
     byColor[z.color].zones.push(z)
-    if (!mine(z)) continue
     if (z.color === BLACK) {
       blackZones++
       blackPoints += z.points
@@ -376,29 +367,36 @@ export function scoreBoard(
   const sign = scoreSign(ruleset)
   const wind = Boolean(ruleset.variants?.windmills)
   const starPoints = ruleset.variants?.magicStars
-    ? flip(sign, countStars(board, ruleset.variants.starScoring ?? 'linked', wind, ownTiles))
+    ? flip(sign, countStars(board, ruleset.variants.starScoring ?? 'linked', wind, null))
     : 0
   const cloverPoints = ruleset.variants?.clovers
-    ? flip(sign, countClovers(board, zones, wind, ownTiles))
+    ? flip(sign, countClovers(board, zones, wind, null))
     : 0
-  const crystalPoints = ruleset.variants?.crystals
-    ? flip(sign, countCrystals(board, ownTiles))
-    : 0
+  const crystalPoints = ruleset.variants?.crystals ? flip(sign, countCrystals(board, null)) : 0
   // Une couleur secrète interdite ne doublerait qu'un malus : on n'y touche pas.
   const secretPoints =
     ruleset.variants?.secretColor && secretColor && !forbidden.includes(secretColor)
-      ? secretBonus(zones.filter(mine), secretColor)
+      ? secretBonus(zones, secretColor)
       : 0
   const basePoints = ruleset.variants?.reverseScoring ? REVERSED_BASE : 0
+  // Plateau commun : « tching ! » — le score d'un joueur, ce sont les points
+  // engrangés au moment de chacune de ses poses (delta du score du plateau,
+  // lu à travers sa couleur secrète et ses couleurs interdites). Le décompte
+  // du plateau reste calculé en entier : c'est lui qu'on affiche, et c'est sur
+  // lui que se mesurent les deltas — mais le total du joueur est sa cagnotte.
+  const banked =
+    ruleset.variants?.sharedBoard && who.banked !== undefined ? who.banked : null
   return {
     total:
-      basePoints +
-      colorPoints +
-      blackPoints +
-      starPoints +
-      cloverPoints +
-      crystalPoints +
-      secretPoints,
+      banked !== null
+        ? basePoints + banked
+        : basePoints +
+          colorPoints +
+          blackPoints +
+          starPoints +
+          cloverPoints +
+          crystalPoints +
+          secretPoints,
     basePoints,
     colorPoints,
     blackZones,
@@ -452,8 +450,13 @@ export function countClovers(
  * qui dépendent de lui et non du plateau seul.
  */
 export interface PlayerScoring {
-  /** Identité du joueur — en Plateau commun, seuls ses chemins comptent. */
+  /** Identité du joueur (renseignée quand on passe le joueur entier). */
   id?: number
+  /**
+   * Plateau commun : points engrangés au fil des poses. Si présent, le total
+   * du décompte est cette cagnotte — le plateau, lui, reste décrit en entier.
+   */
+  banked?: number
   /** Son meilleur chemin de cette couleur est doublé (variante). */
   secretColor?: Color
   /** Les points de ses chemins de ces couleurs lui sont infligés en négatif. */
