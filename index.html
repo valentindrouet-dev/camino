@@ -6,6 +6,11 @@
     <title>CAMINO — table de jeu &amp; laboratoire</title>
     <meta name="description" content="Interface de jeu, de playtest et d'équilibrage pour CAMINO." />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='16' height='16' fill='%23F7931D'/><rect x='16' width='16' height='16' fill='%230095D9'/><rect y='16' width='16' height='16' fill='%2340AE49'/><rect x='16' y='16' width='16' height='16' fill='%23D1232A'/></svg>" />
+    <!-- Ajout à l'écran d'accueil : sans apple-touch-icon, iOS fabrique une
+         capture de la page. On lui donne le logo de l'onglet, en PNG. -->
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="CAMINO" />
+    <meta name="theme-color" content="#f7931d" />
     <style>
       /* Écran d'attente : le fond et le message existent avant même que la
          feuille de style de l'application ne soit chargée. */

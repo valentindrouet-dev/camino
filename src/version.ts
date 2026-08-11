@@ -15,6 +15,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.44',
+    date: '2026-08-07',
+    changes: [
+      'Ajouté à l’écran d’accueil d’un iPhone, le site affiche enfin son logo — les quatre carrés de l’onglet — au lieu d’une capture de la page, et s’intitule simplement « CAMINO ».',
+    ],
+  },
+  {
     version: '1.43',
     date: '2026-08-07',
     changes: [
