@@ -939,8 +939,8 @@ test('partie synchrone : une seule tuile, la même pour tout le monde', () => {
 test('plateau commun : tching ! — chacun encaisse ses points à la pose', () => {
   const s = partie2({ sharedBoard: true }, 'commun-1')
   assert.equal(s.players[0].board, s.players[1].board, 'un seul et même plateau')
-  assert.equal(s.players[0].board.size, 4, '4 tuiles de large à deux joueurs')
-  assert.equal(s.players[0].board.cells.length, 32, 'sur 8 de haut')
+  assert.equal(s.players[0].board.size, 8, '8 tuiles de large à deux joueurs')
+  assert.equal(s.players[0].board.cells.length, 32, 'sur 4 de haut — paysage')
   assert.equal(s.totalRounds, 16, '16 manches : le plateau finit plein')
 
   // A pose trois tuiles rouges reliées : rien, rien, puis tching +3 au 3e coup.
@@ -954,14 +954,14 @@ test('plateau commun : tching ! — chacun encaisse ses points à la pose', () =
   const noire = E.TILES.findIndex((t) => t.quads.every((q) => q === 'K'))
   const rouge = () => E.TILES.push({ id: E.TILES.length, quads: ['R', 'R', 'R', 'R'] }) - 1
 
-  // plateau 4 de large : 0-1-2-3 en haut, 4 juste sous 0, 8 sous 4
+  // plateau 8 de large : 0-1-2-3 sur la première rangée, 8 juste sous 0
   move(rouge(), 0) // A : un chemin d'une tuile — 0 pt
   assert.equal(cur.players[0].banked ?? 0, 0, 'une tuile : rien')
-  move(noire, 4) // B : une zone noire — tching −2
+  move(noire, 8) // B : une zone noire sous la tuile de A — tching −2
   assert.equal(cur.players[1].banked, -2, 'le noir se paie à la pose')
   move(rouge(), 1) // A : chemin de 2 — toujours 0
   assert.equal(cur.players[0].banked ?? 0, 0)
-  move(noire, 8) // B : fusionne sa zone noire — −2 → −2, delta 0
+  move(noire, 9) // B : fusionne sa zone noire — −2 → −2, delta 0
   assert.equal(cur.players[1].banked, -2, 'fusionner le noir ne coûte rien de plus')
   move(rouge(), 2) // A : chemin de 3 — tching +3
   assert.equal(cur.players[0].banked, 3, 'le chemin de 3 rapporte 3, encaissés à la pose')
@@ -994,11 +994,19 @@ test('plateau commun : tching ! — chacun encaisse ses points à la pose', () =
   )
 })
 
-test('plateau commun : 2 colonnes de 8 par joueur, et les variantes se combinent', () => {
-  for (const [nb, w] of [[2, 4], [3, 6], [4, 8], [5, 10], [6, 12]]) {
+test('plateau commun : 16 cases par joueur, toujours en paysage', () => {
+  for (const [nb, w, h] of [
+    [2, 8, 4],
+    [3, 8, 6],
+    [4, 8, 8],
+    [5, 10, 8],
+    [6, 12, 8],
+  ]) {
     const d = E.sharedBoardDims(nb)
     assert.equal(d.w, w, `${nb} joueurs : ${w} de large`)
-    assert.equal(d.h, 8)
+    assert.equal(d.h, h, `${nb} joueurs : ${h} de haut`)
+    assert.ok(d.w >= d.h, `${nb} joueurs : paysage, jamais portrait`)
+    assert.equal(d.w * d.h, 16 * nb, `${nb} joueurs : 16 cases chacun`)
   }
   // à 3 joueurs : 6×8 = 48 cases = 16 manches × 3, le plateau finit plein
   let s = E.createGame({
@@ -1012,7 +1020,7 @@ test('plateau commun : 2 colonnes de 8 par joueur, et les variantes se combinent
       ruleset: withVariants({ sharedBoard: true, clovers: true, magicStars: true }),
     },
   })
-  assert.equal(s.players[0].board.size, 6)
+  assert.equal(s.players[0].board.size, 8, '8×6 à trois joueurs')
   assert.equal(s.players[0].board.cells.length, 48)
   assert.equal(s.totalRounds, 16)
   while (s.phase === 'playing') s = E.applyMove(s, E.bestMove(s, 'bot-greedy'))

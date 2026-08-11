@@ -140,7 +140,7 @@ export function activeVariantInfos(options: GameOptions): VariantInfo[] {
   add(
     v.sharedBoard,
     'Plateau commun',
-    'Un seul grand plateau pour la table (2 colonnes de 8 par joueur). À chaque pose, le poseur encaisse immédiatement les points que sa tuile fait gagner — ou perdre — au plateau.',
+    'Un seul grand plateau paysage pour la table, 16 cases par joueur (8×4 à deux, 8×6 à trois, 8×8 à quatre…). À chaque pose, le poseur encaisse immédiatement les points que sa tuile fait gagner — ou perdre — au plateau.',
   )
   add(
     v.reverseScoring,

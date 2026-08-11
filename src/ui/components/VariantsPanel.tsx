@@ -297,7 +297,7 @@ export function VariantsPanel({
           label="Plateau commun"
           on={!!variants.sharedBoard}
           onChange={(v) => patchVariants({ sharedBoard: v })}
-          description="Un seul grand plateau pour toute la table — 2 colonnes de 8 par joueur : 4×8 à deux, 6×8 à trois, 8×8 à quatre… À chaque pose, tching ! : le poseur encaisse immédiatement les points que sa tuile fait gagner (ou perdre) au plateau."
+          description="Un seul grand plateau paysage pour toute la table, 16 cases par joueur : 8×4 à deux, 8×6 à trois, 8×8 à quatre, puis 10×8 et 12×8. À chaque pose, tching ! : le poseur encaisse immédiatement les points que sa tuile fait gagner (ou perdre) au plateau."
         />
         <VariantToggle
           label="Scoring inversé"

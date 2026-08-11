@@ -15,6 +15,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.43',
+    date: '2026-08-07',
+    changes: [
+      'Le plateau commun s’étend enfin en paysage et non en hauteur : 8×4 à deux joueurs, 8×6 à trois, 8×8 à quatre, puis 10×8 et 12×8. Toujours 16 cases par joueur, et un plateau qui finit plein.',
+    ],
+  },
+  {
     version: '1.42',
     date: '2026-08-07',
     changes: [

@@ -113,12 +113,17 @@ export function tilesPerRound(ruleset: Ruleset, playerCount: number): number {
 }
 
 /**
- * Dimensions du plateau partagé (variante Plateau commun) : 2 colonnes de 8
- * par joueur — 4×8 à deux, 6×8 à trois, 8×8 à quatre… Chaque joueur apporte
- * ainsi exactement ses 16 tuiles, et le plateau finit plein.
+ * Dimensions du plateau partagé (variante Plateau commun) : 16 cases par
+ * joueur, disposées en PAYSAGE — le plateau ne dépasse jamais 8 tuiles de
+ * haut et s'allonge vers la droite. 8×4 à deux, 8×6 à trois, 8×8 à quatre,
+ * puis 10×8 et 12×8. Chaque joueur apporte exactement ses 16 tuiles et le
+ * plateau finit plein.
  */
 export function sharedBoardDims(playerCount: number): { w: number; h: number } {
-  return { w: 2 * Math.max(2, playerCount), h: 8 }
+  // Solo : le plateau habituel, il n'y a personne avec qui partager.
+  if (playerCount <= 1) return { w: 4, h: 4 }
+  const h = Math.min(8, 2 * playerCount)
+  return { w: (16 * playerCount) / h, h }
 }
 
 /**
@@ -237,7 +242,7 @@ export function createGame(config: GameConfig): GameState {
   }))
 
   // Plateau commun : tout le monde regarde — et remplit — le même plateau,
-  // rectangulaire : 2 colonnes de 8 par joueur.
+  // rectangulaire et en paysage : 16 cases par joueur.
   if (shared) {
     const dims = sharedBoardDims(players.length)
     const commun = createBoardRect(dims.w, dims.h)
