@@ -23,6 +23,7 @@ import {
   topMoves,
 } from '../../engine/index.ts'
 import type { GameState, Rotation } from '../../engine/index.ts'
+import type { Action } from '../../net/salon.ts'
 import { BoardView } from '../components/BoardView.tsx'
 import { TileGlyph } from '../components/TileGlyph.tsx'
 import { ScoreDetail } from '../components/ScoreDetail.tsx'
@@ -31,11 +32,21 @@ import { MissionCardView } from '../components/MissionCard.tsx'
 import { activeVariantInfos } from '../variantInfo.ts'
 import { TileGlyph as ColorTile } from '../components/TileGlyph.tsx'
 
+/** Ce qui change quand la partie se joue en ligne plutôt qu'autour d'une table. */
+export interface JeuEnLigne {
+  /** Mon siège : le seul joueur dont je commande les gestes. */
+  monSiege: number
+  salonNom: string
+  /** Publier une action : c'est le journal partagé qui fait avancer la partie. */
+  jouer: (action: Action) => void
+}
+
 interface Props {
   history: GameState[]
   onHistory: (updater: (h: GameState[]) => GameState[]) => void
   onFinish: () => void
   onQuit: () => void
+  online?: JeuEnLigne
 }
 
 const BOT_DELAY = 520
@@ -49,7 +60,7 @@ const PAGE_PAD = 20
 /** Durée du vol d'une tuile de la pioche vers le plateau d'un bot. */
 const FLY_MS = 620
 
-export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
+export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Props) {
   const state = history[history.length - 1]
   const { options } = state
   const activeId = currentPlayerId(state)
@@ -79,8 +90,14 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
   useEffect(() => {
     if (!isBot(active)) setHumanFocus(active.id)
   }, [active])
-  const viewId = pinned ?? (isBot(active) && humanIds.length ? humanFocus : activeId)
-  const viewed = state.players[viewId]
+  // En ligne, on regarde son propre plateau par défaut — pas celui de celui
+  // qui joue : c'est le sien qu'on prépare pendant que les autres réfléchissent.
+  const viewId = online
+    ? (pinned ?? online.monSiege)
+    : (pinned ?? (isBot(active) && humanIds.length ? humanFocus : activeId))
+  const viewed = state.players[viewId] ?? state.players[0]
+  /** En ligne, je ne commande que mon siège. */
+  const monTour = !online || activeId === online.monSiege
 
   const pool = state.pool
   const free = useMemo(() => availableTiles(state), [state])
@@ -184,29 +201,34 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
         ...(flipped ? { flipped: true } : {}),
         ...(fromPersonal ? { personal: true } : {}),
       }
-      onHistory((h) => [...h, applyMove(h[h.length - 1], move)])
+      if (online) online.jouer({ k: 'coup', move })
+      else onHistory((h) => [...h, applyMove(h[h.length - 1], move)])
       setSelected(null)
       setFromPersonal(false)
     },
-    [selected, rot, flipped, fromPersonal, onHistory],
+    [selected, rot, flipped, fromPersonal, onHistory, online],
   )
 
-  const redraw = useCallback(
-    () => onHistory((h) => [...h, redrawLastTile(h[h.length - 1])]),
-    [onHistory],
-  )
+  const redraw = useCallback(() => {
+    if (online) online.jouer({ k: 'repioche' })
+    else onHistory((h) => [...h, redrawLastTile(h[h.length - 1])])
+  }, [onHistory, online])
 
   // Verso aléatoire : retourner la tuile sélectionnée — sans retour possible.
   const flipPossible =
     selected !== null && !fromPersonal && canFlipTile(state, selected)
   const flipSelected = useCallback(() => {
     if (selected === null) return
+    if (online) {
+      online.jouer({ k: 'verso', tileId: selected })
+      return
+    }
     onHistory((h) => {
       const cur = h[h.length - 1]
       if (!canFlipTile(cur, selected)) return h
       return [...h, flipTile(cur, selected)]
     })
-  }, [selected, onHistory])
+  }, [selected, onHistory, online])
 
   // La tuile retournée doit être prise : on la sélectionne d'office.
   useEffect(() => {
@@ -223,7 +245,8 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
   // Tour des bots.
   const botTimer = useRef<number | null>(null)
   useEffect(() => {
-    if (state.phase !== 'playing' || !isBot(active)) return
+    // En ligne, tous les sièges sont humains : personne ne joue à leur place.
+    if (online || state.phase !== 'playing' || !isBot(active)) return
     botTimer.current = window.setTimeout(() => {
       if (canRedrawLastTile(state) && botWantsRedraw(state)) {
         onHistory((h) => [...h, redrawLastTile(h[h.length - 1])])
@@ -246,17 +269,18 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
     return () => {
       if (botTimer.current) window.clearTimeout(botTimer.current)
     }
-  }, [state, active, onHistory])
+  }, [state, active, onHistory, online])
 
   const rotate = useCallback((dir: 1 | -1) => {
     setRot((r) => ((((r + dir) % 4) + 4) % 4) as Rotation)
     setSpin((s) => s + dir * 90)
   }, [])
 
-  const undo = useCallback(
-    () => onHistory((h) => (h.length > 1 ? h.slice(0, -1) : h)),
-    [onHistory],
-  )
+  // Annuler réécrit l'histoire : impossible à plusieurs sans l'accord de tous.
+  const undo = useCallback(() => {
+    if (online) return
+    onHistory((h) => (h.length > 1 ? h.slice(0, -1) : h))
+  }, [onHistory, online])
 
   // Raccourcis clavier.
   useEffect(() => {
@@ -338,7 +362,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
     return { cell: last.cell, delta: last.delta, key: state.log.length }
   }, [variants?.sharedBoard, state.log])
 
-  const humanTurn = !isBot(active) && state.phase === 'playing'
+  const humanTurn = !isBot(active) && state.phase === 'playing' && monTour
   const canPlaceHere = humanTurn && viewId === activeId && selected !== null
 
   return (
@@ -398,17 +422,21 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
 
       {/* --------------------------------------------------- table de jeu */}
       <div className="stage" ref={stageRef}>
-        <div className="turn-banner">
+        <div className={`turn-banner ${online && monTour ? 'mine' : ''}`}>
           <span className="dot" style={{ background: active.color }} />
-          <span className="who">{active.name}</span>
+          <span className="who">
+            {online && monTour ? 'À vous de jouer' : active.name}
+          </span>
           <span style={{ color: 'var(--ink-dim)' }}>
             {state.phase === 'finished'
               ? '— partie terminée'
-              : isBot(active)
-                ? '— réfléchit…'
-                : selected === null
-                  ? '— choisis une tuile au centre'
-                  : '— place ta tuile sur ton plateau'}
+              : online && !monTour
+                ? '— à son tour de jouer…'
+                : isBot(active)
+                  ? '— réfléchit…'
+                  : selected === null
+                    ? '— choisis une tuile au centre'
+                    : '— place ta tuile sur ton plateau'}
           </span>
         </div>
 
@@ -909,9 +937,11 @@ export function GameScreen({ history, onHistory, onFinish, onQuit }: Props) {
         </div>
 
         <div className="row wrap">
-          <button className="btn small" onClick={undo} disabled={history.length <= 1}>
-            ↶ Annuler
-          </button>
+          {!online && (
+            <button className="btn small" onClick={undo} disabled={history.length <= 1}>
+              ↶ Annuler
+            </button>
+          )}
           <button className="btn small ghost" onClick={onQuit}>
             Quitter
           </button>

@@ -15,6 +15,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.45',
+    date: '2026-08-07',
+    changes: [
+      'Premier jalon du jeu en ligne : « Jouer en ligne » ouvre un salon numéroté (Camino 01, 02…), les autres le voient dans la liste, le rejoignent, choisissent leur plateau, et l’hôte lance la partie — le salon se ferme alors aux nouveaux venus, puis se referme tout seul à la fin.',
+      'La partie ne synchronise jamais un état : le moteur étant déterministe, on n’échange que la graine et un journal de coups numérotés — 4 Ko pour une partie complète à six. Se reconnecter, c’est simplement redemander le journal.',
+      'Chacun ne voit plus que ses propres secrets : couleur secrète, couleurs interdites, tuile personnelle et carte mission perso des adversaires sont masquées.',
+      'À plusieurs, on ne joue que son tour, l’annulation disparaît et le bandeau signale « À vous de jouer ». Pour l’instant le salon relie les onglets d’un même navigateur : le transport hébergé viendra se brancher sans rien changer au reste.',
+    ],
+  },
+  {
     version: '1.44',
     date: '2026-08-07',
     changes: [

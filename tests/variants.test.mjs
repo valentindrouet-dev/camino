@@ -1158,3 +1158,103 @@ test('feuille blanche : clearVariants efface les règles, pas le confort', () =>
   assert.equal(s.cardId, undefined)
   assert.equal(s.players[0].board.size, 4)
 })
+
+test('en ligne : le journal d’actions rejoue la partie à l’identique', async () => {
+  const V = await import('../src/net/useSalon.ts')
+  const config = {
+    players: [
+      { name: 'Alice', kind: 'human', boardColor: 'O' },
+      { name: 'Bob', kind: 'human', boardColor: 'B' },
+    ],
+    options: {
+      ...E.defaultOptions('salon-1'),
+      ruleset: withVariants({ magicStars: true, secretColor: true }),
+    },
+  }
+
+  // une partie jouée « en local » par des bots produit une liste d'actions
+  let ref = E.createGame(config)
+  const actions = []
+  while (ref.phase === 'playing') {
+    const move = E.bestMove(ref, 'bot-smart')
+    actions.push({ k: 'coup', move })
+    ref = E.applyMove(ref, move)
+  }
+  assert.equal(ref.phase, 'finished')
+  assert.ok(actions.length >= 30, `${actions.length} coups`)
+
+  // rejouée depuis le journal, on retombe exactement sur le même état
+  const rejoue = V.rejouer(config, actions)
+  assert.equal(rejoue.round, ref.round)
+  assert.deepEqual(
+    rejoue.players.map((p) => p.board.cells),
+    ref.players.map((p) => p.board.cells),
+  )
+  assert.deepEqual(E.scoreAll(rejoue).map((b) => b.total), E.scoreAll(ref).map((b) => b.total))
+
+  // reconnexion : rejouer un préfixe donne l'état de ce moment-là
+  const moitie = V.rejouer(config, actions.slice(0, 10))
+  assert.equal(moitie.log.length, 10)
+  assert.equal(moitie.phase, 'playing')
+})
+
+test('en ligne : le point de vue masque les secrets des autres', () => {
+  const s = E.createGame({
+    players: [
+      { name: 'A', kind: 'human', boardColor: 'O' },
+      { name: 'B', kind: 'human', boardColor: 'B' },
+      { name: 'C', kind: 'human', boardColor: 'G' },
+    ],
+    options: {
+      ...E.defaultOptions('secrets-1'),
+      personalCards: true,
+      ruleset: withVariants({
+        secretColor: true,
+        forbiddenColor: true,
+        personalTile: true,
+        boardSwap: true,
+      }),
+    },
+  })
+  // tout est là dans l'état complet
+  for (const p of s.players) {
+    assert.ok(p.secretColor && p.forbiddenColors && p.cardId !== undefined)
+  }
+
+  const vue = E.viewFor(s, 1)
+  // mon joueur est intact
+  assert.equal(vue.players[1].secretColor, s.players[1].secretColor)
+  assert.deepEqual(vue.players[1].forbiddenColors, s.players[1].forbiddenColors)
+  assert.equal(vue.players[1].cardId, s.players[1].cardId)
+  assert.equal(vue.players[1].personalTileId, s.players[1].personalTileId)
+  // les autres sont muets
+  for (const i of [0, 2]) {
+    assert.equal(vue.players[i].secretColor, undefined)
+    assert.equal(vue.players[i].forbiddenColors, undefined)
+    assert.equal(vue.players[i].cardId, undefined)
+    assert.equal(vue.players[i].personalTileId, undefined)
+    // le reste passe : nom, couleur, plateau
+    assert.equal(vue.players[i].name, s.players[i].name)
+    assert.deepEqual(vue.players[i].board, s.players[i].board)
+  }
+  assert.ok(E.isMasked(vue, 1))
+  assert.ok(!E.isMasked(s, 1), 'l’état complet, lui, ne l’est pas')
+  // la carte d'échange reste face cachée tant qu'on ne la révèle pas
+  assert.equal(vue.swapCard, undefined)
+  assert.equal(E.viewFor(s, 1, true).swapCard, s.swapCard)
+})
+
+test('en ligne : numérotation et péremption des salons', async () => {
+  const S = await import('../src/net/salon.ts')
+  assert.equal(S.prochainNumero([]), 1)
+  assert.equal(S.nomDeSalon(1), 'Camino 01')
+  assert.equal(S.nomDeSalon(12), 'Camino 12')
+  // le plus petit numéro libre : un salon fermé laisse sa place
+  assert.equal(S.prochainNumero([{ numero: 1 }, { numero: 3 }]), 2)
+  assert.equal(S.prochainNumero([{ numero: 1 }, { numero: 2 }]), 3)
+  // un salon terminé ou trop vieux disparaît de la liste
+  const maintenant = 1_000_000
+  assert.ok(S.estPerime({ vuA: maintenant, phase: 'terminee' }, maintenant))
+  assert.ok(!S.estPerime({ vuA: maintenant, phase: 'attente' }, maintenant))
+  assert.ok(S.estPerime({ vuA: maintenant - S.PEREMPTION_MS - 1, phase: 'attente' }, maintenant))
+})

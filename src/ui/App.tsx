@@ -8,17 +8,40 @@ import { ResultsScreen } from './screens/ResultsScreen.tsx'
 import { LabScreen } from './screens/LabScreen.tsx'
 import { HistoryScreen } from './screens/HistoryScreen.tsx'
 import { VersionsScreen } from './screens/VersionsScreen.tsx'
+import { SalonScreen } from './screens/SalonScreen.tsx'
+import { TransportLocal } from '../net/local.ts'
+import { useSalon } from '../net/useSalon.ts'
+import { viewFor } from '../engine/index.ts'
 import { VERSION } from '../version.ts'
 import { formatDuration } from './duration.ts'
 
-type Screen = 'setup' | 'game' | 'results' | 'lab' | 'archive' | 'history' | 'versions'
+type Screen = 'setup' | 'game' | 'results' | 'lab' | 'archive' | 'history' | 'versions' | 'salon'
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('setup')
+  /*
+   * Jeu en ligne. Le transport est local pour l'instant — les onglets d'un
+   * même navigateur — mais l'interface de salon ne connaît que `Transport` :
+   * brancher un service hébergé ne changera rien à ce qui suit.
+   */
+  const [transport] = useState(() => new TransportLocal())
+  const salon = useSalon(transport)
   /** Identifiant de la partie qu'on vient d'archiver : sert au rapport de fin. */
   const [archivedId, setArchivedId] = useState<string | null>(null)
   const [config, setConfig] = useState<GameConfig | null>(null)
   const [history, setHistory] = useState<GameState[]>([])
+
+  // La partie en ligne alimente le même historique que la partie locale : le
+  // chrono, l'archivage et l'écran de résultats n'ont rien à savoir du réseau.
+  const enLigne = salon.salon !== null && salon.monSiege !== null && salon.partie !== null
+  useEffect(() => {
+    if (!salon.partie) return
+    setHistory([salon.partie])
+  }, [salon.partie])
+
+  useEffect(() => {
+    if (enLigne && screen === 'salon') setScreen('game')
+  }, [enLigne, screen])
 
   const state = history[history.length - 1] ?? null
   const running = state?.phase === 'playing'
@@ -242,12 +265,34 @@ export default function App() {
         <SetupScreen
           onStart={start}
           onOpenLab={() => setScreen('lab')}
+          onOpenSalons={() => setScreen('salon')}
           resumable={running}
           onResume={() => setScreen('game')}
         />
       )}
 
-      {screen === 'game' && state && (
+      {screen === 'salon' && !enLigne && (
+        <SalonScreen salon={salon} onBack={() => setScreen('setup')} />
+      )}
+
+      {screen === 'game' && state && enLigne && salon.salon && (
+        <GameScreen
+          history={[viewFor(state, salon.monSiege as number)]}
+          onHistory={() => {}}
+          onFinish={finish}
+          onQuit={() => {
+            salon.quitter()
+            quitGame('setup')
+          }}
+          online={{
+            monSiege: salon.monSiege as number,
+            salonNom: salon.salon.nom,
+            jouer: salon.jouer,
+          }}
+        />
+      )}
+
+      {screen === 'game' && state && !enLigne && (
         <GameScreen
           history={history}
           onHistory={onHistory}

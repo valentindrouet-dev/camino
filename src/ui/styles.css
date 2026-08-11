@@ -156,6 +156,39 @@ code {
   max-width: 220px;
 }
 
+/* salons en ligne */
+
+.salon-joueur {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+}
+
+.salon-ligne {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+}
+
+.salon-ligne .note {
+  margin-left: auto;
+}
+
+/* c'est mon tour : le bandeau se met en avant */
+.turn-banner.mine {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 3px rgba(247, 147, 29, 0.18);
+}
+
 /* « Tching ! » : le delta encaissé à la pose s'élève et s'efface */
 .tching {
   animation: tching 1.6s ease-out forwards;

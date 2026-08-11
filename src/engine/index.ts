@@ -12,6 +12,7 @@ export * from './ai.ts'
 export * from './stats.ts'
 export * from './cards.ts'
 export * from './rng.ts'
+export * from './view.ts'
 
 /**
  * Décompte complet d'un joueur : zones + carte mission de la table.

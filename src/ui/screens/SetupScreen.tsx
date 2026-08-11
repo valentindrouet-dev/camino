@@ -64,6 +64,8 @@ function optionsDeDepart(saved?: GameOptions): GameOptions {
 interface Props {
   onStart: (config: GameConfig) => void;
   onOpenLab: () => void;
+  /** Ouvre l'écran des parties en ligne. */
+  onOpenSalons: () => void;
   /** Une partie est en cours : proposer de la reprendre. */
   resumable?: boolean;
   onResume?: () => void;
@@ -72,6 +74,7 @@ interface Props {
 export function SetupScreen({
   onStart,
   onOpenLab,
+  onOpenSalons,
   resumable,
   onResume,
 }: Props) {
@@ -324,6 +327,13 @@ export function SetupScreen({
             onClick={start}
           >
             Commencer la partie
+          </button>
+          <button
+            className="btn"
+            style={{ padding: "10px 24px", alignSelf: "stretch" }}
+            onClick={onOpenSalons}
+          >
+            🌐 Jouer en ligne, chacun sur son appareil
           </button>
         </div>
 
