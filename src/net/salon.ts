@@ -108,7 +108,16 @@ export interface Transport {
   publier(salon: Salon): void
   /** Quitte le salon courant. */
   quitter(): void
+  /**
+   * S'abonne à l'état de la liaison. Sans réseau à établir (salon local),
+   * l'implémentation peut ne rien fournir : on considère alors la liaison
+   * comme acquise.
+   */
+  surEtat?(cb: (etat: EtatLiaison) => void): () => void
 }
+
+/** Où en est la liaison avec le service. */
+export type EtatLiaison = 'connexion' | 'ok' | 'erreur'
 
 // ---------------------------------------------------------------------------
 // Aides communes à tous les transports.

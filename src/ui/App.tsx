@@ -30,7 +30,10 @@ export default function App() {
   const [transport] = useState<Transport>(() =>
     enLigneDisponible() ? new TransportSupabase() : new TransportLocal(),
   )
-  const salon = useSalon(transport)
+  // Le réseau ne s'éveille qu'une fois l'écran des salons ouvert : personne ne
+  // télécharge le client temps réel pour une partie sur cet appareil.
+  const [salonsOuverts, setSalonsOuverts] = useState(false)
+  const salon = useSalon(transport, salonsOuverts)
   /** Identifiant de la partie qu'on vient d'archiver : sert au rapport de fin. */
   const [archivedId, setArchivedId] = useState<string | null>(null)
   const [config, setConfig] = useState<GameConfig | null>(null)
@@ -270,7 +273,10 @@ export default function App() {
         <SetupScreen
           onStart={start}
           onOpenLab={() => setScreen('lab')}
-          onOpenSalons={() => setScreen('salon')}
+          onOpenSalons={() => {
+            setSalonsOuverts(true)
+            setScreen('salon')
+          }}
           resumable={running}
           onResume={() => setScreen('game')}
         />

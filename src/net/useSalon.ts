@@ -22,7 +22,15 @@ import {
 } from '../engine/index.ts'
 import type { BoardColor, GameConfig, GameState } from '../engine/index.ts'
 import { BOARD_COLOR_HEX, BOARD_COLOR_NAMES } from '../engine/index.ts'
-import type { Action, JoueurSalon, Message, Salon, SalonResume, Transport } from './salon.ts'
+import type {
+  Action,
+  EtatLiaison,
+  JoueurSalon,
+  Message,
+  Salon,
+  SalonResume,
+  Transport,
+} from './salon.ts'
 import { nomDeSalon, prochainNumero } from './salon.ts'
 
 const CLE_ID = 'camino.joueur.v1'
@@ -97,6 +105,8 @@ export function configDuSalon(salon: Salon): GameConfig {
 export interface EtatSalon {
   /** Salon courant, ou null tant qu'on n'en a rejoint aucun. */
   salon: Salon | null
+  /** État de la liaison avec le service. */
+  liaison: EtatLiaison
   /** Liste des salons ouverts, pour l'écran « Rejoindre ». */
   liste: SalonResume[]
   /** Suis-je celui qui a ouvert le salon ? */
@@ -114,9 +124,15 @@ export interface EtatSalon {
   quitter: () => void
 }
 
-export function useSalon(transport: Transport): EtatSalon {
+/**
+ * @param actif Tant qu'il est faux, on ne se connecte à rien : inutile de
+ * faire télécharger le client temps réel à qui ne joue pas en ligne.
+ */
+export function useSalon(transport: Transport, actif = true): EtatSalon {
   const moi = useMemo(monIdentite, [])
   const [liste, setListe] = useState<SalonResume[]>([])
+  // Sans réseau à établir (salon local), la liaison est acquise d'office.
+  const [liaison, setLiaison] = useState<EtatLiaison>(transport.surEtat ? 'connexion' : 'ok')
   const [salon, setSalon] = useState<Salon | null>(null)
   const [actions, setActions] = useState<Action[]>([])
 
@@ -129,8 +145,15 @@ export function useSalon(transport: Transport): EtatSalon {
 
   const suisHote = salon?.hote === moi.id
 
-  // --- liste des salons ouverts
-  useEffect(() => transport.salons(setListe), [transport])
+  // --- liste des salons ouverts (et, avec elle, la connexion au service)
+  useEffect(() => {
+    if (!actif) return
+    return transport.salons(setListe)
+  }, [transport, actif])
+  useEffect(() => {
+    if (!actif) return
+    return transport.surEtat?.(setLiaison)
+  }, [transport, actif])
 
   /** L'hôte publie l'état du salon : c'est la seule source de vérité. */
   const diffuser = useCallback(
@@ -386,6 +409,7 @@ export function useSalon(transport: Transport): EtatSalon {
 
   return {
     salon,
+    liaison,
     liste,
     suisHote,
     monSiege,

@@ -16,7 +16,8 @@ export const SUPABASE_URL = 'https://uqvzlpgeinunhlojlbun.supabase.co'
  * Tant qu'elle est vide, l'application se rabat sur le salon local : les
  * onglets d'un même navigateur, sans réseau.
  */
-export const SUPABASE_ANON_KEY = ''
+export const SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxdnpscGdlaW51bmhsb2psYnVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NTY2ODAsImV4cCI6MjEwMjAzMjY4MH0.LgcJgl3q6UkYs3XQ0Bp2pe4dgqU3cAmgg2ro9Dpi_As'
 
 /** Le jeu en ligne entre appareils est-il configuré ? */
 export function enLigneDisponible(): boolean {

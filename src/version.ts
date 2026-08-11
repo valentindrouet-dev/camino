@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.47',
+    date: '2026-08-07',
+    changes: [
+      'Le jeu en ligne est branché : les salons relient désormais des appareils différents, chacun sur son téléphone ou son ordinateur.',
+      'L’écran des parties en ligne annonce l’état de la liaison — connexion en cours, ou échec expliqué — au lieu de rester muet si le réseau ne répond pas.',
+    ],
+  },
+  {
     version: '1.46',
     date: '2026-08-07',
     changes: [

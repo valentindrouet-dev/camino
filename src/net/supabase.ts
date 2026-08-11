@@ -13,7 +13,7 @@
  * Le client officiel est chargé à la demande : tant qu'on ne joue pas en
  * ligne, il n'est même pas téléchargé.
  */
-import type { Message, Salon, SalonResume, Transport } from './salon.ts'
+import type { EtatLiaison, Message, Salon, SalonResume, Transport } from './salon.ts'
 import { estPerime, resume } from './salon.ts'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config.ts'
 
@@ -51,6 +51,23 @@ export class TransportSupabase implements Transport {
   private monSalon: Salon | null = null
   private annonceur: number | null = null
   private onMessage: ((msg: Message) => void) | null = null
+  private etat: EtatLiaison = 'connexion'
+  private surEtatCb: ((e: EtatLiaison) => void) | null = null
+
+  /** L'état de la liaison intéresse l'interface : muette, elle semble en panne. */
+  surEtat(cb: (etat: EtatLiaison) => void): () => void {
+    this.surEtatCb = cb
+    cb(this.etat)
+    return () => {
+      if (this.surEtatCb === cb) this.surEtatCb = null
+    }
+  }
+
+  private majEtat(e: EtatLiaison) {
+    if (this.etat === e) return
+    this.etat = e
+    this.surEtatCb?.(e)
+  }
 
   // ------------------------------------------------------------------ hall
   salons(onChange: (liste: SalonResume[]) => void): () => void {
@@ -64,6 +81,7 @@ export class TransportSupabase implements Transport {
       onChange([...this.connus.values()].sort((a, b) => a.numero - b.numero))
     }
 
+    this.majEtat('connexion')
     void (async () => {
       const c = await getClient()
       if (!vivant) return
@@ -82,7 +100,12 @@ export class TransportSupabase implements Transport {
         }
       })
       this.hall.subscribe((statut) => {
-        if (statut === 'SUBSCRIBED') this.envoyerHall({ t: 'qui' })
+        if (statut === 'SUBSCRIBED') {
+          this.majEtat('ok')
+          this.envoyerHall({ t: 'qui' })
+        } else if (statut === 'CHANNEL_ERROR' || statut === 'TIMED_OUT') {
+          this.majEtat('erreur')
+        }
       })
     })()
 

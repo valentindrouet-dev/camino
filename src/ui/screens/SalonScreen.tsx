@@ -163,6 +163,20 @@ export function SalonScreen({ salon: s, onBack }: Props) {
         </div>
       )}
 
+      {enLigneDisponible() && s.liaison !== 'ok' && (
+        <div className={s.liaison === 'erreur' ? 'warn' : 'panel'} style={{ marginBottom: 14 }}>
+          {s.liaison === 'connexion' ? (
+            <span className="note">Connexion au service de jeu en ligne…</span>
+          ) : (
+            <>
+              <strong>Connexion impossible.</strong> Le service de jeu en ligne ne répond pas —
+              réseau coupé, ou pare-feu qui bloque les connexions temps réel. Les salons ne
+              relieront que les onglets de cet appareil tant que la liaison n’est pas rétablie.
+            </>
+          )}
+        </div>
+      )}
+
       <div className="panel stack" style={{ marginBottom: 14 }}>
         <label className="field" style={{ maxWidth: 320 }}>
           <span>Votre nom</span>
