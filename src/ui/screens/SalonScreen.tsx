@@ -4,6 +4,7 @@ import type { BoardColor } from '../../engine/index.ts'
 import { BOARD_COLOR_HEX, BOARD_COLOR_NAMES, plateauxPris } from '../../net/useSalon.ts'
 import type { EtatSalon } from '../../net/useSalon.ts'
 import { VariantsPanel } from '../components/VariantsPanel.tsx'
+import { enLigneDisponible } from '../../net/config.ts'
 import { monIdentite } from '../../net/useSalon.ts'
 
 interface Props {
@@ -152,6 +153,15 @@ export function SalonScreen({ salon: s, onBack }: Props) {
           ← Retour
         </button>
       </div>
+
+      {!enLigneDisponible() && (
+        <div className="warn" style={{ marginBottom: 14 }}>
+          <strong>Salon local.</strong> Le service en ligne n’est pas encore configuré : les
+          salons ne relient pour l’instant que les <strong>onglets de ce navigateur</strong>.
+          Ouvrez-en un second sur la même adresse pour jouer à deux — tout le reste fonctionne à
+          l’identique.
+        </div>
+      )}
 
       <div className="panel stack" style={{ marginBottom: 14 }}>
         <label className="field" style={{ maxWidth: 320 }}>

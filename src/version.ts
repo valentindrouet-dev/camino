@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.46',
+    date: '2026-08-07',
+    changes: [
+      'Le transport hébergé est en place : dès que la clé du projet sera renseignée, les salons relieront des appareils différents au lieu des seuls onglets d’un même navigateur.',
+      'Le client temps réel n’est téléchargé que par ceux qui ouvrent l’écran des parties en ligne — le reste de l’application n’en paie que 1,7 Ko.',
+      'Tant que le service n’est pas configuré, l’écran des salons le dit franchement et se rabat sur le salon local, qui fonctionne à l’identique.',
+    ],
+  },
+  {
     version: '1.45',
     date: '2026-08-07',
     changes: [

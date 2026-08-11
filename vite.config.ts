@@ -29,8 +29,14 @@ export default defineConfig({
         // réclamer un bundle supprimé par le déploiement suivant — c'est ce qui
         // produit une page blanche.
         entryFileNames: 'assets/camino.js',
-        chunkFileNames: 'assets/[name].js',
+        chunkFileNames: 'assets/camino-[name].js',
         assetFileNames: 'assets/camino.[ext]',
+        // Le client temps réel n'est téléchargé que par ceux qui jouent en
+        // ligne : il vit dans son propre morceau, à un nom stable.
+        manualChunks(id) {
+          if (id.includes('@supabase') || id.includes('phoenix')) return 'reseau'
+          return undefined
+        },
       },
     },
   },

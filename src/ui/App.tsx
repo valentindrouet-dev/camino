@@ -10,6 +10,9 @@ import { HistoryScreen } from './screens/HistoryScreen.tsx'
 import { VersionsScreen } from './screens/VersionsScreen.tsx'
 import { SalonScreen } from './screens/SalonScreen.tsx'
 import { TransportLocal } from '../net/local.ts'
+import { TransportSupabase } from '../net/supabase.ts'
+import { enLigneDisponible } from '../net/config.ts'
+import type { Transport } from '../net/salon.ts'
 import { useSalon } from '../net/useSalon.ts'
 import { viewFor } from '../engine/index.ts'
 import { VERSION } from '../version.ts'
@@ -24,7 +27,9 @@ export default function App() {
    * même navigateur — mais l'interface de salon ne connaît que `Transport` :
    * brancher un service hébergé ne changera rien à ce qui suit.
    */
-  const [transport] = useState(() => new TransportLocal())
+  const [transport] = useState<Transport>(() =>
+    enLigneDisponible() ? new TransportSupabase() : new TransportLocal(),
+  )
   const salon = useSalon(transport)
   /** Identifiant de la partie qu'on vient d'archiver : sert au rapport de fin. */
   const [archivedId, setArchivedId] = useState<string | null>(null)
