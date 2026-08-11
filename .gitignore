@@ -2,3 +2,13 @@ node_modules
 dist
 .DS_Store
 *.local
+
+# Secrets : le dépôt est public. Le mot de passe de la base Supabase et la
+# clé « service_role » ne doivent JAMAIS y entrer — une fois commités, ils
+# restent lisibles dans l'historique même après suppression. Ils vivent dans
+# un gestionnaire de mots de passe, pas ici.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
