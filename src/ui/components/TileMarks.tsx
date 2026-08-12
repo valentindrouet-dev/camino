@@ -157,11 +157,19 @@ export function DyeMark({
   cy,
   size,
   color,
+  angle = 0,
+  flipped = false,
 }: {
   cx: number
   cy: number
   size: number
   color: string
+  /**
+   * La goutte est imprimée sur la tuile : elle tourne avec elle. Sans cet
+   * angle, le pot se redresserait tout seul une fois la tuile posée.
+   */
+  angle?: number
+  flipped?: boolean
 }) {
   const r = size / 2
   // goutte : pointe en haut, panse ronde en bas
@@ -169,8 +177,12 @@ export function DyeMark({
     C ${cx + r * 0.9} ${cy - r * 0.15} ${cx + r * 0.85} ${cy + r * 0.35} ${cx + r * 0.55} ${cy + r * 0.7}
     A ${r * 0.78} ${r * 0.78} 0 1 1 ${cx - r * 0.55} ${cy + r * 0.7}
     C ${cx - r * 0.85} ${cy + r * 0.35} ${cx - r * 0.9} ${cy - r * 0.15} ${cx} ${cy - r * 1.15} Z`
+  // On applique le miroir d'abord, la rotation ensuite : le même ordre que
+  // pour les quarts de la tuile.
+  const transform =
+    `rotate(${angle} ${cx} ${cy})` + (flipped ? ` translate(${2 * cx} 0) scale(-1 1)` : '')
   return (
-    <g pointerEvents="none">
+    <g pointerEvents="none" transform={transform}>
       <path d={d} fill={color} stroke="#FFFFFF" strokeWidth="2.4" />
       <path d={d} fill="none" stroke="#00000033" strokeWidth="1" />
       <circle cx={cx - r * 0.28} cy={cy + r * 0.12} r={r * 0.22} fill="#FFFFFF" opacity="0.75" />

@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.50',
+    date: '2026-08-12',
+    changes: [
+      'Les teintures s’affichent enfin sur la tuile qu’on tient : le pot apparaît dans l’aperçu, sur la case survolée, avant la pose.',
+      'Le pot garde l’orientation qu’il avait dans la main : il tourne avec la tuile au lieu de se redresser tout seul une fois posé — moulins et face miroir compris.',
+      'L’aperçu montre aussi le cristal et le moulin de la tuile qu’on s’apprête à poser, qui n’y figuraient pas non plus.',
+    ],
+  },
+  {
     version: '1.49',
     date: '2026-08-12',
     changes: [

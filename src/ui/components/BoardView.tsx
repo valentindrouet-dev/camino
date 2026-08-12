@@ -397,7 +397,8 @@ export function BoardView({
       {ruleset.variants?.dyes &&
         board.cells.map((placed, i) => {
           if (!placed) return null
-          const dye = dyeAt(placed.tileId, effectiveRot(board, i, fx?.windmills), placed.flipped)
+          const rot = effectiveRot(board, i, fx?.windmills)
+          const dye = dyeAt(placed.tileId, rot, placed.flipped)
           if (!dye) return null
           const { x, y } = cellXY(i)
           const [dx, dy] = QUAD_OFFSETS[dye.quad]
@@ -408,6 +409,8 @@ export function BoardView({
               cy={y + dy + QUAD / 2}
               size={QUAD * 0.56}
               color={COLOR_HEX[dye.color]}
+              angle={rot * 90}
+              flipped={placed.flipped}
             />
           )
         })}
@@ -535,6 +538,43 @@ export function BoardView({
                 <CloverMark cx={x + dx + QUAD / 2} cy={y + dy + QUAD / 2} size={QUAD * 0.62} />
               )
             })()}
+          {ghost &&
+            ruleset.variants?.dyes &&
+            (() => {
+              const dye = dyeAt(ghost.tileId, ghost.rot, ghost.flipped)
+              if (!dye) return null
+              const { x, y } = cellXY(preview.cell)
+              const [dx, dy2] = QUAD_OFFSETS[dye.quad]
+              return (
+                <DyeMark
+                  cx={x + dx + QUAD / 2}
+                  cy={y + dy2 + QUAD / 2}
+                  size={QUAD * 0.56}
+                  color={COLOR_HEX[dye.color]}
+                  angle={ghost.rot * 90}
+                  flipped={ghost.flipped}
+                />
+              )
+            })()}
+          {ghost &&
+            ruleset.variants?.crystals &&
+            CRYSTALS.has(ghost.tileId) && (
+              <CrystalMark
+                cx={cellXY(preview.cell).x + TILEW / 2}
+                cy={cellXY(preview.cell).y + TILEW / 2}
+                size={QUAD * 0.66}
+                intact
+              />
+            )}
+          {ghost &&
+            ruleset.variants?.windmills &&
+            WINDMILLS.has(ghost.tileId) && (
+              <WindmillMark
+                cx={cellXY(preview.cell).x + TILEW / 2}
+                cy={cellXY(preview.cell).y + TILEW / 2}
+                size={QUAD * 0.7}
+              />
+            )}
           {ruleset.variants?.magicStars &&
             ghost &&
             (() => {
