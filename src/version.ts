@@ -15,6 +15,20 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.48',
+    date: '2026-08-12',
+    changes: [
+      'Recliquer la tuile déjà choisie la fait tourner — le geste au doigt sur téléphone ; la touche R continue de fonctionner.',
+      'La ligne de commandes se réduit à trois boutons : rotation à gauche, rotation à droite, annuler. Les mémos de raccourcis et les « touche 1-9 » sous les tuiles disparaissent.',
+      'Le bouton « Annuler » n’apparaît plus qu’une fois, sous les tuiles, et la touche Échap fait enfin ce qu’il annonce : revenir au coup précédent.',
+      'Quand c’est à vous de jouer, le bandeau respire et sa pastille clignote ; le joueur dont c’est le tour scintille dans la colonne comme en écran partagé.',
+      'La tuile choisie par un joueur automatique traverse l’écran plus lentement et plus franchement, et le plateau qui la reçoit envoie une onde.',
+      'La barre du haut s’allège en partie : plus de graine, plus de manche en double, plus d’indices, plus d’Historique ni de Laboratoire — restent les affichages du jeu, Accueil et Quitter la partie.',
+      'La manche en cours s’affiche aussi au-dessus des plateaux en vue « X plateaux visibles ».',
+      'La mention « a le sac ce tour-ci » ne s’affiche plus.',
+    ],
+  },
+  {
     version: '1.47',
     date: '2026-08-07',
     changes: [

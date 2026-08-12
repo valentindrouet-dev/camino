@@ -147,6 +147,17 @@ export default function App() {
     else setScreen('setup')
   }, [quitGame])
 
+  /**
+   * Quitter la partie depuis la barre du haut, en ligne comme autour d'une
+   * table : c'est le même bouton, il ferme le salon quand il y en a un.
+   */
+  const quitterPartie = () => {
+    if (enLigne) {
+      salon.quitter()
+      quitGame('setup')
+    } else quitFromGame()
+  }
+
   const onHistory = useCallback(
     (updater: (h: GameState[]) => GameState[]) => setHistory((h) => updater(h)),
     [],
@@ -179,7 +190,7 @@ export default function App() {
           v{VERSION}
         </button>
 
-        {state && (screen === 'game' || screen === 'results') && (
+        {state && screen === 'results' && (
           <>
             <span className="tag">
               Manche <strong>{Math.min(state.round + 1, state.totalRounds)}</strong>/
@@ -188,7 +199,11 @@ export default function App() {
             <span className="tag">
               Graine <strong>{state.options.seed}</strong>
             </span>
-            <span
+          </>
+        )}
+
+        {state && (screen === 'game' || screen === 'results') && (
+          <span
               className={`tag chrono ${state.phase === 'finished' ? 'done' : ''}`}
               title={
                 state.phase === 'finished'
@@ -196,9 +211,8 @@ export default function App() {
                   : 'Temps écoulé depuis le début de la partie'
               }
             >
-              ⏱ <strong>{formatDuration(elapsed)}</strong>
-            </span>
-          </>
+            ⏱ <strong>{formatDuration(elapsed)}</strong>
+          </span>
         )}
 
         <span className="spacer" />
@@ -231,14 +245,6 @@ export default function App() {
                 {state.players.length} Plateaux visibles
               </label>
             )}
-            <label className={`toggle ${state.options.showHints ? 'on' : ''}`}>
-              <input
-                type="checkbox"
-                checked={state.options.showHints}
-                onChange={(e) => patchOption('showHints', e.target.checked)}
-              />
-              Indices
-            </label>
           </>
         )}
 
@@ -252,17 +258,22 @@ export default function App() {
             Accueil
           </button>
         )}
-        {screen !== 'history' && (
+        {screen === 'game' && (
+          <button className="btn small ghost" onClick={quitterPartie}>
+            Quitter la partie
+          </button>
+        )}
+        {screen !== 'game' && screen !== 'history' && (
           <button className="btn small ghost" onClick={() => setScreen('history')}>
             Historique
           </button>
         )}
-        {screen !== 'lab' && screen !== 'archive' && (
+        {screen !== 'game' && screen !== 'lab' && screen !== 'archive' && (
           <button className="btn small ghost" onClick={() => setScreen('lab')}>
             Laboratoire
           </button>
         )}
-        {screen !== 'versions' && (
+        {screen !== 'game' && screen !== 'versions' && (
           <button className="btn small ghost" onClick={() => setScreen('versions')}>
             Versions
           </button>
@@ -291,10 +302,6 @@ export default function App() {
           history={[viewFor(state, salon.monSiege as number)]}
           onHistory={() => {}}
           onFinish={finish}
-          onQuit={() => {
-            salon.quitter()
-            quitGame('setup')
-          }}
           online={{
             monSiege: salon.monSiege as number,
             salonNom: salon.salon.nom,
@@ -308,7 +315,6 @@ export default function App() {
           history={history}
           onHistory={onHistory}
           onFinish={finish}
-          onQuit={quitFromGame}
         />
       )}
 

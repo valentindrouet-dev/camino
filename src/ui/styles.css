@@ -182,11 +182,105 @@ code {
   margin-left: auto;
 }
 
-/* c'est mon tour : le bandeau se met en avant */
+/*
+ * C'est mon tour : le bandeau respire et sa pastille clignote. Sans cela on
+ * ne sait jamais, d'un coup d'œil, si la table attend quelque chose de nous.
+ */
 .turn-banner.mine {
   border-color: var(--accent);
   background: var(--accent-soft);
-  box-shadow: 0 0 0 3px rgba(247, 147, 29, 0.18);
+  animation: respire 1.6s ease-in-out infinite;
+}
+
+.turn-banner.mine .dot {
+  animation: clignote 1.6s ease-in-out infinite;
+}
+
+@keyframes respire {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(247, 147, 29, 0.2), 0 0 0 0 rgba(247, 147, 29, 0.4);
+  }
+  55% {
+    box-shadow: 0 0 0 3px rgba(247, 147, 29, 0.4), 0 0 0 12px rgba(247, 147, 29, 0);
+  }
+}
+
+@keyframes clignote {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(247, 147, 29, 0.55);
+    transform: scale(1);
+  }
+  55% {
+    box-shadow: 0 0 0 7px rgba(247, 147, 29, 0);
+    transform: scale(1.25);
+  }
+}
+
+/*
+ * Le joueur dont c'est le tour scintille : une lumière traverse sa carte (ou
+ * son plateau en écran partagé), lentement, sans gêner la lecture.
+ */
+.player-card.active,
+.boards-grid .board-cell.active {
+  position: relative;
+  overflow: hidden;
+}
+
+.player-card.active::before,
+.boards-grid .board-cell.active::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    104deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.72) 50%,
+    transparent 62%
+  );
+  transform: translateX(-130%);
+  animation: scintille 2.6s ease-in-out infinite;
+}
+
+@keyframes scintille {
+  0% {
+    transform: translateX(-130%);
+  }
+  60%,
+  100% {
+    transform: translateX(130%);
+  }
+}
+
+/* Le plateau qui vient de recevoir une tuile envoie une onde. */
+.player-card.recu,
+.boards-grid .board-cell.recu {
+  animation: recu 560ms ease-out;
+}
+
+@keyframes recu {
+  0% {
+    box-shadow: 0 0 0 0 rgba(247, 147, 29, 0.75);
+  }
+  100% {
+    box-shadow: 0 0 0 16px rgba(247, 147, 29, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turn-banner.mine,
+  .turn-banner.mine .dot,
+  .player-card.active::before,
+  .boards-grid .board-cell.active::before,
+  .player-card.recu,
+  .boards-grid .board-cell.recu {
+    animation: none;
+  }
+  .turn-banner.mine {
+    box-shadow: 0 0 0 3px rgba(247, 147, 29, 0.28);
+  }
 }
 
 /* « Tching ! » : le delta encaissé à la pose s'élève et s'efface */

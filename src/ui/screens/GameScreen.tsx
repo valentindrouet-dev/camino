@@ -45,7 +45,6 @@ interface Props {
   history: GameState[]
   onHistory: (updater: (h: GameState[]) => GameState[]) => void
   onFinish: () => void
-  onQuit: () => void
   online?: JeuEnLigne
 }
 
@@ -58,9 +57,13 @@ const CELL_CHROME = 50
 const GRID_GAP = 12
 const PAGE_PAD = 20
 /** Durée du vol d'une tuile de la pioche vers le plateau d'un bot. */
-const FLY_MS = 620
+const FLY_MS = 820
+/** Le temps que la tuile met à s'effacer, une fois arrivée. */
+const FLY_FADE_MS = 200
+/** Durée de l'onde qui signale le plateau qui vient de recevoir la tuile. */
+const RECU_MS = 560
 
-export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Props) {
+export function GameScreen({ history, onHistory, onFinish, online }: Props) {
   const state = history[history.length - 1]
   const { options } = state
   const activeId = currentPlayerId(state)
@@ -294,7 +297,11 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
       else if (e.key === 'v' || e.key === 'V') {
         if (flipPossible && !isBot(active) && state.phase === 'playing') flipSelected()
       }
-      else if (e.key === 'Escape') setSelected(null)
+      else if (e.key === 'Escape') {
+        // « Annuler » : le raccourci fait exactement ce que dit le bouton.
+        e.preventDefault()
+        undo()
+      }
       else if (e.key >= '1' && e.key <= '9') {
         const t = pool[Number(e.key) - 1]
         if (t && t.takenBy === null) setSelected(t.tileId)
@@ -330,6 +337,8 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
     from: DOMRect
     to: DOMRect
   }>(null)
+  /** Plateau qui vient de recevoir une tuile : il pulse un instant. */
+  const [atterri, setAtterri] = useState<{ id: number; key: number } | null>(null)
   const lastLogSeen = useRef(state.log.length)
 
   useEffect(() => {
@@ -345,8 +354,15 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
     const to = cardRefs.current.get(last.playerId)?.getBoundingClientRect()
     if (!from || !to) return
     setFly({ key: entries.length, tileId: last.tileId, from, to })
-    const id = window.setTimeout(() => setFly(null), FLY_MS)
-    return () => window.clearTimeout(id)
+    const pose = window.setTimeout(() => {
+      setFly(null)
+      setAtterri({ id: last.playerId, key: entries.length })
+    }, FLY_MS)
+    const fin = window.setTimeout(() => setAtterri(null), FLY_MS + RECU_MS)
+    return () => {
+      window.clearTimeout(pose)
+      window.clearTimeout(fin)
+    }
   }, [state.log, state.players])
 
   // Scoring inversé : le barème affiché est celui qu'on applique vraiment.
@@ -385,7 +401,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
             key={p.id}
             className={`player-card ${viewId === p.id ? 'viewing' : ''} ${
               activeId === p.id && state.phase === 'playing' ? 'active' : ''
-            }`}
+            } ${atterri?.id === p.id ? 'recu' : ''}`}
             onClick={() => setPinned(pinned === p.id ? null : p.id)}
             ref={(el) => {
               if (el) cardRefs.current.set(p.id, el)
@@ -412,9 +428,6 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
                 />
               </div>
             )}
-            {state.bagHolder === p.id && state.phase === 'playing' && (
-              <span className="note">🎒 a le sac ce tour-ci</span>
-            )}
           </button>
         ))}
       </div>
@@ -422,7 +435,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
 
       {/* --------------------------------------------------- table de jeu */}
       <div className="stage" ref={stageRef}>
-        <div className={`turn-banner ${online && monTour ? 'mine' : ''}`}>
+        <div className={`turn-banner ${humanTurn ? 'mine' : ''}`}>
           <span className="dot" style={{ background: active.color }} />
           <span className="who">
             {online && monTour ? 'À vous de jouer' : active.name}
@@ -436,13 +449,13 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
                   ? '— réfléchit…'
                   : selected === null
                     ? '— choisis une tuile au centre'
-                    : '— place ta tuile sur ton plateau'}
+                    : ''}
           </span>
         </div>
 
         {/* centre de la table */}
         <div className="pool">
-          {pool.map((t, i) => {
+          {pool.map((t) => {
             const taken = t.takenBy !== null
             const owner = taken ? state.players[t.takenBy as number] : null
             return (
@@ -453,6 +466,12 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
                 } ${t.flipped ? 'verso' : ''}`}
                 disabled={taken || !humanTurn}
                 onClick={() => {
+                  // Recliquer la tuile déjà choisie la tourne : au doigt, sur
+                  // téléphone, c'est le geste naturel — la touche R reste là.
+                  if (selected === t.tileId && !fromPersonal) {
+                    rotate(1)
+                    return
+                  }
                   setSelected(t.tileId)
                   setFromPersonal(false)
                 }}
@@ -460,7 +479,13 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
                   if (el) poolRefs.current.set(t.tileId, el)
                   else poolRefs.current.delete(t.tileId)
                 }}
-                title={taken ? `Prise par ${owner?.name}` : `Choisir cette tuile (${i + 1})`}
+                title={
+                  taken
+                    ? `Prise par ${owner?.name}`
+                    : selected === t.tileId && !fromPersonal
+                      ? 'Recliquer pour la tourner'
+                      : 'Choisir cette tuile'
+                }
               >
                 <span className="frame">
                   <TileGlyph
@@ -476,10 +501,13 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
                     size={selected === t.tileId && !fromPersonal ? 78 : 66}
                   />
                 </span>
-                <small>
-                  {t.flipped ? '↷ verso · ' : ''}
-                  {taken ? (owner?.name ?? '—') : `touche ${i + 1}`}
-                </small>
+                {(t.flipped || taken) && (
+                  <small>
+                    {t.flipped ? '↷ verso' : ''}
+                    {t.flipped && taken ? ' · ' : ''}
+                    {taken ? (owner?.name ?? '—') : ''}
+                  </small>
+                )}
               </button>
             )
           })}
@@ -490,6 +518,10 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
               }`}
               disabled={!humanTurn}
               onClick={() => {
+                if (selected === active.personalTileId && fromPersonal) {
+                  rotate(1)
+                  return
+                }
                 setSelected(active.personalTileId as number)
                 setFromPersonal(true)
               }}
@@ -538,13 +570,17 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
           </p>
         )}
 
-        {/* commandes de pose */}
+        {/* commandes de pose : tourner à gauche, à droite, annuler */}
         {humanTurn && (
           <div className="row wrap" style={{ justifyContent: 'center' }}>
-            <button className="btn icon" onClick={() => rotate(-1)} title="Rotation anti-horaire">
+            <button
+              className="btn icon"
+              onClick={() => rotate(-1)}
+              title="Rotation à gauche (Maj+R)"
+            >
               ↺
             </button>
-            <button className="btn icon" onClick={() => rotate(1)} title="Rotation horaire (R)">
+            <button className="btn icon" onClick={() => rotate(1)} title="Rotation à droite (R)">
               ↻
             </button>
             {variants?.mirrorTiles && (
@@ -556,26 +592,16 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
                 ⇋
               </button>
             )}
-            <span className="note">
-              <span className="kbd">R</span> tourner ·{' '}
-              {variants?.mirrorTiles && (
-                <>
-                  <span className="kbd">F</span> miroir ·{' '}
-                </>
-              )}
-              <span className="kbd">1-9</span> choisir ·{' '}
-              {redrawPossible && (
-                <>
-                  <span className="kbd">S</span> repiocher ·{' '}
-                </>
-              )}
-              {flipPossible && (
-                <>
-                  <span className="kbd">V</span> verso ·{' '}
-                </>
-              )}
-              molette sur le plateau · <span className="kbd">Échap</span> annuler
-            </span>
+            {!online && (
+              <button
+                className="btn small"
+                onClick={undo}
+                disabled={history.length <= 1}
+                title="Revenir au coup précédent (Échap)"
+              >
+                ↶ Annuler
+              </button>
+            )}
           </div>
         )}
 
@@ -588,6 +614,13 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
 
         {multi ? (
           /* écran partagé : tous les plateaux d'un coup, la taille suit le nombre */
+          <>
+          <div className="board-caption" style={{ justifyContent: 'center' }}>
+            <span className="tag">
+              Manche <strong>{Math.min(state.round + 1, state.totalRounds)}</strong> /{' '}
+              {state.totalRounds}
+            </span>
+          </div>
           <div
             className="boards-grid"
             data-cols={cols}
@@ -601,7 +634,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
                   key={p.id}
                   className={`board-cell ${p.id === activeId && state.phase === 'playing' ? 'active' : ''} ${
                     viewId === p.id ? 'viewing' : ''
-                  }`}
+                  } ${atterri?.id === p.id ? 'recu' : ''}`}
                   ref={(el) => {
                     if (el) cardRefs.current.set(p.id, el)
                     else cardRefs.current.delete(p.id)
@@ -617,11 +650,6 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
                       {p.name}
                       {isBot(p) && <span className="tag">bot</span>}
                     </button>
-                    {state.bagHolder === p.id && state.phase === 'playing' && (
-                      <span className="bag" title="A le sac ce tour-ci">
-                        🎒
-                      </span>
-                    )}
                     {options.liveScore && <span className="score-big">{breakdowns[i].total}</span>}
                   </figcaption>
                   <BoardView
@@ -641,6 +669,7 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
               )
             })}
           </div>
+          </>
         ) : (
           <>
             <div className="board-caption">
@@ -937,14 +966,6 @@ export function GameScreen({ history, onHistory, onFinish, onQuit, online }: Pro
         </div>
 
         <div className="row wrap">
-          {!online && (
-            <button className="btn small" onClick={undo} disabled={history.length <= 1}>
-              ↶ Annuler
-            </button>
-          )}
-          <button className="btn small ghost" onClick={onQuit}>
-            Quitter
-          </button>
           <span className="note">
             Sac : {state.bag.length} tuile{state.bag.length > 1 ? 's' : ''}
           </span>
@@ -974,7 +995,7 @@ function FlyingTile({
     const id = requestAnimationFrame(() => setArrived(true))
     return () => cancelAnimationFrame(id)
   }, [])
-  const size = 60
+  const size = 74
   const start = { x: from.left + from.width / 2 - size / 2, y: from.top + 4 }
   const end = { x: to.left + to.width / 2 - size / 2, y: to.top + to.height / 2 - size / 2 }
   const pos = arrived ? end : start
@@ -982,13 +1003,16 @@ function FlyingTile({
     <div
       className="flying-tile"
       style={{
-        transform: `translate(${pos.x}px, ${pos.y}px) scale(${arrived ? 0.45 : 1}) rotate(${
-          arrived ? 180 : 0
+        transform: `translate(${pos.x}px, ${pos.y}px) scale(${arrived ? 0.5 : 1.1}) rotate(${
+          arrived ? 360 : 0
         }deg)`,
+        // La tuile reste franche pendant tout le trajet : elle ne s'efface
+        // qu'en touchant le plateau, sinon on ne voit rien passer.
         opacity: arrived ? 0 : 1,
         width: size,
         height: size,
-        transitionDuration: `${FLY_MS}ms`,
+        transitionDuration: `${FLY_MS}ms, ${FLY_FADE_MS}ms`,
+        transitionDelay: `0ms, ${FLY_MS - FLY_FADE_MS}ms`,
       }}
       aria-hidden
     >
