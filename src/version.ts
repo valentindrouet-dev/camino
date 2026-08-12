@@ -15,6 +15,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.49',
+    date: '2026-08-12',
+    changes: [
+      'La tuile d’un joueur automatique traverse enfin l’écran AVANT d’apparaître sur son plateau : c’est le trajet qui pose la tuile, et non la pose qui déclenche le trajet.',
+      'Sa place au centre se vide pendant le vol — la tuile n’est plus à deux endroits à la fois.',
+      'Le tour d’un bot est aussi rapide qu’avant : il réfléchit moins longtemps, puisque c’est le vol qui montre ce qu’il joue.',
+      'Annuler en plein vol ramène la tuile au centre sans la poser.',
+    ],
+  },
+  {
     version: '1.48',
     date: '2026-08-12',
     changes: [

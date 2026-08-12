@@ -746,6 +746,12 @@ code {
   background: var(--bg-2);
 }
 
+/* La tuile est en train de traverser l'écran : sa place au centre se vide. */
+.pool-tile.en-vol .frame {
+  opacity: 0.15;
+  box-shadow: none;
+}
+
 .pool-tile small {
   font-size: 11px;
   color: var(--ink-faint);

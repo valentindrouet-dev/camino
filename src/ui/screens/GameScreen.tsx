@@ -48,7 +48,7 @@ interface Props {
   online?: JeuEnLigne
 }
 
-const BOT_DELAY = 520
+const BOT_DELAY = 300
 /** Écran partagé : bornes de la taille d'un plateau, et hauteur de son décor. */
 const BOARD_MAX = 500
 const BOARD_MIN = 170
@@ -57,7 +57,7 @@ const CELL_CHROME = 50
 const GRID_GAP = 12
 const PAGE_PAD = 20
 /** Durée du vol d'une tuile de la pioche vers le plateau d'un bot. */
-const FLY_MS = 820
+const FLY_MS = 700
 /** Le temps que la tuile met à s'effacer, une fois arrivée. */
 const FLY_FADE_MS = 200
 /** Durée de l'onde qui signale le plateau qui vient de recevoir la tuile. */
@@ -245,8 +245,34 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
     if (variants?.mirrorTiles) setFlipped((f) => !f)
   }, [variants?.mirrorTiles])
 
+  /*
+   * Vol de la tuile prise par un bot, de la pioche vers son plateau. Le trajet
+   * précède la pose : on ne peut pas voir la tuile atterrir sur un plateau où
+   * elle est déjà. C'est donc le tour du bot qui déclenche le vol, puis pose la
+   * tuile à l'arrivée — jamais l'inverse.
+   */
+  const poolRefs = useRef(new Map<number, HTMLElement>())
+  const cardRefs = useRef(new Map<number, HTMLElement>())
+  const [fly, setFly] = useState<null | {
+    key: number
+    tileId: number
+    from: DOMRect
+    to: DOMRect
+  }>(null)
+  /** Plateau qui vient de recevoir une tuile : il pulse un instant. */
+  const [atterri, setAtterri] = useState<{ id: number; key: number } | null>(null)
+  const volNumero = useRef(0)
+
+  // L'onde de réception s'éteint toute seule.
+  useEffect(() => {
+    if (!atterri) return
+    const id = window.setTimeout(() => setAtterri(null), RECU_MS)
+    return () => window.clearTimeout(id)
+  }, [atterri])
+
   // Tour des bots.
   const botTimer = useRef<number | null>(null)
+  const poseTimer = useRef<number | null>(null)
   useEffect(() => {
     // En ligne, tous les sièges sont humains : personne ne joue à leur place.
     if (online || state.phase !== 'playing' || !isBot(active)) return
@@ -267,10 +293,31 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
         }
       }
       const move = bestMove(state, active.kind)
-      if (move) onHistory((h) => [...h, applyMove(h[h.length - 1], move)])
+      if (!move) return
+      const poser = () => onHistory((h) => [...h, applyMove(h[h.length - 1], move)])
+      const depart = poolRefs.current.get(move.tileId)?.getBoundingClientRect()
+      const arrivee = cardRefs.current.get(active.id)?.getBoundingClientRect()
+      // Tuile personnelle, plateau hors écran… : sans trajet mesurable, on pose.
+      if (move.personal || !depart || !arrivee) {
+        poser()
+        return
+      }
+      const numero = ++volNumero.current
+      setFly({ key: numero, tileId: move.tileId, from: depart, to: arrivee })
+      poseTimer.current = window.setTimeout(() => {
+        setFly(null)
+        setAtterri({ id: active.id, key: numero })
+        poser()
+      }, FLY_MS)
     }, BOT_DELAY)
     return () => {
       if (botTimer.current) window.clearTimeout(botTimer.current)
+      if (poseTimer.current) {
+        // Annulation en plein vol : la tuile ne se pose pas et rentre au centre.
+        window.clearTimeout(poseTimer.current)
+        poseTimer.current = null
+        setFly(null)
+      }
     }
   }, [state, active, onHistory, online])
 
@@ -327,43 +374,6 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
   }, [selected, rotate])
-
-  /* Vol de la tuile prise par un bot, de la pioche vers son plateau. */
-  const poolRefs = useRef(new Map<number, HTMLElement>())
-  const cardRefs = useRef(new Map<number, HTMLElement>())
-  const [fly, setFly] = useState<null | {
-    key: number
-    tileId: number
-    from: DOMRect
-    to: DOMRect
-  }>(null)
-  /** Plateau qui vient de recevoir une tuile : il pulse un instant. */
-  const [atterri, setAtterri] = useState<{ id: number; key: number } | null>(null)
-  const lastLogSeen = useRef(state.log.length)
-
-  useEffect(() => {
-    const entries = state.log
-    if (entries.length <= lastLogSeen.current) {
-      lastLogSeen.current = entries.length // annulation : on se resynchronise
-      return
-    }
-    lastLogSeen.current = entries.length
-    const last = entries[entries.length - 1]
-    if (!isBot(state.players[last.playerId])) return
-    const from = poolRefs.current.get(last.tileId)?.getBoundingClientRect()
-    const to = cardRefs.current.get(last.playerId)?.getBoundingClientRect()
-    if (!from || !to) return
-    setFly({ key: entries.length, tileId: last.tileId, from, to })
-    const pose = window.setTimeout(() => {
-      setFly(null)
-      setAtterri({ id: last.playerId, key: entries.length })
-    }, FLY_MS)
-    const fin = window.setTimeout(() => setAtterri(null), FLY_MS + RECU_MS)
-    return () => {
-      window.clearTimeout(pose)
-      window.clearTimeout(fin)
-    }
-  }, [state.log, state.players])
 
   // Scoring inversé : le barème affiché est celui qu'on applique vraiment.
   const envers = Boolean(variants?.reverseScoring)
@@ -463,7 +473,7 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
                 key={t.tileId}
                 className={`pool-tile ${selected === t.tileId ? 'selected' : ''} ${
                   taken ? 'taken' : ''
-                } ${t.flipped ? 'verso' : ''}`}
+                } ${t.flipped ? 'verso' : ''} ${fly?.tileId === t.tileId ? 'en-vol' : ''}`}
                 disabled={taken || !humanTurn}
                 onClick={() => {
                   // Recliquer la tuile déjà choisie la tourne : au doigt, sur
