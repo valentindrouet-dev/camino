@@ -39,13 +39,34 @@ export default function App() {
   const [config, setConfig] = useState<GameConfig | null>(null)
   const [history, setHistory] = useState<GameState[]>([])
 
+  /*
+   * Réglages d'affichage changés en cours de partie : score visible, contours
+   * de zones, plateaux côte à côte… Ils appartiennent à l'écran, pas à la
+   * partie. En ligne, chaque coup reconstruit l'état depuis la graine et le
+   * journal : sans les garder ici, la vue choisie retomberait à chaque tuile
+   * posée.
+   */
+  const affichage = useRef<Partial<GameState['options']>>({})
+
   // La partie en ligne alimente le même historique que la partie locale : le
   // chrono, l'archivage et l'écran de résultats n'ont rien à savoir du réseau.
   const enLigne = salon.salon !== null && salon.monSiege !== null && salon.partie !== null
   useEffect(() => {
     if (!salon.partie) return
-    setHistory([salon.partie])
+    const vue = affichage.current
+    setHistory([
+      Object.keys(vue).length === 0
+        ? salon.partie
+        : { ...salon.partie, options: { ...salon.partie.options, ...vue } },
+    ])
   }, [salon.partie])
+
+  // Un nouveau salon, c'est une nouvelle partie : elle repart des réglages
+  // de l'hôte, plateaux côte à côte décochés compris.
+  const salonId = salon.salon?.id ?? null
+  useEffect(() => {
+    affichage.current = {}
+  }, [salonId])
 
   useEffect(() => {
     if (enLigne && screen === 'salon') setScreen('game')
@@ -82,6 +103,7 @@ export default function App() {
         ? cfg.options
         : { ...cfg.options, seed: randomSeed() }
     const next: GameConfig = { ...cfg, options }
+    affichage.current = {}
     setConfig(next)
     setHistory([createGame(next)])
     settled.current = false
@@ -167,6 +189,8 @@ export default function App() {
     key: K,
     value: GameState['options'][K],
   ) => {
+    // On retient le choix : il doit survivre au rejeu du journal en ligne.
+    affichage.current = { ...affichage.current, [key]: value }
     setHistory((h) => h.map((s) => ({ ...s, options: { ...s.options, [key]: value } })))
   }
 

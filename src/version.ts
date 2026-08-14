@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.51',
+    date: '2026-08-12',
+    changes: [
+      'En ligne, la vue « X plateaux visibles » tient bon : elle ne retombe plus sur la colonne de mini-plateaux dès qu’un joueur pose une tuile.',
+      'Même chose pour « Score visible » et « Points par Zone visible » : les réglages d’affichage appartiennent à l’écran, pas à la partie, et survivent donc au rejeu du journal.',
+      'Une nouvelle partie en ligne repart bien des réglages d’origine, plateaux côte à côte décochés compris.',
+    ],
+  },
+  {
     version: '1.50',
     date: '2026-08-12',
     changes: [
