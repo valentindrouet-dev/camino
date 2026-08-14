@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.54',
+    date: '2026-08-12',
+    changes: [
+      'Nouvelle règle des cristaux : +4 si la couleur qui porte le cristal ne déborde pas de sa tuile — aucun quart d’une tuile voisine ne porte la même couleur contre lui — et −4 si elle déborde. Le cristal peut donc coûter des points.',
+      'L’ordre des poses n’entre plus dans le calcul : seule compte la position finale, si bien qu’on sait en posant ce que le cristal vaudra.',
+      'Le barème en cours de partie affiche les deux cas, et le cristal se dessine brisé dès que sa couleur déborde.',
+    ],
+  },
+  {
     version: '1.53',
     date: '2026-08-12',
     changes: [

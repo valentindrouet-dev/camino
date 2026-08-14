@@ -927,11 +927,18 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
               </>
             )}
             {variants?.crystals && (
-              <div className="scoresheet-row star">
-                <span className="k">◆ intacte</span>
-                <span className="eq">=</span>
-                <strong>{signed(signe * 4)} pts</strong>
-              </div>
+              <>
+                <div className="scoresheet-row star">
+                  <span className="k">◆ brille</span>
+                  <span className="eq">=</span>
+                  <strong>{signed(signe * 4)} pts</strong>
+                </div>
+                <div className="scoresheet-row star">
+                  <span className="k">◆ brisé</span>
+                  <span className="eq">=</span>
+                  <strong>{signed(signe * -4)} pts</strong>
+                </div>
+              </>
             )}
             {variants?.forbiddenColor && (
               <div className={`scoresheet-row banned ${envers ? 'pos' : 'neg'}`}>

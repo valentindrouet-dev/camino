@@ -1,4 +1,13 @@
-import { effectiveRot, faultBlocks, gridEffects, neighbours, quadGrid, tileOfQuad } from './board.ts'
+import {
+  effectiveRot,
+  faultBlocks,
+  gridEffects,
+  neighbours,
+  quadGrid,
+  quadIndicesOf,
+  tileOfQuad,
+} from './board.ts'
+import type { GridEffects, QuadGrid } from './board.ts'
 import { cloverQuadIndex, CRYSTALS, starQuadIndex } from './tiles.ts'
 import type {
   Board,
@@ -300,24 +309,54 @@ function countStars(
 }
 
 /**
- * Cristaux (variante) : +4 par cristal resté « intact » — aucune tuile n'est
- * venue se coller à la sienne après sa pose. Les voisines déjà en place au
- * moment de la pose ne le dérangent pas.
+ * Cristaux (variante) : le cristal brille tant que sa couleur ne déborde pas
+ * de sa tuile. Il suffit qu'un quart d'une tuile VOISINE porte la même couleur
+ * contre l'un des siens pour qu'il se brise. Poser un cristal est donc un
+ * pari : +4 s'il brille à la fin, −4 s'il est brisé.
+ *
+ * La règle ne regarde que le plateau final : l'ordre des poses n'y entre plus.
  */
-export function crystalIntact(board: Board, cell: number): boolean {
+function crystalShines(board: Board, grid: QuadGrid, cell: number): boolean {
   const placed = board.cells[cell]
   if (!placed || !CRYSTALS.has(placed.tileId)) return false
-  return neighbours(board.size, cell, board.cells.length).every((n) => {
-    const p = board.cells[n]
-    return !p || p.round <= placed.round
-  })
+  const miens = quadIndicesOf(board.size, cell)
+  // Couleur du cristal : celle qui occupe au moins trois des quatre quarts.
+  const compte = new Map<Color, number>()
+  for (const q of miens) {
+    const c = grid.cells[q]
+    if (c && c !== BLACK) compte.set(c, (compte.get(c) ?? 0) + 1)
+  }
+  let couleur: Color | null = null
+  for (const [c, n] of compte) if (n >= 3) couleur = c
+  if (couleur === null) return false
+  for (const q of miens) {
+    if (grid.cells[q] !== couleur) continue
+    for (const v of neighbours(grid.size, q, grid.cells.length)) {
+      // Ses propres quarts ne le brisent pas : seules les tuiles voisines.
+      if (tileOfQuad(board.size, v) === cell) continue
+      if (grid.cells[v] === couleur) return false
+    }
+  }
+  return true
 }
 
-function countCrystals(board: Board, ownTiles: Set<number> | null): number {
+/** Le cristal de cette case brille-t-il ? (pour l'affichage du plateau) */
+export function crystalIntact(board: Board, cell: number, fx?: GridEffects): boolean {
+  return crystalShines(board, quadGrid(board, fx), cell)
+}
+
+function countCrystals(
+  board: Board,
+  ownTiles: Set<number> | null,
+  fx: GridEffects | undefined,
+): number {
+  const grid = quadGrid(board, fx)
   let total = 0
   for (let i = 0; i < board.cells.length; i++) {
     if (ownTiles && !ownTiles.has(i)) continue
-    if (crystalIntact(board, i)) total += 4
+    const cristal = board.cells[i] && CRYSTALS.has(board.cells[i]!.tileId)
+    if (!cristal) continue
+    total += crystalShines(board, grid, i) ? 4 : -4
   }
   return total
 }
@@ -372,7 +411,9 @@ export function scoreBoard(
   const cloverPoints = ruleset.variants?.clovers
     ? flip(sign, countClovers(board, zones, wind, null))
     : 0
-  const crystalPoints = ruleset.variants?.crystals ? flip(sign, countCrystals(board, null)) : 0
+  const crystalPoints = ruleset.variants?.crystals
+    ? flip(sign, countCrystals(board, null, gridEffects(ruleset)))
+    : 0
   // Une couleur secrète interdite ne doublerait qu'un malus : on n'y touche pas.
   const secretPoints =
     ruleset.variants?.secretColor && secretColor && !forbidden.includes(secretColor)

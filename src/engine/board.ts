@@ -179,7 +179,10 @@ export function quadGrid(board: Board, fx?: GridEffects): QuadGrid {
 }
 
 /** Les quatre quarts d'une case du plateau, en indices de la grille 2N x 2N. */
-function quadIndicesOf(boardSize: number, cell: number): [number, number, number, number] {
+export function quadIndicesOf(
+  boardSize: number,
+  cell: number,
+): [number, number, number, number] {
   const qs = boardSize * 2
   const r = rowOf(boardSize, cell) * 2
   const c = colOf(boardSize, cell) * 2

@@ -388,7 +388,7 @@ export function BoardView({
               cx={x + TILEW / 2}
               cy={y + TILEW / 2}
               size={QUAD * 0.66}
-              intact={crystalIntact(board, i)}
+              intact={crystalIntact(board, i, fx)}
             />
           )
         })}

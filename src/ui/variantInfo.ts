@@ -120,7 +120,7 @@ export function activeVariantInfos(options: GameOptions): VariantInfo[] {
   add(
     v.crystals,
     'Cristaux',
-    '18 tuiles portent un cristal : +4 points s’il reste intact, c’est-à-dire si aucune tuile n’est venue se coller à la sienne après sa pose.',
+    '18 tuiles portent un cristal : +4 points si sa couleur ne déborde pas de sa tuile — aucun quart d’une tuile voisine ne porte la même couleur contre lui — et −4 s’il se brise.',
   )
   add(
     v.dyes,

@@ -823,7 +823,7 @@ test('verso aléatoire : retour sans retour', () => {
   assert.ok(!E.canFlipTile(partie2({}, 'verso-1'), cible))
 })
 
-test('cristaux : 3 par couleur, +4 tant que personne ne vient se coller', () => {
+test('cristaux : 3 par couleur, +4 si la couleur ne déborde pas, −4 sinon', () => {
   assert.equal(E.CRYSTALS.size, 18)
   for (const id of E.CRYSTALS) {
     const q = E.TILES[id].quads
@@ -832,24 +832,33 @@ test('cristaux : 3 par couleur, +4 tant que personne ne vient se coller', () => 
       `tuile ${id} : 3 ou 4 quarts de même couleur`,
     )
   }
-  const [c1] = [...E.CRYSTALS]
   const rs = withVariants({ crystals: true })
   const board = E.createBoard(4)
-  // le cristal posé au tour 5, un voisin posé AVANT : il reste intact
-  board.cells[5] = { tileId: c1, rot: 0, round: 5 }
-  board.cells[4] = { tileId: 0, rot: 0, round: 2 }
+  // tuile 33 : quarts RKRR — cristal rouge, le noir en haut à droite
+  assert.deepEqual(E.TILES[33].quads, ['R', 'K', 'R', 'R'])
+  board.cells[5] = { tileId: 33, rot: 0, round: 0 }
+  assert.ok(E.crystalIntact(board, 5), 'seul sur le plateau, il brille')
+  assert.equal(E.scoreBoard(board, rs).crystalPoints, 4)
+
+  // une voisine sans rouge ne le dérange pas, même posée bien après lui :
+  // l'ordre des poses n'entre plus dans la règle
+  assert.deepEqual(E.TILES[0].quads, ['Y', 'O', 'O', 'Y'])
+  board.cells[4] = { tileId: 0, rot: 0, round: 9 }
   assert.ok(E.crystalIntact(board, 5))
   assert.equal(E.scoreBoard(board, rs).crystalPoints, 4)
-  // un voisin posé APRÈS : brisé
-  board.cells[6] = { tileId: 1, rot: 0, round: 9 }
-  assert.ok(!E.crystalIntact(board, 5))
-  assert.equal(E.scoreBoard(board, rs).crystalPoints, 0)
-  // sans la variante, aucun point ; en scoring inversé, le cristal coûte
-  board.cells[6] = null
+
+  // une voisine qui colle du rouge contre lui le brise, même posée AVANT :
+  // tuile 9 (RGGR), son quart bas-gauche touche le quart bas-droit du cristal
+  assert.deepEqual(E.TILES[9].quads, ['R', 'G', 'G', 'R'])
+  board.cells[6] = { tileId: 9, rot: 0, round: 0 }
+  assert.ok(!E.crystalIntact(board, 5), 'sa couleur déborde : il se brise')
+  assert.equal(E.scoreBoard(board, rs).crystalPoints, -4)
+
+  // sans la variante, aucun point ; en scoring inversé, les signes s'échangent
   assert.equal(E.scoreBoard(board, R).crystalPoints, 0)
   assert.equal(
     E.scoreBoard(board, withVariants({ crystals: true, reverseScoring: true })).crystalPoints,
-    -4,
+    4,
   )
 })
 

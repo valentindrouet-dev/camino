@@ -259,8 +259,9 @@ export function cloverQuadIndex(tileId: number, rot: Rotation, flipped = false):
 // ---------------------------------------------------------------------------
 // Cristaux (variante) : un cristal orne les tuiles dont 3 ou 4 quarts portent
 // la MÊME couleur de chemin — il n'apparaît nulle part ailleurs. Il vaut
-// +4 points si, après sa pose, aucune tuile n'est jamais venue se coller à la
-// sienne. L'attribution est fixe (tuiles imprimées) : 18 tuiles, 3 par couleur.
+// +4 points si sa couleur ne déborde pas de sa tuile — aucun quart voisin, sur
+// une autre tuile, ne porte la même couleur — et −4 sinon. L'attribution est
+// fixe (tuiles imprimées) : 18 tuiles, 3 par couleur.
 // ---------------------------------------------------------------------------
 
 export const CRYSTALS: ReadonlySet<number> = (() => {
