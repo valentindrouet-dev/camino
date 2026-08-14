@@ -120,7 +120,7 @@ export function activeVariantInfos(options: GameOptions): VariantInfo[] {
   add(
     v.crystals,
     'Cristaux',
-    '18 tuiles portent un cristal : +4 points si sa couleur ne déborde pas de sa tuile — aucun quart d’une tuile voisine ne porte la même couleur contre lui — et −4 s’il se brise.',
+    '18 tuiles portent un cristal sur un quart précis : +4 points tant qu’aucun quart de la même couleur ne le touche, −4 dès qu’une voisine colle sa couleur contre lui.',
   )
   add(
     v.dyes,

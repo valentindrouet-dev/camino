@@ -257,22 +257,47 @@ export function cloverQuadIndex(tileId: number, rot: Rotation, flipped = false):
 }
 
 // ---------------------------------------------------------------------------
-// Cristaux (variante) : un cristal orne les tuiles dont 3 ou 4 quarts portent
-// la MÊME couleur de chemin — il n'apparaît nulle part ailleurs. Il vaut
-// +4 points si sa couleur ne déborde pas de sa tuile — aucun quart voisin, sur
-// une autre tuile, ne porte la même couleur — et −4 sinon. L'attribution est
-// fixe (tuiles imprimées) : 18 tuiles, 3 par couleur.
+// Cristaux (variante) : un cristal orne UN quart précis d'une tuile — comme
+// une étoile ou un trèfle — et prend la couleur de ce quart. Ce quart est
+// toujours SEUL de sa couleur sur sa tuile : le cristal ne peut donc se briser
+// que par une tuile voisine. Il vaut +4 points s'il reste seul de sa couleur,
+// −4 dès qu'un quart de la même couleur le touche. L'attribution est fixe
+// (tuiles imprimées) : 18 tuiles, 3 par couleur.
 // ---------------------------------------------------------------------------
 
-export const CRYSTALS: ReadonlySet<number> = (() => {
-  const set = new Set<number>()
+/** quart cristallisé (0..3, avant rotation) par id de tuile. */
+export const CRYSTALS: ReadonlyMap<number, number> = (() => {
+  const rng = new Rng('camino-cristaux')
+  const map = new Map<number, number>()
+  const used = new Set<number>()
   const PATHS: Color[] = ['Y', 'O', 'R', 'G', 'B', 'P']
-  for (let id = 0; id < TILE_COUNT; id++) {
-    const quads = TILES[id].quads
-    if (PATHS.some((c) => quads.filter((q) => q === c).length >= 3)) set.add(id)
+  for (const color of PATHS) {
+    // Le quart doit être seul de sa couleur sur la tuile — sinon le cristal
+    // naîtrait brisé — et libre de toute autre marque, pour rester lisible.
+    const quartDe = (id: number): number | null => {
+      const quads = TILES[id].quads
+      if (quads.filter((q) => q === color).length !== 1) return null
+      const q = quads.indexOf(color)
+      return STARS.get(id) === q || CLOVERS.get(id) === q ? null : q
+    }
+    const candidates = [...Array(TILE_COUNT).keys()].filter(
+      (id) => !used.has(id) && quartDe(id) !== null,
+    )
+    for (const id of rng.shuffle(candidates).slice(0, 3)) {
+      used.add(id)
+      map.set(id, quartDe(id) as number)
+    }
   }
-  return set
+  return map
 })()
+
+/** Quart cristallisé après orientation (0..3 dans la tuile posée). */
+export function crystalQuadIndex(tileId: number, rot: Rotation, flipped = false): number | null {
+  const base = CRYSTALS.get(tileId)
+  if (base === undefined) return null
+  const FLIP: number[] = [1, 0, 3, 2]
+  return ((flipped ? FLIP[base] : base) + rot) % 4
+}
 
 // ---------------------------------------------------------------------------
 // Teintures (variante) : un pot de couleur sur ~20 % des tuiles, 3 par couleur,

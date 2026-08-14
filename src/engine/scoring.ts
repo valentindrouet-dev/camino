@@ -8,7 +8,7 @@ import {
   tileOfQuad,
 } from './board.ts'
 import type { GridEffects, QuadGrid } from './board.ts'
-import { cloverQuadIndex, CRYSTALS, starQuadIndex } from './tiles.ts'
+import { cloverQuadIndex, crystalQuadIndex, starQuadIndex } from './tiles.ts'
 import type {
   Board,
   Color,
@@ -309,40 +309,33 @@ function countStars(
 }
 
 /**
- * Cristaux (variante) : le cristal brille tant que sa couleur ne déborde pas
- * de sa tuile. Il suffit qu'un quart d'une tuile VOISINE porte la même couleur
- * contre l'un des siens pour qu'il se brise. Poser un cristal est donc un
- * pari : +4 s'il brille à la fin, −4 s'il est brisé.
+ * Cristaux (variante) : le cristal orne un quart précis de sa tuile, et brille
+ * tant que ce quart reste SEUL de sa couleur — aucun quart de la même couleur
+ * ne doit le toucher, ni sur sa tuile ni sur une voisine. Sur sa propre tuile
+ * c'est acquis (les tuiles à cristal sont choisies pour cela) ; tout se joue
+ * donc sur ses voisines. +4 s'il brille à la fin, −4 s'il est brisé.
  *
- * La règle ne regarde que le plateau final : l'ordre des poses n'y entre plus.
+ * La règle ne regarde que le plateau final : l'ordre des poses n'y entre pas.
  */
-function crystalShines(board: Board, grid: QuadGrid, cell: number): boolean {
+function crystalShines(
+  board: Board,
+  grid: QuadGrid,
+  cell: number,
+  fx: GridEffects | undefined,
+): boolean {
   const placed = board.cells[cell]
-  if (!placed || !CRYSTALS.has(placed.tileId)) return false
-  const miens = quadIndicesOf(board.size, cell)
-  // Couleur du cristal : celle qui occupe au moins trois des quatre quarts.
-  const compte = new Map<Color, number>()
-  for (const q of miens) {
-    const c = grid.cells[q]
-    if (c && c !== BLACK) compte.set(c, (compte.get(c) ?? 0) + 1)
-  }
-  let couleur: Color | null = null
-  for (const [c, n] of compte) if (n >= 3) couleur = c
-  if (couleur === null) return false
-  for (const q of miens) {
-    if (grid.cells[q] !== couleur) continue
-    for (const v of neighbours(grid.size, q, grid.cells.length)) {
-      // Ses propres quarts ne le brisent pas : seules les tuiles voisines.
-      if (tileOfQuad(board.size, v) === cell) continue
-      if (grid.cells[v] === couleur) return false
-    }
-  }
-  return true
+  if (!placed) return false
+  const q = crystalQuadIndex(placed.tileId, effectiveRot(board, cell, fx?.windmills), placed.flipped)
+  if (q === null) return false
+  const qi = quadIndicesOf(board.size, cell)[q]
+  const couleur = grid.cells[qi]
+  if (!couleur) return false
+  return neighbours(grid.size, qi, grid.cells.length).every((v) => grid.cells[v] !== couleur)
 }
 
 /** Le cristal de cette case brille-t-il ? (pour l'affichage du plateau) */
 export function crystalIntact(board: Board, cell: number, fx?: GridEffects): boolean {
-  return crystalShines(board, quadGrid(board, fx), cell)
+  return crystalShines(board, quadGrid(board, fx), cell, fx)
 }
 
 function countCrystals(
@@ -354,9 +347,9 @@ function countCrystals(
   let total = 0
   for (let i = 0; i < board.cells.length; i++) {
     if (ownTiles && !ownTiles.has(i)) continue
-    const cristal = board.cells[i] && CRYSTALS.has(board.cells[i]!.tileId)
-    if (!cristal) continue
-    total += crystalShines(board, grid, i) ? 4 : -4
+    const placed = board.cells[i]
+    if (!placed || crystalQuadIndex(placed.tileId, 0) === null) continue
+    total += crystalShines(board, grid, i, fx) ? 4 : -4
   }
   return total
 }

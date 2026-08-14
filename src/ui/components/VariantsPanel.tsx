@@ -317,7 +317,7 @@ export function VariantsPanel({
           label="Cristaux"
           on={!!variants.crystals}
           onChange={(v) => patchVariants({ crystals: v })}
-          description="18 tuiles aux 3 ou 4 quarts de même couleur portent un cristal. Il brille — +4 points — tant que sa couleur ne déborde pas de sa tuile : aucun quart d’une tuile voisine ne doit porter la même couleur contre lui. Sinon il se brise et coûte 4 points. Le poser, c’est parier."
+          description="18 tuiles portent un cristal sur un quart précis (3 par couleur), toujours seul de sa couleur sur sa tuile. Il brille — +4 points — tant qu’aucun quart de la même couleur ne le touche ; dès qu’une voisine vient coller sa couleur contre lui, il se brise et coûte 4 points."
         />
         <VariantToggle
           label="Moulins"

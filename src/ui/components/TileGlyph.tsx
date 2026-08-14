@@ -58,6 +58,8 @@ export function TileGlyph({
   const starAt = starQuad === null ? null : flipped ? FLIP[starQuad] : starQuad
   const cloverQuad = showClover ? (CLOVERS.get(tileId) ?? null) : null
   const cloverAt = cloverQuad === null ? null : flipped ? FLIP[cloverQuad] : cloverQuad
+  const crystalQuad = showCrystal ? (CRYSTALS.get(tileId) ?? null) : null
+  const crystalAt = crystalQuad === null ? null : flipped ? FLIP[crystalQuad] : crystalQuad
   const dye = showDye ? (DYES.get(tileId) ?? null) : null
   const dyeAtQuad = dye === null ? null : flipped ? FLIP[dye.quad] : dye.quad
   const STAR_XY = [
@@ -106,7 +108,9 @@ export function TileGlyph({
             size={30}
           />
         )}
-        {showCrystal && CRYSTALS.has(tileId) && <CrystalMark cx={50} cy={50} size={34} />}
+        {crystalAt !== null && (
+          <CrystalMark cx={STAR_XY[crystalAt][0]} cy={STAR_XY[crystalAt][1]} size={30} />
+        )}
         {showDye && dye !== null && dyeAtQuad !== null && (
           <DyeMark
             cx={STAR_XY[dyeAtQuad][0]}

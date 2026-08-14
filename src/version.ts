@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.55',
+    date: '2026-08-12',
+    changes: [
+      'Le cristal quitte le milieu de la tuile : il orne désormais un quart précis, comme une étoile ou un trèfle, et prend la couleur de ce quart.',
+      'Les 18 tuiles à cristal sont retirées : le quart cristallisé est toujours seul de sa couleur sur sa tuile, jamais sur un quart déjà étoilé ou tréflé — 3 cristaux par couleur.',
+      'Il brille (+4) tant qu’aucun quart de la même couleur ne le touche, et se brise (−4) dès qu’une voisine colle sa couleur contre lui. Le quart suit la rotation et la face miroir.',
+    ],
+  },
+  {
     version: '1.54',
     date: '2026-08-12',
     changes: [

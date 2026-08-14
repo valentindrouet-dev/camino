@@ -4,7 +4,7 @@ import {
   WHITE,
   cloverQuadIndex,
   crystalIntact,
-  CRYSTALS,
+  crystalQuadIndex,
   dyeAt,
   effectiveRot,
   gridEffects,
@@ -380,14 +380,21 @@ export function BoardView({
       {/* cristaux : brillants tant qu'intacts, brisés dès qu'on s'y colle */}
       {ruleset.variants?.crystals &&
         board.cells.map((placed, i) => {
-          if (!placed || !CRYSTALS.has(placed.tileId)) return null
+          if (!placed) return null
+          const cq = crystalQuadIndex(
+            placed.tileId,
+            effectiveRot(board, i, fx?.windmills),
+            placed.flipped,
+          )
+          if (cq === null) return null
           const { x, y } = cellXY(i)
+          const [dx, dy] = QUAD_OFFSETS[cq]
           return (
             <CrystalMark
               key={`cr${i}`}
-              cx={x + TILEW / 2}
-              cy={y + TILEW / 2}
-              size={QUAD * 0.66}
+              cx={x + dx + QUAD / 2}
+              cy={y + dy + QUAD / 2}
+              size={QUAD * 0.62}
               intact={crystalIntact(board, i, fx)}
             />
           )
@@ -558,14 +565,20 @@ export function BoardView({
             })()}
           {ghost &&
             ruleset.variants?.crystals &&
-            CRYSTALS.has(ghost.tileId) && (
-              <CrystalMark
-                cx={cellXY(preview.cell).x + TILEW / 2}
-                cy={cellXY(preview.cell).y + TILEW / 2}
-                size={QUAD * 0.66}
-                intact
-              />
-            )}
+            (() => {
+              const cq = crystalQuadIndex(ghost.tileId, ghost.rot, ghost.flipped)
+              if (cq === null) return null
+              const { x, y } = cellXY(preview.cell)
+              const [dx, dy2] = QUAD_OFFSETS[cq]
+              return (
+                <CrystalMark
+                  cx={x + dx + QUAD / 2}
+                  cy={y + dy2 + QUAD / 2}
+                  size={QUAD * 0.62}
+                  intact
+                />
+              )
+            })()}
           {ghost &&
             ruleset.variants?.windmills &&
             WINDMILLS.has(ghost.tileId) && (
