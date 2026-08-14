@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.52',
+    date: '2026-08-12',
+    changes: [
+      'Le chrono se déclenche aussi pour les parties en ligne : il restait à zéro, faute de démarrer ailleurs qu’au lancement d’une partie sur cet appareil.',
+      'La durée d’une partie en ligne part donc avec elle dans l’archive, et compte enfin dans les statistiques cumulées.',
+    ],
+  },
+  {
     version: '1.51',
     date: '2026-08-12',
     changes: [

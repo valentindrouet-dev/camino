@@ -85,6 +85,8 @@ export default function App() {
   const startedAt = useRef<number | null>(null)
   const endedAt = useRef<number | null>(null)
   const [elapsed, setElapsed] = useState(0)
+  /** Salon dont le chrono est déjà lancé : on ne le relance pas à chaque coup. */
+  const chronoSalon = useRef<string | null>(null)
 
   // Une partie terminée n'est archivée qu'une fois, et le passage à l'écran de
   // résultats ne doit pas se redéclencher quand on revient voir les plateaux.
@@ -112,6 +114,20 @@ export default function App() {
     setElapsed(0)
     setScreen('game')
   }
+
+  /*
+   * Une partie en ligne ne passe pas par `start()` — elle naît du salon. C'est
+   * donc ici que son chrono démarre, une seule fois par salon : sans cela il
+   * resterait à zéro, et la partie s'archiverait sans durée.
+   */
+  useEffect(() => {
+    if (!enLigne || salonId === null || chronoSalon.current === salonId) return
+    chronoSalon.current = salonId
+    settled.current = false
+    startedAt.current = Date.now()
+    endedAt.current = null
+    setElapsed(0)
+  }, [enLigne, salonId])
 
   // Le chrono ne bat que tant qu'on joue ; une fois la partie finie il reste
   // figé sur son total, y compris quand on retourne voir les plateaux.
@@ -144,6 +160,7 @@ export default function App() {
     settled.current = false
     startedAt.current = null
     endedAt.current = null
+    chronoSalon.current = null
     setElapsed(0)
     setScreen(to)
   }, [])
