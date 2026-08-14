@@ -15,6 +15,17 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.53',
+    date: '2026-08-12',
+    changes: [
+      'Le pavé d’explications sous la liste des joueurs disparaît de l’accueil.',
+      'Les options de partie sont remises dans l’ordre et raccourcies : Score, Points par Zone, 1er Joueur Aléatoire, Dernière Tuile, Indices, Graine.',
+      'La colonne des variantes est rangée en six familles séparées — Cartes missions, Tuiles, Plateaux, Symboles, Score, Non conservées — et chaque variante porte un nom court.',
+      'Le bouton « tout décocher » remonte à côté du titre de la colonne, hors des familles.',
+      'Les mêmes noms courts servent au rappel des variantes en cours de partie et au Laboratoire.',
+    ],
+  },
+  {
     version: '1.52',
     date: '2026-08-12',
     changes: [

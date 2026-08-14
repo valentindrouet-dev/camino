@@ -1660,6 +1660,22 @@ button.mission-card.selected {
 
 /* ------------------------------------------------------------- variantes */
 
+/* Séparateurs de la colonne des variantes : un titre sur un filet. */
+.variant-group {
+  margin: 4px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+}
+
+.variant-group:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
 .variant {
   display: flex;
   flex-direction: column;

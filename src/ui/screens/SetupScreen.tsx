@@ -238,36 +238,20 @@ export function SetupScreen({
               </div>
             ))}
           </div>
-          <p className="note">
-            Chaque joueur prend un plateau : cliquez sur une pastille pour
-            changer de couleur, deux joueurs ne peuvent pas avoir la même. Les
-            bots jouent tout seuls — le Novice joue le meilleur coup immédiat,
-            le Stratège construit ses couleurs sur la durée.
-          </p>
         </div>
 
         <div className="panel stack">
           <h3>Options de partie</h3>
           <div className="row wrap">
             <Toggle
-              label="Score visible"
+              label="Score"
               on={options.liveScore}
               onChange={(v) => setOptions((o) => ({ ...o, liveScore: v }))}
             />
             <Toggle
-              label="Points par Zone visible"
+              label="Points par Zone"
               on={options.showZones}
               onChange={(v) => setOptions((o) => ({ ...o, showZones: v }))}
-            />
-            <Toggle
-              label="Indices"
-              on={options.showHints}
-              onChange={(v) => setOptions((o) => ({ ...o, showHints: v }))}
-            />
-            <Toggle
-              label="Dernière tuile posée"
-              on={!!options.showLastPlaced}
-              onChange={(v) => setOptions((o) => ({ ...o, showLastPlaced: v }))}
             />
             <Toggle
               label="1er Joueur Aléatoire"
@@ -275,7 +259,17 @@ export function SetupScreen({
               onChange={(v) => setOptions((o) => ({ ...o, randomFirst: v }))}
             />
             <Toggle
-              label="Graine manuelle"
+              label="Dernière Tuile"
+              on={!!options.showLastPlaced}
+              onChange={(v) => setOptions((o) => ({ ...o, showLastPlaced: v }))}
+            />
+            <Toggle
+              label="Indices"
+              on={options.showHints}
+              onChange={(v) => setOptions((o) => ({ ...o, showHints: v }))}
+            />
+            <Toggle
+              label="Graine"
               on={!!options.manualSeed}
               onChange={(v) =>
                 setOptions((o) => ({
