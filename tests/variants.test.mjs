@@ -379,10 +379,12 @@ test('tuiles failles : les deux moitiés d’une tuile ne se relient pas', () =>
 
 test('trèfles : +3 dans un chemin qui marque, −3 sinon', () => {
   const trefles = [...E.CLOVERS.keys()]
-  assert.equal(trefles.length, Math.round(E.TILE_COUNT * 0.25), 'un quart des tuiles')
-  // jamais sur un quart noir
+  assert.ok(trefles.length >= 20 && trefles.length <= 25, 'environ un quart des tuiles')
   for (const id of trefles) {
+    // jamais sur un quart noir
     assert.notEqual(E.TILES[id].quads[E.CLOVERS.get(id)], 'K')
+    // ni sur une tuile étoilée : une tuile ne porte qu'une de ces deux marques
+    assert.ok(!E.STARS.has(id), `tuile ${id} : trèfle et étoile ne cohabitent pas`)
   }
   const ruleset = withVariants({ clovers: true })
   const board = E.createBoard(4)
@@ -1080,9 +1082,11 @@ test('simulation : les variantes et les nouvelles statistiques', () => {
     options: { ...E.defaultOptions('lab-1'), ...opts, ruleset: withVariants(variants) },
   })
 
-  // une simulation traverse bien les variantes lourdes
-  const r = E.simulate(config({ magicStars: true, clovers: true, crystals: true }), 6)
-  assert.equal(r.games, 6)
+  // une simulation traverse bien les variantes lourdes. Douze parties et non
+  // six : sur un échantillon trop court, les +3 et les −3 des trèfles peuvent
+  // s'annuler exactement, et la source disparaît de la liste.
+  const r = E.simulate(config({ magicStars: true, clovers: true, crystals: true }), 12)
+  assert.equal(r.games, 12)
   assert.ok(r.curve.length > 1, 'la courbe de progression est renseignée')
   assert.ok(r.avgRounds > 0)
   assert.ok(r.sources.some((x) => x.key === 'stars'), 'les étoiles apparaissent dans les sources')

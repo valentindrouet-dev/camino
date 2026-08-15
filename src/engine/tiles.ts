@@ -228,7 +228,9 @@ export function faultAxis(tileId: number, rot: Rotation, _flipped = false): 0 | 
 
 // ---------------------------------------------------------------------------
 // Trèfles (variante) : un quart sur quatre des tuiles porte un trèfle, jamais
-// sur un quart noir. Dans un chemin qui marque il rapporte +3, sinon il coûte 3.
+// sur un quart noir, et jamais sur une tuile déjà étoilée : une tuile ne porte
+// qu'une seule de ces deux marques.
+// Dans un chemin qui marque le trèfle rapporte +3, sinon il coûte 3.
 // ---------------------------------------------------------------------------
 
 /** quart trèflé (0..3, avant rotation) par id de tuile. */
@@ -237,6 +239,9 @@ export const CLOVERS: ReadonlyMap<number, number> = (() => {
   const candidates: number[] = []
   for (let id = 0; id < TILE_COUNT; id++) {
     if (TILES[id].quads.every((q) => q === 'K')) continue
+    // Jamais sur une tuile étoilée : deux marques sur une même tuile se
+    // marcheraient dessus, et sur un même quart c'est illisible.
+    if (STARS.has(id)) continue
     candidates.push(id)
   }
   const map = new Map<number, number>()

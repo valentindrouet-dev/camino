@@ -15,6 +15,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.56',
+    date: '2026-08-12',
+    changes: [
+      'Une tuile ne porte plus jamais une étoile ET un trèfle : les deux marques se retrouvaient parfois sur le même quart, illisibles l’une sur l’autre. Les trèfles sont désormais tirés parmi les tuiles sans étoile — 30 étoiles, 24 trèfles, plus aucun recoupement.',
+    ],
+  },
+  {
     version: '1.55',
     date: '2026-08-12',
     changes: [
