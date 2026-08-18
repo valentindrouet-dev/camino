@@ -1660,6 +1660,32 @@ button.mission-card.selected {
 
 /* ------------------------------------------------------------- variantes */
 
+/* ------------------------------------------------------------- réglages */
+
+/* Colonnes plutôt que grille : les familles n'ont pas la même hauteur, on ne
+   veut pas d'un damier troué. */
+.reglages-grille {
+  columns: 4 230px;
+  column-gap: 12px;
+}
+
+.reglages-famille {
+  break-inside: avoid;
+  margin-bottom: 12px;
+}
+
+.reglages-famille > .toggle {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  align-self: flex-start;
+}
+
+/* Famille masquée : ses variantes restent réglables, mais en retrait. */
+.reglages-famille.off > .stack {
+  opacity: 0.45;
+}
+
 /* Séparateurs de la colonne des variantes : un titre sur un filet. */
 .variant-group {
   margin: 4px 0 0;

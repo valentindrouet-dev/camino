@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createGame, randomSeed } from '../engine/index.ts'
-import type { GameConfig, GameState } from '../engine/index.ts'
-import { archiveGame } from './storage.ts'
+import { cardById, clearVariants, createGame, defaultOptions, defaultPlayers, randomSeed } from '../engine/index.ts'
+import type { GameConfig, GameOptions, GameState, PlayerConfig } from '../engine/index.ts'
+import { archiveGame, loadLastConfig } from './storage.ts'
 import { SetupScreen } from './screens/SetupScreen.tsx'
 import { GameScreen } from './screens/GameScreen.tsx'
 import { ResultsScreen } from './screens/ResultsScreen.tsx'
@@ -9,6 +9,9 @@ import { LabScreen } from './screens/LabScreen.tsx'
 import { HistoryScreen } from './screens/HistoryScreen.tsx'
 import { VersionsScreen } from './screens/VersionsScreen.tsx'
 import { SalonScreen } from './screens/SalonScreen.tsx'
+import { ReglagesScreen } from './screens/ReglagesScreen.tsx'
+import { chargerReglages, enregistrerReglages, signature } from './reglages.ts'
+import type { Reglages } from './reglages.ts'
 import { TransportLocal } from '../net/local.ts'
 import { TransportSupabase } from '../net/supabase.ts'
 import { enLigneDisponible } from '../net/config.ts'
@@ -18,7 +21,16 @@ import { viewFor } from '../engine/index.ts'
 import { VERSION } from '../version.ts'
 import { formatDuration } from './duration.ts'
 
-type Screen = 'setup' | 'game' | 'results' | 'lab' | 'archive' | 'history' | 'versions' | 'salon'
+type Screen =
+  | 'setup'
+  | 'game'
+  | 'results'
+  | 'lab'
+  | 'archive'
+  | 'history'
+  | 'versions'
+  | 'salon'
+  | 'reglages'
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('setup')
@@ -36,6 +48,52 @@ export default function App() {
   const salon = useSalon(transport, salonsOuverts)
   /** Identifiant de la partie qu'on vient d'archiver : sert au rapport de fin. */
   const [archivedId, setArchivedId] = useState<string | null>(null)
+  /*
+   * Réglages de la table : ce que la page d'accueil propose. Ils survivent aux
+   * rechargements — c'est un choix d'organisateur, pas un réglage de partie.
+   */
+  const [reglages, setReglagesEtat] = useState<Reglages>(chargerReglages)
+  const setReglages = (r: Reglages) => {
+    setReglagesEtat(r)
+    enregistrerReglages(r)
+  }
+
+  /*
+   * La configuration de la prochaine partie vit ici, et non dans l'écran
+   * d'accueil : passer par les Réglages, l'Historique ou les Versions ne doit
+   * pas effacer ce qu'on vient de cocher.
+   *
+   * Chaque CHARGEMENT DE PAGE, en revanche, repart d'une feuille blanche côté
+   * variantes — on ne remet pas en jeu, sans le dire, un réglage exotique de
+   * la veille. Les options de partie, elles, sont un confort personnel et
+   * restent en place.
+   */
+  const [players, setPlayers] = useState<PlayerConfig[]>(() => {
+    const sauves = loadLastConfig<GameConfig>()?.players
+    return sauves?.every((p) => p.boardColor) ? sauves : defaultPlayers(2)
+  })
+  const [options, setOptions] = useState<GameOptions>(() => {
+    const sauvees = loadLastConfig<GameConfig>()?.options
+    const base = clearVariants(sauvees ?? defaultOptions(randomSeed()))
+    // Une carte retirée du jeu depuis la dernière partie ne doit pas rester
+    // choisie en silence : sans ça, la partie démarrerait sans mission.
+    return base.cardId && !cardById(base.cardId) ? { ...base, cardId: undefined } : base
+  })
+  const [showScale, setShowScale] = useState(false)
+
+  /*
+   * Masquer une variante alors qu'elle est cochée la laisserait s'appliquer en
+   * silence, invisible. Changer les Réglages remet donc les variantes à zéro ;
+   * les options de partie ne bougent pas.
+   */
+  const sigReglages = signature(reglages)
+  const sigVue = useRef(sigReglages)
+  useEffect(() => {
+    if (sigVue.current === sigReglages) return
+    sigVue.current = sigReglages
+    setShowScale(false)
+    setOptions(clearVariants)
+  }, [sigReglages])
   const [config, setConfig] = useState<GameConfig | null>(null)
   const [history, setHistory] = useState<GameState[]>([])
 
@@ -324,11 +382,18 @@ export default function App() {
       {screen === 'setup' && (
         <SetupScreen
           onStart={start}
-          onOpenLab={() => setScreen('lab')}
+          players={players}
+          setPlayers={setPlayers}
+          options={options}
+          setOptions={setOptions}
+          showScale={showScale}
+          setShowScale={setShowScale}
           onOpenSalons={() => {
             setSalonsOuverts(true)
             setScreen('salon')
           }}
+          onOpenReglages={() => setScreen('reglages')}
+          reglages={reglages}
           resumable={running}
           onResume={() => setScreen('game')}
         />
@@ -336,6 +401,14 @@ export default function App() {
 
       {screen === 'salon' && !enLigne && (
         <SalonScreen salon={salon} onBack={() => setScreen('setup')} />
+      )}
+
+      {screen === 'reglages' && (
+        <ReglagesScreen
+          reglages={reglages}
+          setReglages={setReglages}
+          onBack={() => setScreen('setup')}
+        />
       )}
 
       {screen === 'game' && state && enLigne && salon.salon && (

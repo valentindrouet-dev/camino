@@ -1,13 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
+import type React from "react";
 import {
   BOARD_COLOR_HEX,
   BOARD_COLOR_NAMES,
   BOARD_COLORS,
-  cardById,
-  clearVariants,
   configError,
-  defaultOptions,
-  defaultPlayers,
   freeBoardColor,
   randomSeed,
 } from "../../engine/index.ts";
@@ -18,7 +15,9 @@ import type {
   PlayerConfig,
   PlayerKind,
 } from "../../engine/index.ts";
-import { loadLastConfig, saveLastConfig } from "../storage.ts";
+import { saveLastConfig } from "../storage.ts";
+import { varianteVisible } from "../reglages.ts";
+import type { Reglages } from "../reglages.ts";
 import { MaterialSection } from "../components/MaterialSection.tsx";
 import { Toggle, VariantsPanel } from "../components/VariantsPanel.tsx";
 import { BUILD, VERSION } from "../../version.ts";
@@ -41,31 +40,21 @@ const HERO_COLORS = [
   "#6850A1",
 ];
 
-/*
- * Chaque chargement de page repart d'une feuille blanche côté variantes : on
- * ne remet pas en jeu, sans le dire, un réglage exotique de la veille. Les
- * options de partie, elles, sont un confort personnel et restent en place.
- *
- * L'effacement ne vaut que pour le PREMIER passage sur l'accueil : revenir à
- * l'accueil en cours de session ne doit pas effacer ce qu'on vient de régler.
- * Le résultat est mémorisé, parce que StrictMode appelle l'initialiseur deux
- * fois en développement — il doit donner la même réponse aux deux appels.
- */
-let accueilDejaVu = false;
-let optionsNettoyees: GameOptions | null = null;
-
-function optionsDeDepart(saved?: GameOptions): GameOptions {
-  const base = saved ?? defaultOptions(randomSeed());
-  if (accueilDejaVu) return base;
-  optionsNettoyees ??= clearVariants(base);
-  return optionsNettoyees;
-}
-
 interface Props {
   onStart: (config: GameConfig) => void;
-  onOpenLab: () => void;
+  /* La configuration vit dans App : sortir de l'accueil ne l'efface pas. */
+  players: PlayerConfig[];
+  setPlayers: React.Dispatch<React.SetStateAction<PlayerConfig[]>>;
+  options: GameOptions;
+  setOptions: React.Dispatch<React.SetStateAction<GameOptions>>;
+  showScale: boolean;
+  setShowScale: (v: boolean) => void;
   /** Ouvre l'écran des parties en ligne. */
   onOpenSalons: () => void;
+  /** Ouvre la page Réglages (protégée par mot de passe). */
+  onOpenReglages: () => void;
+  /** Ce qui doit apparaître dans la colonne des variantes. */
+  reglages: Reglages;
   /** Une partie est en cours : proposer de la reprendre. */
   resumable?: boolean;
   onResume?: () => void;
@@ -73,29 +62,18 @@ interface Props {
 
 export function SetupScreen({
   onStart,
-  onOpenLab,
+  players,
+  setPlayers,
+  options,
+  setOptions,
+  showScale,
+  setShowScale,
   onOpenSalons,
+  onOpenReglages,
+  reglages,
   resumable,
   onResume,
 }: Props) {
-  const saved = useMemo(() => loadLastConfig<GameConfig>(), []);
-  const [players, setPlayers] = useState<PlayerConfig[]>(
-    saved?.players?.every((p) => p.boardColor)
-      ? saved.players
-      : defaultPlayers(2),
-  );
-  const [options, setOptions] = useState(() => {
-    const o = optionsDeDepart(saved?.options);
-    // Une carte retirée du jeu depuis la dernière partie ne doit pas rester
-    // choisie en silence : sans ça, la partie démarrerait sans mission.
-    return o.cardId && !cardById(o.cardId) ? { ...o, cardId: undefined } : o;
-  });
-  // À partir d'ici, l'accueil a été vu : les prochains passages gardent les
-  // réglages tels quels. (Un double appel de StrictMode ne change rien.)
-  useEffect(() => {
-    accueilDejaVu = true;
-  }, []);
-  const [showScale, setShowScale] = useState(false);
   // Règles et matériel : deux dépliants de la page d'accueil, fermés au départ.
   const [showRules, setShowRules] = useState(false);
   const [showMaterial, setShowMaterial] = useState(false);
@@ -335,6 +313,7 @@ export function SetupScreen({
         <VariantsPanel
           options={options}
           setOptions={setOptions}
+          visible={(cle) => varianteVisible(reglages, cle)}
           showScale={showScale}
           setShowScale={setShowScale}
         />
@@ -344,9 +323,6 @@ export function SetupScreen({
         className="row wrap"
         style={{ marginTop: 18, justifyContent: "center", gap: 12 }}
       >
-        <button className="btn" onClick={onOpenLab}>
-          Laboratoire d’équilibrage
-        </button>
         <button
           className={`btn ${showRules ? "primary" : ""}`}
           onClick={() => setShowRules((v) => !v)}
@@ -358,6 +334,9 @@ export function SetupScreen({
           onClick={() => setShowMaterial((v) => !v)}
         >
           Matériel
+        </button>
+        <button className="btn" onClick={onOpenReglages}>
+          Réglages
         </button>
       </div>
 

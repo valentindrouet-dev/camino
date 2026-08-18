@@ -15,6 +15,18 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.57',
+    date: '2026-08-12',
+    changes: [
+      'Nouvelle page « Réglages », accessible depuis l’accueil et protégée par un mot de passe : on y choisit ce que la page d’accueil propose.',
+      'Chaque famille de variantes peut être masquée d’un coup — séparateur compris — et chaque variante indépendamment. Un compteur rappelle combien il en reste.',
+      'Le Laboratoire, lui, continue de tout montrer : c’est l’outil d’équilibrage, il doit pouvoir tester ce qui n’est plus proposé à la table.',
+      'Le bouton « Laboratoire d’équilibrage » disparaît du bas de l’accueil : il ne figure plus qu’en haut à droite.',
+      'La configuration de la prochaine partie ne s’efface plus quand on quitte l’accueil : aller voir les Réglages, l’Historique ou les Versions ne décoche plus ce qu’on venait de régler. Un rechargement de page, lui, remet toujours les variantes à zéro.',
+      'Changer les Réglages remet les variantes à zéro : une variante masquée ne peut plus s’appliquer en silence.',
+    ],
+  },
+  {
     version: '1.56',
     date: '2026-08-12',
     changes: [

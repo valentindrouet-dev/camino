@@ -1,4 +1,5 @@
 import type React from "react";
+import { createContext, useContext } from "react";
 import { CARDS, clearVariants, DEFAULT_RULESET } from "../../engine/index.ts";
 import type {
   GameOptions,
@@ -7,10 +8,19 @@ import type {
   Variants,
 } from "../../engine/index.ts";
 import { MissionCardView } from "./MissionCard.tsx";
+import { CATALOGUE } from "../reglages.ts";
+
+/**
+ * Quelles variantes sont proposées. L'accueil suit les Réglages ; le
+ * Laboratoire ne passe rien et voit donc tout, c'est son rôle.
+ */
+const Visibilite = createContext<(cle: string) => boolean>(() => true);
 
 interface Props {
   options: GameOptions;
   setOptions: React.Dispatch<React.SetStateAction<GameOptions>>;
+  /** Filtre d'affichage : une variante masquée n'apparaît pas du tout. */
+  visible?: (cle: string) => boolean;
   /** Barème perso déplié : l'état vit chez l'appelant, il le range où il veut. */
   showScale: boolean;
   setShowScale: (v: boolean) => void;
@@ -23,6 +33,7 @@ interface Props {
 export function VariantsPanel({
   options,
   setOptions,
+  visible,
   showScale,
   setShowScale,
 }: Props) {
@@ -43,6 +54,7 @@ export function VariantsPanel({
   };
 
   return (
+    <Visibilite.Provider value={visible ?? (() => true)}>
     <div className="panel stack">
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <h3>Variantes</h3>
@@ -55,9 +67,9 @@ export function VariantsPanel({
           ↺
         </button>
       </div>
-      <h4 className="variant-group">CARTES MISSIONS</h4>
-      <div className="row wrap">
+      <Groupe titre="CARTES MISSIONS">
         <VariantToggle
+          cle="cards"
           label="Cartes missions"
           on={options.useCards && (options.cardCount ?? 1) <= 1}
           onChange={(v) =>
@@ -71,6 +83,7 @@ export function VariantsPanel({
           description="Une carte tirée pour la table, la même mission pour tout le monde."
         />
         <VariantToggle
+          cle="cardsMulti"
           label="Missions Multiples"
           on={options.useCards && (options.cardCount ?? 1) > 1}
           onChange={(v) =>
@@ -100,6 +113,7 @@ export function VariantsPanel({
           </label>
         </VariantToggle>
         <VariantToggle
+          cle="cardsPerso"
           label="Missions Persos"
           on={!!options.personalCards}
           onChange={(v) =>
@@ -111,58 +125,66 @@ export function VariantsPanel({
           }
           description="Chaque joueur reçoit sa propre carte, qu’il est seul à pouvoir accomplir. Exclusif avec les cartes de la table."
         />
-      </div>
-      <h4 className="variant-group">TUILES</h4>
-      <div className="row wrap">
+      </Groupe>
+      <Groupe titre="TUILES">
         <VariantToggle
+          cle="freePlace"
           label="Pose Libre"
           on={!options.ruleset.requireAdjacency}
           onChange={(v) => patchRuleset({ requireAdjacency: !v })}
           description="Les tuiles n’ont plus besoin de toucher une tuile déjà posée."
         />
         <VariantToggle
+          cle="lastRandom"
           label="Dernière Aléatoire"
           on={!!variants.lastPickRandom}
           onChange={(v) => patchVariants({ lastPickRandom: v })}
           description="Le dernier à choisir peut échanger la tuile restante contre une pioche au hasard — une fois, sans retour."
         />
         <VariantToggle
+          cle="randomBack"
           label="Verso Aléatoire"
           on={!!variants.randomBack}
           onChange={(v) => patchVariants({ randomBack: v })}
           description="À son tour, un joueur peut retourner une tuile du centre : sa nouvelle face sort du sac, l’ancienne disparaît — et il doit la poser. On ne revient jamais en arrière (touche V)."
         />
         <VariantToggle
+          cle="mono"
           label="Monochromes"
           on={!!variants.monoTiles}
           onChange={(v) => patchVariants({ monoTiles: v })}
           description="+12 tuiles unies dans le sac (2 par couleur)."
         />
         <VariantToggle
+          cle="rainbow"
           label="Arc-en-Ciel"
           on={!!variants.whiteTiles}
           onChange={(v) => patchVariants({ whiteTiles: v })}
           description="+6 tuiles arc-en-ciel : un seul grand carré irisé qui prolonge et relie les chemins de toutes les couleurs voisines."
         />
         <VariantToggle
+          cle="personal"
           label="Personnelle"
           on={!!variants.personalTile}
           onChange={(v) => patchVariants({ personalTile: v })}
           description="Chaque joueur reçoit une tuile sans noir, jouable une seule fois à la place d’une tuile du centre."
         />
         <VariantToggle
+          cle="mirror"
           label="Miroir"
           on={!!variants.mirrorTiles}
           onChange={(v) => patchVariants({ mirrorTiles: v })}
           description="Chaque tuile peut se retourner sur sa face miroir (touche F) : couleurs inversées gauche-droite."
         />
         <VariantToggle
+          cle="extra"
           label="Supplémentaire"
           on={!!variants.extraTile}
           onChange={(v) => patchVariants({ extraTile: v })}
           description="Une tuile de plus au centre à chaque manche : plus de choix, et la tuile restante est remélangée dans le sac."
         />
         <VariantToggle
+          cle="start"
           label="Départ"
           on={!!variants.startTile}
           onChange={(v) => patchVariants({ startTile: v })}
@@ -185,10 +207,10 @@ export function VariantsPanel({
             </select>
           </label>
         </VariantToggle>
-      </div>
-      <h4 className="variant-group">PLATEAUX</h4>
-      <div className="row wrap">
+      </Groupe>
+      <Groupe titre="PLATEAUX">
         <VariantToggle
+          cle="borders"
           label="Bords Colorés"
           on={!!variants.coloredBorders}
           onChange={(v) =>
@@ -200,6 +222,7 @@ export function VariantsPanel({
           description="Le bord du plateau est à la couleur du joueur. Un chemin de cette couleur qui touche le bord — une ou plusieurs fois, un ou plusieurs côtés — gagne une case, une seule. Les bords ne relient jamais deux chemins. Exclusif avec Bordures multicolores."
         />
         <VariantToggle
+          cle="multiBorders"
           label="Bords Multicolores"
           on={!!variants.multiBorders}
           onChange={(v) =>
@@ -211,21 +234,23 @@ export function VariantsPanel({
           description="Plateaux au verso sans cadre de couleur, bordés de 8 carrés colorés par côté (coins blancs) : chaque carré touché par un chemin de sa couleur ajoute une case, sans relier les chemins entre eux. Exclusif avec Bordures colorées."
         />
         <VariantToggle
+          cle="swap"
           label="Échange"
           on={!!variants.boardSwap}
           onChange={(v) => patchVariants({ boardSwap: v })}
           description="Deux cartes face cachée dès le début : à la moitié de la partie on en retourne une. « Rotation ! » fait passer chaque plateau au voisin de gauche, « Pas de rotation ! » oblige à garder le sien."
         />
         <VariantToggle
+          cle="shared"
           label="Commun"
           on={!!variants.sharedBoard}
           onChange={(v) => patchVariants({ sharedBoard: v })}
           description="Un seul grand plateau paysage pour toute la table, 16 cases par joueur : 8×4 à deux, 8×6 à trois, 8×8 à quatre, puis 10×8 et 12×8. À chaque pose, tching ! : le poseur encaisse immédiatement les points que sa tuile fait gagner (ou perdre) au plateau."
         />
-      </div>
-      <h4 className="variant-group">SYMBOLES</h4>
-      <div className="row wrap">
+      </Groupe>
+      <Groupe titre="SYMBOLES">
         <VariantToggle
+          cle="stars"
           label="Étoiles"
           on={!!variants.magicStars}
           onChange={(v) => patchVariants({ magicStars: v })}
@@ -249,21 +274,23 @@ export function VariantsPanel({
           </label>
         </VariantToggle>
         <VariantToggle
+          cle="clovers"
           label="Trèfles"
           on={!!variants.clovers}
           onChange={(v) => patchVariants({ clovers: v })}
           description="Un quart de tuile sur quatre porte un trèfle : +3 points s’il se trouve dans un chemin qui marque, −3 sinon."
         />
-      </div>
-      <h4 className="variant-group">SCORE</h4>
-      <div className="row wrap">
+      </Groupe>
+      <Groupe titre="SCORE">
         <VariantToggle
+          cle="secret"
           label="Couleur Secrète"
           on={!!variants.secretColor}
           onChange={(v) => patchVariants({ secretColor: v })}
           description="Chaque joueur reçoit en secret une tuile monochrome — sa couleur. À la fin, son meilleur chemin de cette couleur est doublé. Cette tuile ne se joue pas."
         />
         <VariantToggle
+          cle="forbidden"
           label="Couleur Interdite"
           on={!!variants.forbiddenColor}
           onChange={(v) => patchVariants({ forbiddenColor: v })}
@@ -287,57 +314,64 @@ export function VariantsPanel({
           </label>
         </VariantToggle>
         <VariantToggle
+          cle="scale"
           label="Barème Perso"
           on={showScale}
           onChange={setShowScale}
           description="Taille du plateau, tuiles par manche, malus des zones noires et points par chemin, à votre main."
         />
         <VariantToggle
+          cle="reverse"
           label="Inversé"
           on={!!variants.reverseScoring}
           onChange={(v) => patchVariants({ reverseScoring: v })}
           description="Tout le monde part à 20 points. Les zones noires en rapportent 2, les chemins coûtent ce qu’ils rapportaient. Les autres variantes suivent : ce qui faisait gagner fait perdre, et inversement."
         />
-      </div>
-      <h4 className="variant-group">NON CONSERVÉES</h4>
-      <div className="row wrap">
+      </Groupe>
+      <Groupe titre="NON CONSERVÉES">
         <VariantToggle
+          cle="bagCcw"
           label="Sac Antihoraire"
           on={!!variants.bagCounterClockwise}
           onChange={(v) => patchVariants({ bagCounterClockwise: v })}
           description="Le sac revient au dernier servi — le voisin de droite — au lieu de tourner dans le sens horaire : le premier choix ne va plus toujours au même."
         />
         <VariantToggle
+          cle="faults"
           label="Failles"
           on={!!variants.faultTiles}
           onChange={(v) => patchVariants({ faultTiles: v })}
           description="Une faille grise coupe 16 tuiles en deux moitiés : elles ne se relient pas entre elles, mais chacune se relie normalement aux tuiles voisines."
         />
         <VariantToggle
+          cle="crystals"
           label="Cristaux"
           on={!!variants.crystals}
           onChange={(v) => patchVariants({ crystals: v })}
           description="18 tuiles portent un cristal sur un quart précis (3 par couleur), toujours seul de sa couleur sur sa tuile. Il brille — +4 points — tant qu’aucun quart de la même couleur ne le touche ; dès qu’une voisine vient coller sa couleur contre lui, il se brise et coûte 4 points."
         />
         <VariantToggle
+          cle="windmills"
           label="Moulins"
           on={!!variants.windmills}
           onChange={(v) => patchVariants({ windmills: v })}
           description="15 tuiles portent un moulin : à la pose, toutes les tuiles adjacentes déjà posées tournent d’un quart de tour vers la gauche. Les tuiles posées ensuite ne bougent plus."
         />
         <VariantToggle
+          cle="dyes"
           label="Teintures"
           on={!!variants.dyes}
           onChange={(v) => patchVariants({ dyes: v })}
           description="18 tuiles portent un pot de couleur (3 par couleur). Posé adjacent à une zone noire, le pot déteint : toute la zone prend sa couleur, définitivement. Le noir arrivé plus tard reste noir."
         />
         <VariantToggle
+          cle="sync"
           label="Synchrone"
           on={!!variants.syncDraw}
           onChange={(v) => patchVariants({ syncDraw: v })}
           description="Une seule tuile est révélée par manche, la même pour tout le monde : chacun la pose sur son plateau. Plus de choix au centre, plus d’ordre de pioche — un duel à armes strictement égales."
         />
-      </div>
+      </Groupe>
 
       {options.useCards && (options.cardCount ?? 1) <= 1 && (
         <div className="field">
@@ -463,6 +497,23 @@ export function VariantsPanel({
         </div>
       )}
     </div>
+    </Visibilite.Provider>
+  );
+}
+
+/**
+ * Une famille de variantes : son titre et sa rangée. Si tout ce qu'elle
+ * contient est masqué, elle disparaît, séparateur compris.
+ */
+function Groupe({ titre, children }: { titre: string; children: React.ReactNode }) {
+  const visible = useContext(Visibilite);
+  const groupe = CATALOGUE.find((g) => g.titre === titre);
+  if (groupe && !groupe.variantes.some((v) => visible(v.cle))) return null;
+  return (
+    <>
+      <h4 className="variant-group">{titre}</h4>
+      <div className="row wrap">{children}</div>
+    </>
   );
 }
 
@@ -489,12 +540,15 @@ export function Toggle({
 
 /** Interrupteur de variante : sa description n'apparaît qu'une fois coché. */
 function VariantToggle({
+  cle,
   label,
   on,
   onChange,
   description,
   children,
 }: {
+  /** Clé du catalogue : c'est par elle que les Réglages la masquent. */
+  cle: string;
   label: string;
   on: boolean;
   onChange: (v: boolean) => void;
@@ -502,6 +556,8 @@ function VariantToggle({
   /** Réglages propres à la variante, dépliés juste sous le bouton. */
   children?: React.ReactNode;
 }) {
+  const visible = useContext(Visibilite);
+  if (!visible(cle)) return null;
   return (
     <div className={`variant ${on ? "on" : ""}`}>
       <Toggle label={label} on={on} onChange={onChange} />
