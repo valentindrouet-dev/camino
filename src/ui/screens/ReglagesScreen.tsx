@@ -1,5 +1,13 @@
 import { useState } from 'react'
-import { CATALOGUE, groupeVisible, motDePasseValide, varianteVisible } from '../reglages.ts'
+import {
+  CATALOGUE,
+  groupeVisible,
+  motDePasseValide,
+  REGLAGES_DEFAUT,
+  REGLAGES_VIDES,
+  signature,
+  varianteVisible,
+} from '../reglages.ts'
 import type { Reglages } from '../reglages.ts'
 import { Toggle } from '../components/VariantsPanel.tsx'
 
@@ -114,6 +122,11 @@ export function ReglagesScreen({ reglages, setReglages, onBack }: Props) {
           famille entière la fait disparaître, séparateur compris. Le Laboratoire, lui,
           continue de tout tester : c’est l’outil d’équilibrage.
         </p>
+        <p className="note" style={{ margin: 0 }}>
+          Ces réglages ne valent que pour <strong>cet appareil</strong> : ils sont gardés dans
+          ce navigateur et ne partent pas avec le lien. Ce qu’un nouveau venu découvre en
+          ouvrant l’adresse, c’est le réglage d’origine du site.
+        </p>
         <div className="row wrap">
           <span className="tag">
             <strong>{affichees}</strong> variante{affichees > 1 ? 's' : ''} sur {total} à
@@ -122,9 +135,17 @@ export function ReglagesScreen({ reglages, setReglages, onBack }: Props) {
           <button
             className="btn small"
             disabled={affichees === total}
-            onClick={() => setReglages({ groupesMasques: [], variantesMasquees: [] })}
+            onClick={() => setReglages(REGLAGES_VIDES)}
           >
             ↺ Tout afficher
+          </button>
+          <button
+            className="btn small"
+            disabled={signature(reglages) === signature(REGLAGES_DEFAUT)}
+            title="Ce que voit quelqu’un qui ouvre le lien pour la première fois"
+            onClick={() => setReglages(REGLAGES_DEFAUT)}
+          >
+            ↺ Réglage d’origine
           </button>
         </div>
       </div>

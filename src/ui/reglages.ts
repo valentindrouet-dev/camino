@@ -92,21 +92,36 @@ export interface Reglages {
   variantesMasquees: string[]
 }
 
+/** Rien de masqué : le catalogue au complet. */
 export const REGLAGES_VIDES: Reglages = { groupesMasques: [], variantesMasquees: [] }
+
+/**
+ * Ce que voit quelqu'un qui ouvre le lien pour la première fois — sur son
+ * ordinateur, son téléphone, n'importe où. Les réglages étant gardés dans le
+ * navigateur de chacun, c'est le SEUL moyen d'agir sur la table entière : les
+ * cases cochées ici, dans le code, partent avec la version publiée.
+ *
+ * Aujourd'hui : les cartes missions, et rien d'autre.
+ */
+export const REGLAGES_DEFAUT: Reglages = {
+  groupesMasques: ['TUILES', 'PLATEAUX', 'SYMBOLES', 'SCORE', 'NON CONSERVÉES'],
+  variantesMasquees: [],
+}
 
 const CLE_STOCKAGE = 'camino.reglages.v1'
 
 export function chargerReglages(): Reglages {
   try {
     const brut = localStorage.getItem(CLE_STOCKAGE)
-    if (!brut) return REGLAGES_VIDES
+    // Rien de mémorisé : c'est un nouveau venu, il voit ce que le site propose.
+    if (!brut) return REGLAGES_DEFAUT
     const r = JSON.parse(brut) as Partial<Reglages>
     return {
       groupesMasques: Array.isArray(r.groupesMasques) ? r.groupesMasques : [],
       variantesMasquees: Array.isArray(r.variantesMasquees) ? r.variantesMasquees : [],
     }
   } catch {
-    return REGLAGES_VIDES
+    return REGLAGES_DEFAUT
   }
 }
 

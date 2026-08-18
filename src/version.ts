@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.59',
+    date: '2026-08-12',
+    changes: [
+      'Le site a maintenant un réglage d’origine : qui ouvre le lien pour la première fois — sur n’importe quel appareil — ne voit que la famille Cartes missions. Les cinq autres familles restent disponibles, mais masquées par défaut.',
+      'La page Réglages gagne un bouton « Réglage d’origine » pour y revenir, et rappelle que ce qu’on y coche ne vaut que pour cet appareil.',
+    ],
+  },
+  {
     version: '1.58',
     date: '2026-08-12',
     changes: [
