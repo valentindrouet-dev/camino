@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.61',
+    date: '2026-08-12',
+    changes: [
+      'La courbe d’évolution des scores rejoint enfin les plateaux : elle n’inscrivait un point qu’à la fin de chaque manche, si bien qu’en cours de manche elle affichait le score d’avant pendant que les plateaux affichaient celui du moment — de quoi inverser l’ordre des joueurs sous les yeux du lecteur.',
+      'Elle se prolonge maintenant jusqu’au score en cours : son dernier point est toujours celui qui est écrit à côté du nom du joueur.',
+    ],
+  },
+  {
     version: '1.60',
     date: '2026-08-12',
     changes: [

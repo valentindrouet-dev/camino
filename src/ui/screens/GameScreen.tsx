@@ -388,6 +388,25 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
     return { cell: last.cell, delta: last.delta, key: state.log.length }
   }, [variants?.sharedBoard, state.log])
 
+  /*
+   * La courbe n'inscrit un point qu'à la FIN de chaque manche. Tant que la
+   * manche est en cours, son dernier point est donc le score d'avant, pendant
+   * que les plateaux affichent, eux, le score du moment — les deux se
+   * contredisaient sous les yeux du joueur. On la prolonge jusqu'à maintenant.
+   */
+  const mancheEnCours = state.phase === 'playing' && state.turnIndex > 0
+  const courbes = useMemo(
+    () =>
+      state.players.map((p, i) => ({
+        label: p.name,
+        color: p.color,
+        values: mancheEnCours
+          ? [...state.scoreHistory[i], breakdowns[i].total]
+          : state.scoreHistory[i],
+      })),
+    [state.players, state.scoreHistory, mancheEnCours, breakdowns],
+  )
+
   const humanTurn = !isBot(active) && state.phase === 'playing' && monTour
   const canPlaceHere = humanTurn && viewId === activeId && selected !== null
 
@@ -953,14 +972,7 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
         {options.liveScore && state.scoreHistory[0].length > 1 && (
           <div className="panel">
             <h3>Évolution des scores</h3>
-            <ScoreLines
-              length={state.totalRounds}
-              series={state.players.map((p, i) => ({
-                label: p.name,
-                color: p.color,
-                values: state.scoreHistory[i],
-              }))}
-            />
+            <ScoreLines length={state.totalRounds} series={courbes} />
           </div>
         )}
 
