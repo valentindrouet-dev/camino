@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.58',
+    date: '2026-08-12',
+    changes: [
+      'Les Réglages rejoignent la barre du haut, avec l’Historique, le Laboratoire et les Versions : un rouage, à droite. Le bouton quitte le bas de la page d’accueil.',
+      'Comme ses voisins, il disparaît en cours de partie.',
+    ],
+  },
+  {
     version: '1.57',
     date: '2026-08-12',
     changes: [

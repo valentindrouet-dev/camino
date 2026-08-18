@@ -377,6 +377,16 @@ export default function App() {
             Versions
           </button>
         )}
+        {screen !== 'game' && screen !== 'reglages' && (
+          <button
+            className="btn small ghost icon"
+            onClick={() => setScreen('reglages')}
+            title="Réglages"
+            aria-label="Réglages"
+          >
+            ⚙
+          </button>
+        )}
       </header>
 
       {screen === 'setup' && (
@@ -392,7 +402,6 @@ export default function App() {
             setSalonsOuverts(true)
             setScreen('salon')
           }}
-          onOpenReglages={() => setScreen('reglages')}
           reglages={reglages}
           resumable={running}
           onResume={() => setScreen('game')}

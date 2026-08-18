@@ -51,8 +51,6 @@ interface Props {
   setShowScale: (v: boolean) => void;
   /** Ouvre l'écran des parties en ligne. */
   onOpenSalons: () => void;
-  /** Ouvre la page Réglages (protégée par mot de passe). */
-  onOpenReglages: () => void;
   /** Ce qui doit apparaître dans la colonne des variantes. */
   reglages: Reglages;
   /** Une partie est en cours : proposer de la reprendre. */
@@ -69,7 +67,6 @@ export function SetupScreen({
   showScale,
   setShowScale,
   onOpenSalons,
-  onOpenReglages,
   reglages,
   resumable,
   onResume,
@@ -334,9 +331,6 @@ export function SetupScreen({
           onClick={() => setShowMaterial((v) => !v)}
         >
           Matériel
-        </button>
-        <button className="btn" onClick={onOpenReglages}>
-          Réglages
         </button>
       </div>
 

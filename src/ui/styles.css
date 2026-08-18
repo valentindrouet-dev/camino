@@ -389,6 +389,13 @@ code {
   line-height: 1;
 }
 
+/* Le rouage des Réglages : même hauteur que ses voisins de la barre du haut. */
+.btn.small.icon {
+  padding: 5px 10px;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
 .toggle {
   display: inline-flex;
   align-items: center;
