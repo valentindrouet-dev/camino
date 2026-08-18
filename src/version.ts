@@ -15,6 +15,17 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.65',
+    date: '2026-08-18',
+    changes: [
+      'Quatre profils de bots au lieu de trois : Idiot (au hasard), Novice, Confirmé, Expert. Les parties déjà archivées restent lisibles — le Stratège d’hier est devenu le Confirmé.',
+      'L’évaluation des bots a été refaite. Le potentiel d’un chemin est désormais un budget de tuiles à répartir, pas une prime distribuée à chaque bout de couleur : le bot cesse de mener dix chemins de front pour les mener tous à rien. Il sait aussi que le potentiel s’éteint — à la dernière manche, un chemin ne vaut plus que ce qu’il vaut.',
+      'Les cartes missions tout-ou-rien ont enfin une pente : le bot voit venir « six couleurs » ou « spécialiste » dès la première manche au lieu de les découvrir accomplies par hasard.',
+      'L’Expert regarde un coup plus loin, et regarde ce qu’il LAISSE : à valeur presque égale, il emporte la tuile qui arrangeait le plus son voisin.',
+      'Mesuré sur des centaines de parties : l’Expert bat le Confirmé 65 % contre 32 %, le Confirmé bat le Novice 87 % contre 10 %. Le Confirmé marque 22 points de moyenne là où l’ancien Stratège en marquait 17,6.',
+    ],
+  },
+  {
     version: '1.64',
     date: '2026-08-18',
     changes: [

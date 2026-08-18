@@ -238,7 +238,12 @@ export const DEFAULT_RULESET: Ruleset = {
   requireAdjacency: true,
 }
 
-export type PlayerKind = 'human' | 'bot-random' | 'bot-greedy' | 'bot-smart'
+/*
+ * Les quatre profils de bots. Les identifiants historiques sont conservés pour
+ * que les parties archivées et les configurations enregistrées restent lisibles :
+ *   bot-random → Idiot, bot-greedy → Novice, bot-smart → Confirmé.
+ */
+export type PlayerKind = 'human' | 'bot-random' | 'bot-greedy' | 'bot-smart' | 'bot-expert'
 
 /**
  * Les six plateaux de la boîte se distinguent par la couleur de leur contour.

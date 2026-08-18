@@ -24,9 +24,10 @@ import { BUILD, VERSION } from "../../version.ts";
 
 const KIND_LABELS: Record<PlayerKind, string> = {
   human: "Humain",
-  "bot-random": "Bot — Hasard",
+  "bot-random": "Bot — Idiot",
   "bot-greedy": "Bot — Novice",
-  "bot-smart": "Bot — Stratège",
+  "bot-smart": "Bot — Confirmé",
+  "bot-expert": "Bot — Expert",
 };
 
 /** Les six couleurs du jeu, assombries juste ce qu'il faut pour rester lisibles

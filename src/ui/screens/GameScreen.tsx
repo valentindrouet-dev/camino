@@ -282,7 +282,7 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
         return // le nouvel état relance cet effet, le bot jouera au tour suivant
       }
       // Verso aléatoire : le bot tente sa chance quand son meilleur coup perd.
-      if (variants?.randomBack && active.kind === 'bot-smart') {
+      if (variants?.randomBack && (active.kind === 'bot-smart' || active.kind === 'bot-expert')) {
         const tuile = botWantsFlip(state)
         if (tuile !== null) {
           onHistory((h) => {

@@ -1,10 +1,10 @@
 import { legalCells, neighbours, placeTile, quadGrid, tileOfQuad } from './board.ts'
-import { applyCards, cardTable, playerCardIds, rulesetForPlayer } from './cards.ts'
+import { applyCards, cardsOutlook, cardTable, playerCardIds, rulesetForPlayer } from './cards.ts'
 import { Rng } from './rng.ts'
 import { computeZones, pointsForSpan, scoreBoard, scoreSign } from './scoring.ts'
 import { distinctOrientations, tileQuads } from './tiles.ts'
-import type { Board, Color, GameState, PlayerKind, Rotation, Ruleset } from './types.ts'
-import { BLACK, PATH_COLORS } from './types.ts'
+import type { Board, Color, GameState, PlayerKind, Rotation, Ruleset, Zone } from './types.ts'
+import { BLACK } from './types.ts'
 import { availableTiles, canFlipTile, currentPlayer, type Move } from './game.ts'
 
 export interface ScoredMove extends Move {
@@ -27,110 +27,181 @@ export interface ScoredMove extends Move {
  *  2. regrouper les zones noires (une grande zone coûte autant qu'une petite) ;
  *  3. relier plusieurs couleurs en une seule pose.
  */
+/**
+ * Poids de l'évaluation — exposés pour pouvoir régler les bots.
+ *
+ * Ce que le barème impose comme stratégie, et que les bots doivent comprendre :
+ *
+ *  1. Il est CONVEXE. Un chemin de 9 tuiles vaut 30 points, trois chemins de 3
+ *     en valent 9. Éparpiller est la pire erreur ; il faut une couleur reine,
+ *     une seconde, et tant pis pour le reste.
+ *  2. Une zone noire coûte 2 points, quelle que soit sa taille. Tout le noir
+ *     doit finir dans UNE seule tache, qu'il faut garder ouverte pour accueillir
+ *     le noir à venir.
+ *  3. Le potentiel s'éteint. À deux manches de la fin, un chemin « qui pourrait
+ *     grandir » ne grandira plus : il ne vaut que ce qu'il vaut.
+ *  4. Les cartes tout-ou-rien n'offrent aucune pente à un bot qui ne regarde
+ *     que le score : il leur faut une espérance (voir `outlook` des cartes).
+ */
 export const AI_WEIGHTS = {
-  /** Valeur d'un chemin encore trop court mais extensible. */
-  seedPotential: 0.9,
-  /** Valeur de l'extension possible d'un chemin déjà payant. */
-  growthPotential: 0.45,
-  /** Prime aux deux couleurs les plus fortes du plateau (concentration). */
-  focus: 0.55,
-  /** Bonus quand une pose réduit ou évite de multiplier les zones noires. */
-  blackMerge: 1.2,
+  /** Poids du potentiel de croissance d'un chemin. */
+  growth: 0.2,
+  /**
+   * Part du budget de tuiles restantes qu'on suppose pouvoir consacrer à la
+   * couleur reine, à sa dauphine, à la troisième. Au-delà : rien.
+   *
+   * Mesuré : viser une seule couleur (1/0/0) coûte 9 points de moyenne, trois
+   * couleurs de front en coûtent 3. Le tirage étant subi, il faut mener deux
+   * chemins et demi — pas un, pas six.
+   */
+  focusRates: [0.5, 0.4, 0.2],
+  /** Pression contre l'éparpillement : chaque bout de couleur qui ne mènera
+   *  nulle part est autant de tuiles perdues pour le grand chemin. */
+  fragment: 0.6,
   /** Bonus par couleur supplémentaire raccordée par la pose. */
-  multiColor: 1.1,
+  multiColor: 1.2,
   /** Préférence pour les poses au centre (plus de voisins = plus d'options). */
-  centrality: 0.05,
+  centrality: 0.08,
   /** Décote de la tuile personnelle : on la garde pour un vrai bon coup. */
   personalReserve: 3,
   /** Poids des points de cartes missions déjà acquis par la pose. */
   mission: 1,
-  /** Prime au progrès vers une mission encore inachevée. */
-  missionProgress: 0.35,
+  /** Poids de l'espérance de mission — la pente des cartes tout-ou-rien. */
+  missionOutlook: 0.8,
+  /** Expert : poids du coup d'après, estimé sur des tuiles tirées du sac. */
+  lookahead: 0.5,
+  /** Expert : valeur de priver le joueur suivant de la tuile qui l'arrangeait. */
+  denial: 1.5,
+  /** Expert : combien de coups on approfondit, et sur combien de tuiles. */
+  beam: 6,
+  samples: 2,
   /** Poids des points de cristaux (variante) : préserver les siens. */
   crystal: 1,
 }
 
-interface ColorPotential {
-  color: Color
-  /** Points actuels + progression encore accessible. */
-  potential: number
+export interface EvalOpts {
+  /** Couleurs interdites du joueur : leurs zones coûtent le malus. */
+  forbidden?: Color[]
+  /** Plateau commun : seules les zones où le joueur a une tuile comptent. */
+  ownTiles?: Set<number> | null
+  /** Tuiles que ce joueur posera ENCORE. 0 = le plateau ne bougera plus. */
+  roundsLeft?: number
 }
 
 /**
- * Évaluation d'un plateau : points réels + potentiel de progression, avec une
- * prime de concentration sur les deux meilleures couleurs.
+ * Évaluation d'un plateau : points réels + ce qu'il reste raisonnablement à
+ * en tirer. Tout le jeu du bot tient dans cette fonction.
  */
 export function evaluateBoard(
   board: Board,
   ruleset: Ruleset,
-  /** Couleurs interdites du joueur (variante) : leurs zones coûtent le malus. */
-  forbidden: Color[] = [],
-  /** Plateau commun : seules les zones où le joueur a une tuile comptent. */
-  ownTiles: Set<number> | null = null,
+  opts: EvalOpts = {},
 ): number {
+  const { forbidden = [], ownTiles = null, roundsLeft = 0 } = opts
   const zones = computeZones(board, ruleset, forbidden)
   const grid = quadGrid(board)
   const qs = grid.size
+  const qh = grid.cells.length / qs
   /*
    * Scoring inversé : la partie est le miroir exact de la partie normale —
    * maximiser 20 − S revient à minimiser S. On raisonne donc tout du long sur
-   * le barème à l'endroit (d'où le `sign *` qui remet `z.points` d'aplomb), et
-   * on retourne l'évaluation d'un seul coup à la fin.
+   * le barème à l'endroit, et on retourne l'évaluation d'un seul coup à la fin.
    */
   const sign = scoreSign(ruleset)
+  const libres = board.cells.reduce((n, c) => n + (c ? 0 : 1), 0)
+
+  /** Cases VIDES que touche une zone : une zone enfermée ne grandira plus. */
+  const ouvertures = (z: Zone): number => {
+    const vues = new Set<number>()
+    for (const q of z.cells) {
+      const r = Math.floor(q / qs)
+      const c = q % qs
+      for (const v of [
+        r > 0 ? q - qs : -1,
+        r < qh - 1 ? q + qs : -1,
+        c > 0 ? q - 1 : -1,
+        c < qs - 1 ? q + 1 : -1,
+      ]) {
+        if (v < 0 || grid.cells[v] !== null) continue
+        vues.add(tileOfQuad(board.size, v))
+      }
+    }
+    return vues.size
+  }
+
   let value = 0
-  let blackZones = 0
-  const perColor = new Map<Color, number>()
+  let noires = 0
+  const chemins: { z: Zone; ouvre: number }[] = []
 
   for (const z of zones) {
     // Plateau commun : un chemin sans aucune de ses tuiles ne lui doit rien.
     if (ownTiles && !z.tiles.some((t) => ownTiles.has(t))) continue
     if (z.color === BLACK) {
-      blackZones++
+      noires++
       continue
     }
-    // Couleur interdite : la zone coûte le malus, quelle que soit sa taille —
-    // agrandir ne coûte rien, mais en ouvrir une deuxième coûte cher.
+    // Couleur interdite : la zone coûte le malus quelle que soit sa taille —
+    // l'agrandir ne coûte rien, en ouvrir une deuxième coûte cher.
     if (forbidden.includes(z.color)) {
       value += sign * z.points
       continue
     }
-
-    let zoneValue = sign * z.points
-
-    // Une zone ne peut grandir que si elle touche un quart encore vide.
-    let openings = 0
-    for (const c of z.cells) {
-      const r = Math.floor(c / qs)
-      const col = c % qs
-      if (r > 0 && grid.cells[c - qs] === null) openings++
-      if (r < qs - 1 && grid.cells[c + qs] === null) openings++
-      if (col > 0 && grid.cells[c - 1] === null) openings++
-      if (col < qs - 1 && grid.cells[c + 1] === null) openings++
-    }
-    if (openings > 0) {
-      if (z.span < ruleset.minSpan) {
-        const target = pointsForSpan(ruleset.minSpan, ruleset)
-        zoneValue += AI_WEIGHTS.seedPotential * target * (z.span / ruleset.minSpan)
-      } else {
-        // Le barème accélère : viser le palier suivant vaut de plus en plus cher.
-        const gain = pointsForSpan(z.span + 1, ruleset) - sign * z.points
-        zoneValue += AI_WEIGHTS.growthPotential * gain
-      }
-    }
-
-    value += zoneValue
-    perColor.set(z.color, (perColor.get(z.color) ?? 0) + zoneValue)
+    chemins.push({ z, ouvre: ouvertures(z) })
   }
 
-  // Concentration : les deux couleurs les plus prometteuses comptent double.
-  const potentials: ColorPotential[] = PATH_COLORS.map((c) => ({
-    color: c,
-    potential: perColor.get(c) ?? 0,
-  })).sort((a, b) => b.potential - a.potential)
-  value += AI_WEIGHTS.focus * (potentials[0].potential + 0.6 * (potentials[1]?.potential ?? 0))
+  // Les points acquis, d'abord : ils ne se discutent pas.
+  for (const { z } of chemins) value += sign * z.points
 
-  value += blackZones * ruleset.blackPenalty
+  /*
+   * Le potentiel, ensuite — et c'est là que tout se joue. Deux pièges :
+   *
+   *  - on ne peut poser que `roundsLeft` tuiles EN TOUT : le potentiel est un
+   *    budget à répartir, pas une prime à distribuer à chaque zone. Sans cela
+   *    le bot croit pouvoir mener dix chemins de front, et les mène tous à
+   *    trois tuiles — c'est-à-dire à rien ;
+   *  - dans une couleur, seul le plus grand chemin mérite l'investissement.
+   *    Les miettes ne rapporteront rien : les compter reviendrait à récompenser
+   *    l'éparpillement, exactement ce que le barème convexe punit.
+   *
+   * On ne parie donc que sur la couleur reine et sa dauphine, chacune par son
+   * plus grand chemin, avec un budget de tuiles décroissant.
+   */
+  const meilleurParCouleur = new Map<Color, { z: Zone; ouvre: number }>()
+  for (const c of chemins) {
+    const dejaVu = meilleurParCouleur.get(c.z.color)
+    if (!dejaVu || c.z.span > dejaVu.z.span) meilleurParCouleur.set(c.z.color, c)
+  }
+  const classement = [...meilleurParCouleur.values()].sort((a, b) => b.z.span - a.z.span)
+  const budget = Math.min(roundsLeft, libres)
+  classement.forEach((c, i) => {
+    if (budget <= 0 || c.ouvre === 0 || i >= AI_WEIGHTS.focusRates.length) return
+    const alloue = Math.round(budget * AI_WEIGHTS.focusRates[i])
+    const cible = Math.min(9, c.z.span + Math.min(alloue, c.ouvre + roundsLeft))
+    const reel = sign * c.z.points
+    if (cible > c.z.span) value += AI_WEIGHTS.growth * (pointsForSpan(cible, ruleset) - reel)
+  })
+
+  // Éparpiller, c'est perdre : chaque quart bloqué dans un chemin trop court
+  // est un quart qui manquera au grand. Le score réel ne le dit pas — il vaut
+  // zéro, ni plus ni moins — mais le bot doit le sentir.
+  let miettes = 0
+  for (const { z, ouvre } of chemins) {
+    if (z.scoring) continue
+    if (ouvre === 0 || roundsLeft === 0) miettes += z.span
+    else miettes += z.span * 0.4
+  }
+  value -= AI_WEIGHTS.fragment * miettes
+
+  /*
+   * Le noir : rien de plus que son coût réel. J'ai essayé d'appuyer — prime à
+   * la tache unique, prime à la tache encore ouverte pour accueillir le noir à
+   * venir — et les deux FONT PERDRE des points (mesuré : −1,3 et −1,5 de
+   * moyenne). La raison est que le bot se met alors à sacrifier des chemins
+   * pour ranger son noir, alors qu'une zone noire de plus ne coûte que 2
+   * points. Le barème disait déjà le juste prix ; il fallait l'écouter.
+   */
+  value += noires * ruleset.blackPenalty
+
   return sign * value
 }
 
@@ -194,8 +265,14 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
   const before = scoreBoard(player.board, ruleset, player)
   const base = before.total
   const boardBefore = shared ? scoreBoard(player.board, ruleset, lens).total : 0
-  const evalBefore = shared ? evaluateBoard(player.board, ruleset, forbidden) : 0
-  const blackBefore = before.blackZones
+  /*
+   * Tuiles que ce joueur posera ENCORE après celle-ci. C'est ce qui éteint le
+   * potentiel à l'approche de la fin : à la dernière manche, un chemin ne vaut
+   * plus que ce qu'il vaut, et le bot arrête de rêver.
+   */
+  const roundsLeft = Math.max(0, state.totalRounds - state.round - 1)
+  const evalOpts: EvalOpts = { forbidden, roundsLeft }
+  const evalBefore = shared ? evaluateBoard(player.board, ruleset, evalOpts) : 0
   // Scoring inversé : regrouper le noir, relier les couleurs, accomplir une
   // mission — tout ce qui était payant se retourne.
   const sign = scoreSign(ruleset)
@@ -210,25 +287,6 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
         ruleset,
       )
     : []
-  const missionBefore = cards.length
-    ? applyCards(
-        before,
-        {
-          playerId: player.id,
-          board: player.board,
-          boardColor: player.boardColor,
-          ruleset,
-          table: [
-            { playerId: player.id, zones: computeZones(player.board, ruleset) },
-            ...others,
-          ],
-        },
-        cards,
-        state.cardColors,
-        state.cardAxes,
-      ).cardPoints
-    : 0
-
   const allowFlip = Boolean(ruleset.variants?.mirrorTiles)
   const candidates: { tileId: number; personal: boolean }[] = availableTiles(state).map((p) => ({
     tileId: p.tileId,
@@ -262,43 +320,49 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
         const deltaLens = shared ? breakdown.total - boardBefore : 0
         const score = shared ? base + deltaLens : breakdown.total
         let value = shared
-          ? 2 * deltaLens + 0.4 * (evaluateBoard(board, ruleset, forbidden) - evalBefore)
-          : evaluateBoard(board, ruleset, forbidden)
+          ? 2 * deltaLens + 0.4 * (evaluateBoard(board, ruleset, evalOpts) - evalBefore)
+          : evaluateBoard(board, ruleset, evalOpts)
         value += AI_WEIGHTS.centrality * neighbours(player.board.size, cell, player.board.cells.length).length
 
-        // Missions : ce que la pose rapporte déjà, plus une prime au progrès
-        // (une carte qui reste à 0 mais dont on se rapproche vaut mieux que rien).
+        /*
+         * Missions. Deux termes bien distincts : ce que la pose rapporte DÉJÀ,
+         * et ce que la carte rapportera probablement si l'on continue ainsi.
+         * Le second est indispensable — sans lui, une carte tout-ou-rien reste
+         * à zéro jusqu'au dernier instant et le bot ne la joue jamais.
+         */
         let missionPoints = 0
         if (cards.length) {
-          const table = [
-            { playerId: player.id, zones: computeZones(board, ruleset) },
-            ...others,
-          ]
+          const ctxCarte = {
+            playerId: player.id,
+            board,
+            boardColor: player.boardColor,
+            ruleset,
+            table: [{ playerId: player.id, zones: computeZones(board, ruleset) }, ...others],
+          }
           missionPoints = applyCards(
             breakdown,
-            { playerId: player.id, board, boardColor: player.boardColor, ruleset, table },
+            ctxCarte,
             cards,
             state.cardColors,
             state.cardAxes,
           ).cardPoints
-          // `missionPoints` porte déjà le signe en vigueur : en inversé, une
-          // mission accomplie coûte, et le bot s'en détourne de lui-même. La
-          // prime au progrès, elle, n'a de sens que quand la mission rapporte.
           value += AI_WEIGHTS.mission * missionPoints
-          if (sign === 1 && missionPoints > missionBefore) {
-            value += AI_WEIGHTS.missionProgress * (missionPoints - missionBefore)
+          // La pente ne vaut qu'à l'endroit : en scoring inversé, accomplir une
+          // mission coûte, et le bot s'en détourne de lui-même.
+          if (sign === 1 && roundsLeft > 0) {
+            const espere = cardsOutlook(
+              { ...ctxCarte, breakdown },
+              cards,
+              state.cardColors,
+              state.cardAxes,
+            )
+            value += AI_WEIGHTS.missionOutlook * Math.max(0, espere - missionPoints)
           }
         }
 
-        // Regrouper le noir, relier les couleurs, préserver les cristaux : sur
-        // le plateau commun, tout est déjà chiffré dans le delta encaissé.
+        // Relier les couleurs, préserver les cristaux : sur le plateau commun,
+        // tout est déjà chiffré dans le delta encaissé.
         if (!shared) {
-          const blackAfter = breakdown.blackZones
-          value -= sign * AI_WEIGHTS.blackMerge * Math.max(0, blackAfter - blackBefore)
-          if (blackAfter < blackBefore + countBlackQuads(cand.tileId) && blackAfter <= blackBefore) {
-            value += sign * AI_WEIGHTS.blackMerge
-          }
-
           const linked = connectedColors(player.board, cell, cand.tileId, rot)
           if (linked > 1) value += sign * AI_WEIGHTS.multiColor * (linked - 1)
 
@@ -350,19 +414,8 @@ export function botWantsRedraw(state: GameState): boolean {
   return best.delta <= -2
 }
 
-function countBlackQuads(tileId: number): number {
-  return tileQuads(tileId, 0).filter((q) => q === BLACK).length
-}
-
-export function bestMove(state: GameState, kind: PlayerKind = 'bot-smart', rng?: Rng): Move | null {
-  const moves = enumerateMoves(state)
-  if (!moves.length) return null
-  const r = rng ?? new Rng(`${state.options.seed}-${state.round}-${state.turnIndex}`)
-
-  if (kind === 'bot-random') return r.pick(moves)
-
-  // Novice : le meilleur coup immédiat, sans anticipation.
-  const key = (m: ScoredMove) => (kind === 'bot-greedy' ? m.score + m.missionPoints : m.value)
+/** Le meilleur au sens de `key`, au hasard entre ex æquo. */
+function meilleur(moves: ScoredMove[], key: (m: ScoredMove) => number, r: Rng): ScoredMove {
   let best = -Infinity
   let bests: ScoredMove[] = []
   for (const m of moves) {
@@ -375,6 +428,104 @@ export function bestMove(state: GameState, kind: PlayerKind = 'bot-smart', rng?:
     }
   }
   return r.pick(bests)
+}
+
+/**
+ * Expert — ce qu'il a de plus que le Confirmé.
+ *
+ * 1. Il regarde un coup plus loin : pour chacun de ses meilleurs coups, il
+ *    tire quelques tuiles du sac et mesure ce que son plateau vaudrait après
+ *    la meilleure suite. Un coup qui marque aujourd'hui mais qui referme le
+ *    plateau perd contre un coup qui laisse la place à un long chemin.
+ * 2. Il regarde ce qu'il LAISSE : la tuile qu'il prend est une tuile de moins
+ *    pour le joueur suivant. À valeur presque égale, il emporte celle qui
+ *    arrangeait le plus son voisin.
+ */
+function affinerExpert(state: GameState, moves: ScoredMove[]): ScoredMove[] {
+  const player = currentPlayer(state)
+  const ruleset = rulesetForPlayer(state, player.id)
+  if (ruleset.variants?.sharedBoard || ruleset.variants?.syncDraw) return moves
+  const forbidden = player.forbiddenColors ?? []
+  const roundsLeft = Math.max(0, state.totalRounds - state.round - 1)
+
+  const tete = [...moves].sort((a, b) => b.value - a.value).slice(0, AI_WEIGHTS.beam)
+  if (tete.length < 2 || roundsLeft === 0) return moves
+
+  // --- ce que la tuile aurait fait dans les mains du joueur suivant
+  const menaces = new Map<number, number>()
+  const suivantId = (state.bagHolder + state.turnIndex + 1) % state.players.length
+  const suivant = state.turnIndex + 1 < state.players.length ? state.players[suivantId] : null
+  const menaceDe = (tileId: number): number => {
+    if (!suivant) return 0
+    const connue = menaces.get(tileId)
+    if (connue !== undefined) return connue
+    const cells = legalCells(suivant.board, ruleset.requireAdjacency)
+    const avant = scoreBoard(suivant.board, ruleset, suivant).total
+    let best = 0
+    for (const { rot, flipped } of distinctOrientations(tileId, false)) {
+      for (const cell of cells) {
+        const b = placeTile(suivant.board, cell, tileId, rot, state.round, flipped)
+        const gain = scoreBoard(b, ruleset, suivant).total - avant
+        if (gain > best) best = gain
+      }
+    }
+    menaces.set(tileId, best)
+    return best
+  }
+
+  // --- quelques tuiles du sac, pour juger de la suite
+  const echantillon: number[] = []
+  for (let i = 0; i < AI_WEIGHTS.samples && i < state.bag.length; i++) {
+    echantillon.push(state.bag[Math.floor((state.bag.length * (i + 1)) / (AI_WEIGHTS.samples + 1))])
+  }
+
+  const suite = (board: Board, tileId: number): number => {
+    const cells = legalCells(board, ruleset.requireAdjacency)
+    let best = -Infinity
+    for (const { rot, flipped } of distinctOrientations(tileId, false)) {
+      for (const cell of cells) {
+        const b = placeTile(board, cell, tileId, rot, state.round + 1, flipped)
+        const v = evaluateBoard(b, ruleset, { forbidden, roundsLeft: roundsLeft - 1 })
+        if (v > best) best = v
+      }
+    }
+    return best === -Infinity ? 0 : best
+  }
+
+  const vus = new Set(tete)
+  return moves.map((m) => {
+    if (!vus.has(m)) return m
+    let bonus = AI_WEIGHTS.denial * (m.personal ? 0 : menaceDe(m.tileId))
+    if (echantillon.length) {
+      const board = placeTile(
+        player.board,
+        m.cell,
+        m.tileId,
+        m.rot,
+        state.round,
+        m.flipped,
+      )
+      const moyenne =
+        echantillon.reduce((n, t) => n + suite(board, t), 0) / echantillon.length
+      bonus += AI_WEIGHTS.lookahead * moyenne
+    }
+    return { ...m, value: m.value + bonus }
+  })
+}
+
+export function bestMove(state: GameState, kind: PlayerKind = 'bot-smart', rng?: Rng): Move | null {
+  const moves = enumerateMoves(state)
+  if (!moves.length) return null
+  const r = rng ?? new Rng(`${state.options.seed}-${state.round}-${state.turnIndex}`)
+
+  // Idiot : n'importe quel coup légal.
+  if (kind === 'bot-random') return r.pick(moves)
+  // Novice : le meilleur coup immédiat, sans anticipation ni potentiel.
+  if (kind === 'bot-greedy') return meilleur(moves, (m) => m.score + m.missionPoints, r)
+  // Confirmé : l'évaluation complète, un coup à la fois.
+  if (kind !== 'bot-expert') return meilleur(moves, (m) => m.value, r)
+  // Expert : la même, plus le coup d'après et ce qu'il laisse à son voisin.
+  return meilleur(affinerExpert(state, moves), (m) => m.value, r)
 }
 
 /** Les N meilleurs coups, pour l'affichage de l'aide au joueur humain. */

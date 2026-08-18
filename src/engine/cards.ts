@@ -57,6 +57,15 @@ export interface MissionCard {
   badge: string
   /** Nom court pour les listes et les statistiques. */
   name: string
+  /**
+   * Espérance de points sur un plateau ENCORE EN COURS — pour les bots.
+   *
+   * `evaluate` répond « accompli ou non » ; sur une carte tout-ou-rien, un bot
+   * qui ne regarde que ça ne voit aucune pente à remonter et ne joue jamais la
+   * mission. `outlook` donne cette pente : ce que la carte rapportera
+   * probablement si l'on continue ainsi. Elle n'entre JAMAIS dans le score.
+   */
+  outlook?(ctx: CardContext): number
   /** La couleur visée est tirée au hasard au début de chaque partie. */
   colorized?: boolean
   /** L'axe visé (colonne ou ligne) est tiré au hasard au début de chaque partie. */
@@ -93,6 +102,20 @@ function paths(ctx: CardContext): Zone[] {
 
 function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n > 1 ? many : one}`
+}
+
+/**
+ * Part des couleurs déjà « en route » vers un chemin qui marque : celles qui
+ * marquent comptent pour une, celles à une tuile du compte pour une demie.
+ */
+function couvertureCouleurs(ctx: CardContext, cible: number): number {
+  let n = 0
+  for (const c of PATH_COLORS) {
+    const zones = ctx.breakdown.zones.filter((z) => z.color === c)
+    if (zones.some((z) => z.scoring)) n += 1
+    else if (zones.some((z) => z.span >= ctx.ruleset.minSpan - 1)) n += 0.5
+  }
+  return Math.min(1, n / cible)
 }
 
 /** Nombre de zones noires d'un plateau. */
@@ -258,6 +281,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
     name: 'Six couleurs',
     badge: '+18',
     text: '+18 points si vous marquez des points dans les 6 couleurs.',
+    outlook: (ctx) => 18 * couvertureCouleurs(ctx, 6),
     evaluate(ctx) {
       const colors = new Set(paths(ctx).map((z) => z.color)).size
       return {
@@ -271,6 +295,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
     name: 'Cinq couleurs',
     badge: '+12',
     text: '+12 points si vous marquez des points dans 5 couleurs.',
+    outlook: (ctx) => 12 * couvertureCouleurs(ctx, 5),
     evaluate(ctx) {
       const colors = new Set(paths(ctx).map((z) => z.color)).size
       return {
@@ -295,6 +320,18 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
     badge: '+10',
     colorized: true,
     text: '+10 points pour le plus grand chemin {couleur}. Si égalité, +5 points par joueur.',
+    outlook(ctx) {
+      const cible = ctx.color ?? 'P'
+      const mien = Math.max(
+        0,
+        ...ctx.breakdown.zones.filter((z) => z.color === cible).map((z) => z.span),
+      )
+      const meilleur = Math.max(
+        1,
+        ...ctx.table.flatMap((t) => t.zones.filter((z) => z.color === cible).map((z) => z.span)),
+      )
+      return 10 * Math.min(1, mien / meilleur)
+    },
     evaluate(ctx) {
       const cible = ctx.color ?? 'P'
       const nom = COLOR_NAMES[cible].toLowerCase()
@@ -411,6 +448,17 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
     badge: '+12',
     extra: true,
     text: '+12 points si une même couleur vous donne 3 chemins qui marquent ou plus.',
+    outlook(ctx) {
+      // Un chemin presque assez long compte pour moitié : c'est lui qu'il faut
+      // pousser, et le bot doit le voir venir.
+      const parCouleur = new Map<Color, number>()
+      for (const z of ctx.breakdown.zones) {
+        if (z.color === BLACK) continue
+        const poids = z.scoring ? 1 : z.span >= ctx.ruleset.minSpan - 1 ? 0.5 : 0
+        if (poids) parCouleur.set(z.color, (parCouleur.get(z.color) ?? 0) + poids)
+      }
+      return 12 * Math.min(1, Math.max(0, ...parCouleur.values()) / 3)
+    },
     evaluate(ctx) {
       const parCouleur = new Map<Color, number>()
       for (const z of paths(ctx)) parCouleur.set(z.color, (parCouleur.get(z.color) ?? 0) + 1)
@@ -426,6 +474,13 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
     badge: '+10',
     extra: true,
     text: '+10 points si vos deux plus longs chemins font exactement la même longueur.',
+    outlook(ctx) {
+      const spans = paths(ctx)
+        .map((z) => z.span)
+        .sort((a, b) => b - a)
+      if (spans.length < 2) return 0
+      return 10 * Math.max(0, 1 - (spans[0] - spans[1]) / 3)
+    },
     evaluate(ctx) {
       const spans = paths(ctx)
         .map((z) => z.span)
@@ -468,6 +523,11 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
     badge: '+10',
     extra: true,
     text: '+10 points si vous avez le moins de zones noires de la table. Si égalité, +5 points par joueur.',
+    outlook(ctx) {
+      const mine = blackZones(ctx.breakdown.zones)
+      const best = Math.min(...ctx.table.map((t) => blackZones(t.zones)))
+      return 10 * Math.max(0, 1 - Math.max(0, mine - best) / 2)
+    },
     evaluate(ctx) {
       const mine = blackZones(ctx.breakdown.zones)
       const all = ctx.table.map((t) => blackZones(t.zones))
@@ -489,6 +549,13 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
     badge: '+6',
     extra: true,
     text: '+6 points si aucune de vos zones noires ne touche le bord du plateau.',
+    outlook(ctx) {
+      const bord = edgeQuads(ctx.board.size)
+      const sales = ctx.breakdown.zones.filter(
+        (z) => z.color === BLACK && z.cells.some((c) => bord.has(c)),
+      ).length
+      return 6 * Math.max(0, 1 - sales)
+    },
     evaluate(ctx) {
       const bord = edgeQuads(ctx.board.size)
       const sales = ctx.breakdown.zones.filter(
@@ -512,6 +579,17 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
     badge: '+15',
     extra: true,
     text: '+15 points si une des six couleurs est totalement absente de votre plateau.',
+    outlook(ctx) {
+      // La couleur la plus rare est celle qu'on peut encore tenir dehors :
+      // moins on en a posé, plus la mission reste jouable.
+      const compte = new Map<Color, number>()
+      for (const c of PATH_COLORS) compte.set(c, 0)
+      for (const q of quadGrid(ctx.board).cells) {
+        if (q && compte.has(q as Color)) compte.set(q as Color, (compte.get(q as Color) as number) + 1)
+      }
+      const rare = Math.min(...compte.values())
+      return 15 * Math.max(0, 1 - rare / 3)
+    },
     evaluate(ctx) {
       // Sur les quarts posés, et rien d'autre : un carré arc-en-ciel est un
       // joker, pas une couleur — il ne « remplit » aucune des six.
@@ -685,6 +763,27 @@ const RETIREES = new Set([
   'four-sides',
   'black-belt',
 ])
+/**
+ * Espérance totale des cartes d'un joueur — pour les bots uniquement.
+ * Une carte sans `outlook` rend ce qu'elle vaut déjà : son barème est
+ * linéaire, la pente y est naturelle.
+ */
+export function cardsOutlook(
+  ctx: Omit<CardContext, 'color' | 'axis'>,
+  cardIds: string[],
+  colors?: Record<string, Color>,
+  axes?: Record<string, 'col' | 'row'>,
+): number {
+  let total = 0
+  for (const id of cardIds) {
+    const card = cardById(id)
+    if (!card) continue
+    const plein = { ...ctx, color: colors?.[id], axis: axes?.[id] }
+    total += card.outlook ? card.outlook(plein) : card.evaluate(plein).points
+  }
+  return total
+}
+
 /** Les cartes réellement en jeu. */
 export const CARDS: MissionCard[] = TOUTES_LES_CARTES.filter((c) => !RETIREES.has(c.id))
 

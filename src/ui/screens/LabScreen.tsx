@@ -32,12 +32,13 @@ import {
 } from '../storage.ts'
 import { formatDuration } from '../duration.ts'
 
-const KINDS: PlayerKind[] = ['bot-smart', 'bot-greedy', 'bot-random']
+const KINDS: PlayerKind[] = ['bot-expert', 'bot-smart', 'bot-greedy', 'bot-random']
 const KIND_LABEL: Record<string, string> = {
   human: 'humain',
-  'bot-random': 'hasard',
+  'bot-random': 'idiot',
   'bot-greedy': 'novice',
-  'bot-smart': 'stratège',
+  'bot-smart': 'confirmé',
+  'bot-expert': 'expert',
 }
 /** Temps de calcul maximal par image, pour garder l'interface réactive. */
 const FRAME_MS = 28
@@ -88,7 +89,7 @@ interface Campagne {
 
 function SimPanel({ groupesVariantes }: { groupesVariantes?: GroupeCatalogue[] }) {
   const [playerCount, setPlayerCount] = useState(4)
-  const [kinds, setKinds] = useState<PlayerKind[]>(Array(6).fill('bot-smart'))
+  const [kinds, setKinds] = useState<PlayerKind[]>(Array(6).fill('bot-expert'))
   // Les mêmes options qu'une vraie partie : variantes, cartes, barème.
   const [options, setOptions] = useState<GameOptions>(() => defaultOptions(randomSeed()))
   const [showScale, setShowScale] = useState(false)
