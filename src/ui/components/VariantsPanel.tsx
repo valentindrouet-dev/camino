@@ -156,13 +156,6 @@ export function VariantsPanel({
           description="+12 tuiles unies dans le sac (2 par couleur)."
         />
         <VariantToggle
-          cle="rainbow"
-          label="Arc-en-Ciel"
-          on={!!variants.whiteTiles}
-          onChange={(v) => patchVariants({ whiteTiles: v })}
-          description="+6 tuiles arc-en-ciel : un seul grand carré irisé qui prolonge et relie les chemins de toutes les couleurs voisines."
-        />
-        <VariantToggle
           cle="personal"
           label="Personnelle"
           on={!!variants.personalTile}
@@ -232,13 +225,6 @@ export function VariantsPanel({
             })
           }
           description="Plateaux au verso sans cadre de couleur, bordés de 8 carrés colorés par côté (coins blancs) : chaque carré touché par un chemin de sa couleur ajoute une case, sans relier les chemins entre eux. Exclusif avec Bordures colorées."
-        />
-        <VariantToggle
-          cle="swap"
-          label="Échange"
-          on={!!variants.boardSwap}
-          onChange={(v) => patchVariants({ boardSwap: v })}
-          description="Deux cartes face cachée dès le début : à la moitié de la partie on en retourne une. « Rotation ! » fait passer chaque plateau au voisin de gauche, « Pas de rotation ! » oblige à garder le sien."
         />
         <VariantToggle
           cle="shared"
@@ -370,6 +356,20 @@ export function VariantsPanel({
           on={!!variants.syncDraw}
           onChange={(v) => patchVariants({ syncDraw: v })}
           description="Une seule tuile est révélée par manche, la même pour tout le monde : chacun la pose sur son plateau. Plus de choix au centre, plus d’ordre de pioche — un duel à armes strictement égales."
+        />
+        <VariantToggle
+          cle="rainbow"
+          label="Arc-en-Ciel"
+          on={!!variants.whiteTiles}
+          onChange={(v) => patchVariants({ whiteTiles: v })}
+          description="+6 tuiles arc-en-ciel : un seul grand carré irisé qui prolonge et relie les chemins de toutes les couleurs voisines."
+        />
+        <VariantToggle
+          cle="swap"
+          label="Échange"
+          on={!!variants.boardSwap}
+          onChange={(v) => patchVariants({ boardSwap: v })}
+          description="Deux cartes face cachée dès le début : à la moitié de la partie on en retourne une. « Rotation ! » fait passer chaque plateau au voisin de gauche, « Pas de rotation ! » oblige à garder le sien."
         />
       </Groupe>
 

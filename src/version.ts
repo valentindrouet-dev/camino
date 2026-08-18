@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.62',
+    date: '2026-08-12',
+    changes: [
+      'Toutes les familles de variantes réapparaissent à l’accueil — Cartes missions, Tuiles, Plateaux, Symboles, Score — seule la famille « Non conservées » reste décochée dans les Réglages.',
+      'Ce nouveau réglage s’impose à TOUS les navigateurs : ce qui avait été mémorisé auparavant est effacé, chacun repart du réglage d’origine du site.',
+      'Arc-en-Ciel et Échange rejoignent les variantes non conservées : 20 variantes proposées à l’accueil, 8 écartées.',
+    ],
+  },
+  {
     version: '1.61',
     date: '2026-08-12',
     changes: [

@@ -38,7 +38,6 @@ export const CATALOGUE: GroupeCatalogue[] = [
       { cle: 'lastRandom', label: 'Dernière Aléatoire' },
       { cle: 'randomBack', label: 'Verso Aléatoire' },
       { cle: 'mono', label: 'Monochromes' },
-      { cle: 'rainbow', label: 'Arc-en-Ciel' },
       { cle: 'personal', label: 'Personnelle' },
       { cle: 'mirror', label: 'Miroir' },
       { cle: 'extra', label: 'Supplémentaire' },
@@ -50,7 +49,6 @@ export const CATALOGUE: GroupeCatalogue[] = [
     variantes: [
       { cle: 'borders', label: 'Bords Colorés' },
       { cle: 'multiBorders', label: 'Bords Multicolores' },
-      { cle: 'swap', label: 'Échange' },
       { cle: 'shared', label: 'Commun' },
     ],
   },
@@ -79,6 +77,8 @@ export const CATALOGUE: GroupeCatalogue[] = [
       { cle: 'windmills', label: 'Moulins' },
       { cle: 'dyes', label: 'Teintures' },
       { cle: 'sync', label: 'Synchrone' },
+      { cle: 'rainbow', label: 'Arc-en-Ciel' },
+      { cle: 'swap', label: 'Échange' },
     ],
   },
 ]
@@ -101,17 +101,26 @@ export const REGLAGES_VIDES: Reglages = { groupesMasques: [], variantesMasquees:
  * navigateur de chacun, c'est le SEUL moyen d'agir sur la table entière : les
  * cases cochées ici, dans le code, partent avec la version publiée.
  *
- * Aujourd'hui : les cartes missions, et rien d'autre.
+ * Aujourd'hui : tout le jeu, sauf la famille des variantes écartées.
  */
 export const REGLAGES_DEFAUT: Reglages = {
-  groupesMasques: ['TUILES', 'PLATEAUX', 'SYMBOLES', 'SCORE', 'NON CONSERVÉES'],
+  groupesMasques: ['NON CONSERVÉES'],
   variantesMasquees: [],
 }
 
-const CLE_STOCKAGE = 'camino.reglages.v1'
+/*
+ * Le numéro de la clé sert à imposer un nouveau réglage d'origine à TOUS les
+ * navigateurs : ce qui était mémorisé sous l'ancienne clé n'est plus lu, et
+ * chacun repart de REGLAGES_DEFAUT. On le change donc quand — et seulement
+ * quand — le réglage d'origine doit primer sur les choix déjà faits.
+ */
+const CLE_STOCKAGE = 'camino.reglages.v2'
+const CLES_ANCIENNES = ['camino.reglages.v1']
 
 export function chargerReglages(): Reglages {
   try {
+    // Les réglages d'une version précédente ne valent plus : on fait le ménage.
+    for (const vieille of CLES_ANCIENNES) localStorage.removeItem(vieille)
     const brut = localStorage.getItem(CLE_STOCKAGE)
     // Rien de mémorisé : c'est un nouveau venu, il voit ce que le site propose.
     if (!brut) return REGLAGES_DEFAUT
