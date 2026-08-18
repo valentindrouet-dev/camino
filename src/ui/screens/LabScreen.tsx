@@ -22,6 +22,7 @@ import type {
 import { Bars, Histogram, ScoreLines } from '../components/Charts.tsx'
 import { Toggle, VariantsPanel } from '../components/VariantsPanel.tsx'
 import { activeVariantInfos } from '../variantInfo.ts'
+import type { GroupeCatalogue } from '../reglages.ts'
 import {
   clearArchive,
   exportArchiveCsv,
@@ -44,9 +45,11 @@ const FRAME_MS = 28
 interface Props {
   onBack: () => void
   initialTab?: 'sim' | 'archive'
+  /** Familles de variantes, rangées comme les Réglages le demandent. */
+  groupesVariantes?: GroupeCatalogue[]
 }
 
-export function LabScreen({ onBack, initialTab = 'sim' }: Props) {
+export function LabScreen({ onBack, initialTab = 'sim', groupesVariantes }: Props) {
   const [tab, setTab] = useState<'sim' | 'archive'>(initialTab)
   return (
     <div className="sheet">
@@ -64,7 +67,7 @@ export function LabScreen({ onBack, initialTab = 'sim' }: Props) {
           Parties jouées
         </button>
       </div>
-      {tab === 'sim' ? <SimPanel /> : <ArchivePanel />}
+      {tab === 'sim' ? <SimPanel groupesVariantes={groupesVariantes} /> : <ArchivePanel />}
     </div>
   )
 }
@@ -83,7 +86,7 @@ interface Campagne {
   closeRate: number
 }
 
-function SimPanel() {
+function SimPanel({ groupesVariantes }: { groupesVariantes?: GroupeCatalogue[] }) {
   const [playerCount, setPlayerCount] = useState(4)
   const [kinds, setKinds] = useState<PlayerKind[]>(Array(6).fill('bot-smart'))
   // Les mêmes options qu'une vraie partie : variantes, cartes, barème.
@@ -305,6 +308,7 @@ function SimPanel() {
         <VariantsPanel
           options={options}
           setOptions={setOptions}
+          groupes={groupesVariantes}
           showScale={showScale}
           setShowScale={setShowScale}
         />

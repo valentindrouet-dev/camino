@@ -13,12 +13,12 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
+# Deux publications ne doivent pas se marcher dessus, mais on ne coupe pas
+# celle qui est en cours : elle sert peut-être déjà le site.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -33,11 +33,16 @@ jobs:
       - run: npm test
       - run: npm run build
 
-      # La source Pages de ce dépôt est restée sur « depuis la branche »
-      # (le jeton du workflow n'a pas le droit de la changer : HTTP 403).
-      # On committe donc les fichiers construits SUR la branche : quel que
-      # soit le mécanisme qui publie — branche ou Actions — le site sert une
-      # application qui démarre (index.html sait charger ./assets/camino.js).
+      # La source Pages de ce dépôt est « depuis la branche » (le jeton du
+      # workflow n'a pas le droit d'en changer : HTTP 403). C'est donc ce
+      # commit qui publie : GitHub reconstruit le site à chaque poussée.
+      #
+      # On a longtemps déposé EN PLUS un artefact déployé par actions/
+      # deploy-pages. Les deux mécanismes se disputaient la même file : la
+      # publication par la branche, déclenchée par le commit ci-dessous,
+      # annulait le déploiement Actions resté en attente — d'où un workflow
+      # en échec alors que le site, lui, était bien à jour. On ne garde donc
+      # que la branche, et on vérifie le résultat pour de vrai.
       - name: Committer les fichiers construits sur la branche
         run: |
           rm -rf assets
@@ -55,38 +60,23 @@ jobs:
                git push origin "HEAD:${GITHUB_REF_NAME}")
           fi
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
-
-      # Vérité terrain : on relit le site publié depuis l'extérieur.
-      # Deux formes sont acceptées : l'index construit (déploiement Actions)
-      # ou l'index source accompagné des assets commités (déploiement branche).
-      # Dans les deux cas, l'application doit être réellement chargeable.
+      # Vérité terrain : on relit le site publié depuis l'extérieur. Tant que
+      # l'application n'est pas réellement chargeable, la publication n'est
+      # pas finie — et si elle ne l'est jamais, le workflow doit le dire.
       - name: Vérifier que le site en ligne sert une application qui démarre
         run: |
-          URL="${{ steps.deployment.outputs.page_url }}"
-          echo "Vérification de $URL"
+          URL="https://${GITHUB_REPOSITORY%%/*}.github.io/${GITHUB_REPOSITORY#*/}/"
+          ATTENDU=$(wc -c < dist/assets/camino.js)
+          echo "Vérification de $URL (camino.js attendu : ${ATTENDU} octets)"
           for i in $(seq 1 60); do
             JS_SIZE=$(curl -fsSL "${URL}assets/camino.js?ci=${GITHUB_RUN_ID}-${i}" 2>/dev/null | wc -c || echo 0)
             HTML=$(curl -fsSL -H 'Cache-Control: no-cache' "${URL}?ci=${GITHUB_RUN_ID}-${i}" || true)
-            if [ "$JS_SIZE" -gt 10000 ] && echo "$HTML" | grep -q 'camino'; then
-              echo "OK (tentative $i) : assets/camino.js fait ${JS_SIZE} octets et la page le référence ou sait le charger."
+            if [ "$JS_SIZE" -eq "$ATTENDU" ] && echo "$HTML" | grep -q 'camino'; then
+              echo "OK (tentative $i) : le site sert exactement le fichier qu'on vient de construire."
               exit 0
             fi
-            echo "Tentative $i/60 : js=${JS_SIZE} octets — nouvel essai dans 10 s…"
+            echo "Tentative $i/60 : js=${JS_SIZE} octets (attendu ${ATTENDU}) — nouvel essai dans 10 s…"
             sleep 10
           done
-          echo "ÉCHEC : l'application n'est toujours pas chargeable après 10 minutes."
+          echo "ÉCHEC : l'application publiée ne correspond toujours pas après 10 minutes."
           exit 1

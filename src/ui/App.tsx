@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cardById, clearVariants, createGame, defaultOptions, defaultPlayers, randomSeed } from '../engine/index.ts'
 import type { GameConfig, GameOptions, GameState, PlayerConfig } from '../engine/index.ts'
 import { archiveGame, loadLastConfig } from './storage.ts'
@@ -10,7 +10,7 @@ import { HistoryScreen } from './screens/HistoryScreen.tsx'
 import { VersionsScreen } from './screens/VersionsScreen.tsx'
 import { SalonScreen } from './screens/SalonScreen.tsx'
 import { ReglagesScreen } from './screens/ReglagesScreen.tsx'
-import { chargerReglages, enregistrerReglages, signature } from './reglages.ts'
+import { catalogueEffectif, chargerReglages, enregistrerReglages, signature } from './reglages.ts'
 import type { Reglages } from './reglages.ts'
 import { TransportLocal } from '../net/local.ts'
 import { TransportSupabase } from '../net/supabase.ts'
@@ -86,6 +86,7 @@ export default function App() {
    * silence, invisible. Changer les Réglages remet donc les variantes à zéro ;
    * les options de partie ne bougent pas.
    */
+  const groupesVariantes = useMemo(() => catalogueEffectif(reglages), [reglages])
   const sigReglages = signature(reglages)
   const sigVue = useRef(sigReglages)
   useEffect(() => {
@@ -398,6 +399,7 @@ export default function App() {
           setOptions={setOptions}
           showScale={showScale}
           setShowScale={setShowScale}
+          groupesVariantes={groupesVariantes}
           onOpenSalons={() => {
             setSalonsOuverts(true)
             setScreen('salon')
@@ -460,6 +462,7 @@ export default function App() {
 
       {(screen === 'lab' || screen === 'archive') && (
         <LabScreen
+          groupesVariantes={groupesVariantes}
           initialTab={screen === 'archive' ? 'archive' : 'sim'}
           onBack={() => {
             if (running) setScreen('game')

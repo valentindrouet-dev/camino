@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import {
   CATALOGUE,
+  catalogueEffectif,
   groupeVisible,
   motDePasseValide,
   REGLAGES_DEFAUT,
-  REGLAGES_VIDES,
   signature,
+  TOUTES,
   varianteVisible,
 } from '../reglages.ts'
 import type { Reglages } from '../reglages.ts'
@@ -101,11 +102,13 @@ export function ReglagesScreen({ reglages, setReglages, onBack }: Props) {
         : [...new Set([...reglages.variantesMasquees, cle])],
     })
 
-  const total = CATALOGUE.reduce((n, g) => n + g.variantes.length, 0)
-  const affichees = CATALOGUE.reduce(
-    (n, g) => n + g.variantes.filter((v) => varianteVisible(reglages, v.cle)).length,
-    0,
-  )
+  /** Déménager une variante dans une autre famille. */
+  const deplacer = (cle: string, titre: string) =>
+    setReglages({ ...reglages, deplacees: { ...reglages.deplacees, [cle]: titre } })
+
+  const groupes = catalogueEffectif(reglages)
+  const total = TOUTES.length
+  const affichees = TOUTES.filter((v) => varianteVisible(reglages, v.cle)).length
 
   return (
     <div className="sheet">
@@ -119,8 +122,9 @@ export function ReglagesScreen({ reglages, setReglages, onBack }: Props) {
       <div className="panel stack" style={{ marginBottom: 14 }}>
         <p className="note" style={{ margin: 0 }}>
           Décochez ce que vous ne voulez plus proposer sur la page d’accueil. Décocher une
-          famille entière la fait disparaître, séparateur compris. Le Laboratoire, lui,
-          continue de tout tester : c’est l’outil d’équilibrage.
+          famille entière la fait disparaître, séparateur compris. Le menu à droite de chaque
+          variante la déplace dans une autre famille. Le Laboratoire, lui, continue de tout
+          tester : c’est l’outil d’équilibrage.
         </p>
         <p className="note" style={{ margin: 0 }}>
           Ces réglages ne valent que pour <strong>cet appareil</strong> : ils sont gardés dans
@@ -135,7 +139,9 @@ export function ReglagesScreen({ reglages, setReglages, onBack }: Props) {
           <button
             className="btn small"
             disabled={affichees === total}
-            onClick={() => setReglages(REGLAGES_VIDES)}
+            onClick={() =>
+              setReglages({ ...reglages, groupesMasques: [], variantesMasquees: [] })
+            }
           >
             ↺ Tout afficher
           </button>
@@ -151,7 +157,7 @@ export function ReglagesScreen({ reglages, setReglages, onBack }: Props) {
       </div>
 
       <div className="reglages-grille">
-        {CATALOGUE.map((g) => {
+        {groupes.map((g) => {
           const familleOn = groupeVisible(reglages, g.titre)
           return (
             <div className={`panel stack reglages-famille ${familleOn ? '' : 'off'}`} key={g.titre}>
@@ -162,15 +168,34 @@ export function ReglagesScreen({ reglages, setReglages, onBack }: Props) {
               />
               <div className="stack" style={{ gap: 6 }}>
                 {g.variantes.map((v) => (
-                  <Toggle
-                    key={v.cle}
-                    label={v.label}
-                    on={!reglages.variantesMasquees.includes(v.cle)}
-                    onChange={(on) => basculerVariante(v.cle, on)}
-                  />
+                  <div className="reglages-ligne" key={v.cle}>
+                    <Toggle
+                      label={v.label}
+                      on={!reglages.variantesMasquees.includes(v.cle)}
+                      onChange={(on) => basculerVariante(v.cle, on)}
+                    />
+                    <select
+                      className="reglages-famille-choix"
+                      value={g.titre}
+                      title={`Déplacer « ${v.label} » dans une autre famille`}
+                      aria-label={`Famille de ${v.label}`}
+                      onChange={(e) => deplacer(v.cle, e.target.value)}
+                    >
+                      {CATALOGUE.map((autre) => (
+                        <option key={autre.titre} value={autre.titre}>
+                          {autre.titre}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 ))}
+                {g.variantes.length === 0 && (
+                  <p className="note" style={{ margin: 0 }}>
+                    Famille vide — déplacez-y une variante depuis une autre.
+                  </p>
+                )}
               </div>
-              {!familleOn && (
+              {!familleOn && g.variantes.length > 0 && (
                 <p className="note" style={{ margin: 0 }}>
                   Famille masquée : aucune de ces variantes n’apparaît à l’accueil.
                 </p>

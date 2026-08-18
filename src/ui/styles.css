@@ -1672,8 +1672,37 @@ button.mission-card.selected {
 /* Colonnes plutôt que grille : les familles n'ont pas la même hauteur, on ne
    veut pas d'un damier troué. */
 .reglages-grille {
-  columns: 4 230px;
+  columns: 3 300px;
   column-gap: 12px;
+}
+
+/* Une variante : sa case, et le menu qui la déménage. */
+.reglages-ligne {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reglages-ligne .toggle {
+  flex: 1;
+  min-width: 0;
+}
+
+.reglages-famille-choix {
+  flex: 0 0 auto;
+  max-width: 132px;
+  padding: 3px 4px;
+  font-size: 10.5px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+
+.reglages-famille-choix:hover {
+  border-color: #f3c27e;
+  color: var(--ink);
 }
 
 .reglages-famille {

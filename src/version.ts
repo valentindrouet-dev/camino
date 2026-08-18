@@ -15,6 +15,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.63',
+    date: '2026-08-18',
+    changes: [
+      'Les variantes se déplacent d’une famille à l’autre : un menu à droite de chaque case, dans les Réglages, la range où l’on veut. Le choix est gardé, l’accueil et le Laboratoire suivent.',
+      'Le Matériel n’expose plus l’attirail des variantes écartées : les tuiles à faille et les arc-en-ciel disparaissent avec elles. En échange il montre enfin les étoiles, les cristaux, les teintures et les moulins, qui n’y figuraient pas.',
+      'L’onglet « 97 tuiles » montre les tuiles nues de la boîte de base : les étoiles, qui appartiennent à une variante, n’y sont plus dessinées.',
+      'La publication du site ne se déclare plus en échec : deux mécanismes se disputaient la même file d’attente et l’un annulait l’autre, alors que le site était bien à jour. Il n’en reste qu’un, et le workflow vérifie que la page en ligne sert exactement le fichier qu’il vient de construire.',
+    ],
+  },
+  {
     version: '1.62',
     date: '2026-08-12',
     changes: [

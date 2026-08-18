@@ -17,7 +17,7 @@ import type {
 } from "../../engine/index.ts";
 import { saveLastConfig } from "../storage.ts";
 import { varianteVisible } from "../reglages.ts";
-import type { Reglages } from "../reglages.ts";
+import type { GroupeCatalogue, Reglages } from "../reglages.ts";
 import { MaterialSection } from "../components/MaterialSection.tsx";
 import { Toggle, VariantsPanel } from "../components/VariantsPanel.tsx";
 import { BUILD, VERSION } from "../../version.ts";
@@ -53,6 +53,8 @@ interface Props {
   onOpenSalons: () => void;
   /** Ce qui doit apparaître dans la colonne des variantes. */
   reglages: Reglages;
+  /** Familles de variantes, rangées comme les Réglages le demandent. */
+  groupesVariantes: GroupeCatalogue[];
   /** Une partie est en cours : proposer de la reprendre. */
   resumable?: boolean;
   onResume?: () => void;
@@ -68,6 +70,7 @@ export function SetupScreen({
   setShowScale,
   onOpenSalons,
   reglages,
+  groupesVariantes,
   resumable,
   onResume,
 }: Props) {
@@ -311,6 +314,7 @@ export function SetupScreen({
           options={options}
           setOptions={setOptions}
           visible={(cle) => varianteVisible(reglages, cle)}
+          groupes={groupesVariantes}
           showScale={showScale}
           setShowScale={setShowScale}
         />
@@ -336,7 +340,7 @@ export function SetupScreen({
 
       {showRules && <RulesSection />}
 
-      {showMaterial && <MaterialSection />}
+      {showMaterial && <MaterialSection visible={(cle) => varianteVisible(reglages, cle)} />}
 
       <p className="note" style={{ textAlign: "center", marginTop: 18 }}>
         Version {VERSION} — compilée le {BUILD}

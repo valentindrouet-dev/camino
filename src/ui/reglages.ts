@@ -90,6 +90,34 @@ export const CATALOGUE: GroupeCatalogue[] = [
 export interface Reglages {
   groupesMasques: string[]
   variantesMasquees: string[]
+  /**
+   * Variantes déménagées d'une famille à l'autre : clé → titre de la famille
+   * d'accueil. Ce qui n'y figure pas reste là où le catalogue l'a mis.
+   */
+  deplacees?: Record<string, string>
+}
+
+/** Toutes les variantes, dans l'ordre du catalogue. */
+export const TOUTES: VarianteCatalogue[] = CATALOGUE.flatMap((g) => g.variantes)
+
+/** Famille où vit une variante, déménagements compris. */
+export function familleDe(r: Reglages, cle: string): string {
+  const voulue = r.deplacees?.[cle]
+  if (voulue && CATALOGUE.some((g) => g.titre === voulue)) return voulue
+  return CATALOGUE.find((g) => g.variantes.some((v) => v.cle === cle))?.titre ?? ''
+}
+
+/**
+ * Le catalogue tel qu'il s'affiche : mêmes familles, dans le même ordre, mais
+ * chaque variante rangée là où on l'a mise. À l'intérieur d'une famille,
+ * l'ordre reste celui du catalogue d'origine — il ne dépend donc pas de
+ * l'ordre des déménagements.
+ */
+export function catalogueEffectif(r: Reglages): GroupeCatalogue[] {
+  return CATALOGUE.map((g) => ({
+    titre: g.titre,
+    variantes: TOUTES.filter((v) => familleDe(r, v.cle) === g.titre),
+  }))
 }
 
 /** Rien de masqué : le catalogue au complet. */
@@ -128,6 +156,7 @@ export function chargerReglages(): Reglages {
     return {
       groupesMasques: Array.isArray(r.groupesMasques) ? r.groupesMasques : [],
       variantesMasquees: Array.isArray(r.variantesMasquees) ? r.variantesMasquees : [],
+      deplacees: r.deplacees && typeof r.deplacees === 'object' ? r.deplacees : {},
     }
   } catch {
     return REGLAGES_DEFAUT
@@ -148,14 +177,21 @@ export function groupeVisible(r: Reglages, titre: string): boolean {
 
 /** Une variante s'affiche si elle est cochée ET que sa famille l'est aussi. */
 export function varianteVisible(r: Reglages, cle: string): boolean {
-  const groupe = CATALOGUE.find((g) => g.variantes.some((v) => v.cle === cle))
-  if (groupe && !groupeVisible(r, groupe.titre)) return false
+  if (!groupeVisible(r, familleDe(r, cle))) return false
   return !r.variantesMasquees.includes(cle)
 }
 
 /** Signature courte : sert à repérer un changement de réglages. */
 export function signature(r: Reglages): string {
-  return `${[...r.groupesMasques].sort().join(',')}|${[...r.variantesMasquees].sort().join(',')}`
+  const dep = Object.entries(r.deplacees ?? {})
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([c, g]) => `${c}>${g}`)
+    .join(',')
+  return [
+    [...r.groupesMasques].sort().join(','),
+    [...r.variantesMasquees].sort().join(','),
+    dep,
+  ].join('|')
 }
 
 /**
