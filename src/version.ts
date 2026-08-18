@@ -15,6 +15,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.60',
+    date: '2026-08-12',
+    changes: [
+      'Nouveau mot de passe pour la page Réglages. Les onglets déjà ouverts sur cette page le restent jusqu’à leur fermeture.',
+    ],
+  },
+  {
     version: '1.59',
     date: '2026-08-12',
     changes: [

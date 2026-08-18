@@ -157,7 +157,7 @@ export function signature(r: Reglages): string {
  * C'est un loquet — de quoi éviter qu'un joueur curieux déplace les réglages
  * de la table pendant une partie, rien de plus.
  */
-export const MOT_DE_PASSE = 'Justine'
+export const MOT_DE_PASSE = 'montaud'
 
 export function motDePasseValide(saisi: string): boolean {
   return saisi.trim().toLowerCase() === MOT_DE_PASSE.toLowerCase()
