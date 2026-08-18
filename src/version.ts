@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.64',
+    date: '2026-08-18',
+    changes: [
+      'Trois nouvelles cartes missions, en bleu ciel : « Bord assorti » (+2 par tuile qui touche le bord du plateau par un quart de sa couleur), « Couleur bannie » (−2 par zone de la couleur tirée, la même pour toute la table) et « Couleur secrète » (chacun reçoit sa couleur, son plus grand chemin de cette couleur compte double).',
+      'Sept cartes d’extension sont mises de côté : elles ne sont plus tirées ni proposées. Leur code reste, une partie archivée qui les utilisait se relit toujours. Le jeu propose donc 20 cartes : 12 de la boîte, 5 d’extension, 3 en bleu ciel.',
+      'Les deux dernières cartes ciel ont exactement le pouvoir des variantes Couleur interdite et Couleur secrète : le plateau, les pastilles de zone et le score en direct s’y accordent tous, comme pour les variantes.',
+    ],
+  },
+  {
     version: '1.63',
     date: '2026-08-18',
     changes: [

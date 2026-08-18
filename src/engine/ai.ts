@@ -216,6 +216,7 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
         {
           playerId: player.id,
           board: player.board,
+          boardColor: player.boardColor,
           ruleset,
           table: [
             { playerId: player.id, zones: computeZones(player.board, ruleset) },
@@ -275,7 +276,7 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
           ]
           missionPoints = applyCards(
             breakdown,
-            { playerId: player.id, board, ruleset, table },
+            { playerId: player.id, board, boardColor: player.boardColor, ruleset, table },
             cards,
             state.cardColors,
             state.cardAxes,

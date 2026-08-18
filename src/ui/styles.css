@@ -1888,6 +1888,19 @@ button.mission-card.selected {
   color: #a03063;
 }
 
+/* troisième série : bleu ciel */
+
+.mission-card.ciel {
+  background: linear-gradient(180deg, #d8f0fd, #bfe4fa);
+  border-color: #8dc8e8;
+}
+
+.mission-card.ciel .mission-badge {
+  background: #f0faff;
+  border-color: #2f88ba;
+  color: #1d6288;
+}
+
 /* rappel des variantes en cours de partie : nom seul, clic pour la règle */
 
 .variant-chip {

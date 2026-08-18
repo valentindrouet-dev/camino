@@ -33,7 +33,7 @@ export function MissionCardView({
   const Tag = onClick ? 'button' : 'div'
   return (
     <Tag
-      className={`mission-card ${card.extra ? 'extra' : ''} ${compact ? 'compact' : ''} ${
+      className={`mission-card ${card.extra ? 'extra' : ''} ${card.ciel ? 'ciel' : ''} ${compact ? 'compact' : ''} ${
         selected ? 'selected' : ''
       }`}
       onClick={onClick}

@@ -821,8 +821,8 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
           </div>
         )}
 
-        {/* variante Couleur secrète : la tuile reçue par le joueur affiché */}
-        {variants?.secretColor && viewed.secretColor && (
+        {/* Couleur secrète — par la variante ou par la carte mission */}
+        {viewed.secretColor && (
           <div className="panel">
             <h3>Couleur secrète de {viewed.name}</h3>
             <div className="row" style={{ gap: 12 }}>
@@ -837,8 +837,8 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
           </div>
         )}
 
-        {/* variante Couleur interdite : les tuiles interdites du joueur affiché */}
-        {variants?.forbiddenColor && (viewed.forbiddenColors?.length ?? 0) > 0 && (
+        {/* Couleurs interdites — par la variante ou par la carte mission */}
+        {(viewed.forbiddenColors?.length ?? 0) > 0 && (
           <div className="panel">
             <h3>
               {viewed.forbiddenColors!.length > 1 ? 'Couleurs interdites' : 'Couleur interdite'} de{' '}

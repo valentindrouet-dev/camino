@@ -1,5 +1,13 @@
 import { createBoard, createBoardRect, isFull, legalCells, placeTile } from './board.ts'
-import { activeRuleset, applyCards, cardTable, CARDS, playerCardIds, rulesetForPlayer } from './cards.ts'
+import {
+  activeRuleset,
+  applyCards,
+  cardTable,
+  CARDS,
+  playerCardIds,
+  rulesetForPlayer,
+  TOUTES_LES_CARTES,
+} from './cards.ts'
 import { Rng } from './rng.ts'
 import { scoreBoard, scoreOf } from './scoring.ts'
 import {
@@ -266,6 +274,26 @@ export function createGame(config: GameConfig): GameState {
     cardId = cardIds[0]
   }
 
+  // Couleur imposée aux cartes qui en dépendent (plus grand chemin, chemins
+  // d'une couleur, couleur bannie) : tirée en début de partie, la même pour
+  // toute la table. Elle est tirée AVANT la distribution des couleurs des
+  // joueurs, qui peut en dépendre.
+  // On tire pour le catalogue COMPLET, cartes retirées comprises : une carte
+  // mise de côté reste jouable si on l'impose par son identifiant.
+  const cardColors: Record<string, Color> = {}
+  for (const card of TOUTES_LES_CARTES) {
+    if (card.colorized) cardColors[card.id] = PATH_COLORS[rng.int(PATH_COLORS.length)]
+  }
+  // Axe (colonne ou ligne) des cartes qui en dépendent — même principe.
+  const cardAxes: Record<string, 'col' | 'row'> = {}
+  for (const card of TOUTES_LES_CARTES) {
+    if (card.randomAxis) cardAxes[card.id] = rng.int(2) === 0 ? 'col' : 'row'
+  }
+
+  /** Cartes en jeu pour un joueur : celles de la table, ou la sienne. */
+  const cartesDe = (p: (typeof players)[number]): string[] =>
+    config.options.personalCards ? (p.cardId ? [p.cardId] : []) : (cardIds ?? [])
+
   // Tuile de départ : une tuile monochrome à la couleur du plateau, posée au
   // centre. La même case pour tout le monde, tirée avec la graine.
   if (ruleset.variants?.startTile) {
@@ -311,11 +339,21 @@ export function createGame(config: GameConfig): GameState {
     }
   }
 
+  // La carte « Couleur bannie » a le même pouvoir, mais la couleur est la même
+  // pour toute la table : on l'ajoute simplement aux couleurs interdites.
+  const bannie = cardColors['banned-color']
+  if (bannie) {
+    for (const p of players) {
+      if (!cartesDe(p).includes('banned-color')) continue
+      p.forbiddenColors = [...new Set([...(p.forbiddenColors ?? []), bannie])]
+    }
+  }
+
   // Couleur secrète : une par joueur, tirée sans doublon tant que possible —
   // et jamais une couleur qui lui est déjà interdite.
-  if (ruleset.variants?.secretColor) {
+  const secretPour = (concernes: typeof players) => {
     const deck = rng.shuffle([...PATH_COLORS])
-    players.forEach((p, i) => {
+    concernes.forEach((p, i) => {
       const banned = p.forbiddenColors ?? []
       const start = i % deck.length
       let pick = deck[start]
@@ -325,6 +363,10 @@ export function createGame(config: GameConfig): GameState {
       p.secretColor = pick
     })
   }
+  if (ruleset.variants?.secretColor) secretPour(players)
+  // Même pouvoir par la carte « Couleur secrète » : chacun tire la sienne.
+  const avecCarteSecrete = players.filter((p) => cartesDe(p).includes('secret-color'))
+  if (avecCarteSecrete.length) secretPour(avecCarteSecrete)
 
   const ids = Array.from({ length: TILE_COUNT }, (_, i) => i)
   if (ruleset.variants?.monoTiles) ids.push(...MONO_TILE_IDS)
@@ -341,18 +383,6 @@ export function createGame(config: GameConfig): GameState {
       }
     }
   }
-  // Couleur imposée aux cartes qui en dépendent (plus grand chemin, chemins
-  // d'une couleur) : tirée en début de partie, la même pour toute la table.
-  const cardColors: Record<string, Color> = {}
-  for (const card of CARDS) {
-    if (card.colorized) cardColors[card.id] = PATH_COLORS[rng.int(PATH_COLORS.length)]
-  }
-  // Axe (colonne ou ligne) des cartes qui en dépendent — même principe.
-  const cardAxes: Record<string, 'col' | 'row'> = {}
-  for (const card of CARDS) {
-    if (card.randomAxis) cardAxes[card.id] = rng.int(2) === 0 ? 'col' : 'row'
-  }
-
   const state: GameState = {
     phase: 'playing',
     options: config.options,
@@ -639,7 +669,7 @@ function roundTotals(state: GameState, baseRuleset: Ruleset): number[] {
     const table = cardTable(state.players, ruleset)
     return applyCards(
       scoreBoard(p.board, ruleset, p),
-      { playerId: p.id, board: p.board, ruleset, table },
+      { playerId: p.id, board: p.board, boardColor: p.boardColor, ruleset, table },
       playerCardIds(state, p.id),
       state.cardColors,
       state.cardAxes,

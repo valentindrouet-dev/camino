@@ -485,11 +485,10 @@ test('couleur secrète : une couleur par joueur, son meilleur chemin est doublé
   const ruleset = withVariants({ secretColor: true })
   assert.equal(E.scoreBoard(board, ruleset, { secretColor: 'R' }).secretPoints, 3)
   assert.equal(E.scoreBoard(board, ruleset, { secretColor: 'B' }).secretPoints, 0)
-  assert.equal(
-    E.scoreBoard(board, R, { secretColor: 'R' }).secretPoints,
-    0,
-    'sans la variante, rien',
-  )
+  // La couleur secrète suit le JOUEUR, pas la variante : c'est ce qui permet
+  // à la carte « Couleur secrète » d'avoir le même pouvoir. Sans couleur
+  // posée sur le joueur, rien ne se double.
+  assert.equal(E.scoreBoard(board, R, {}).secretPoints, 0, 'sans couleur secrète, rien')
 })
 
 test('tuiles arc-en-ciel : la tuile entière est un seul grand carré joker', () => {
@@ -558,8 +557,10 @@ test('couleur interdite : chaque zone compte comme une zone noire', () => {
   const double = E.scoreBoard(deuxZones, ruleset, { forbiddenColors: ['R'] })
   assert.equal(double.forbiddenZones, 2)
   assert.equal(double.byColor.R.points, 2 * R.blackPenalty)
-  // sans la variante active, l'interdit ne s'applique pas
-  assert.equal(E.scoreBoard(board, R, { forbiddenColors: ['R'] }).colorPoints, 3)
+  // L'interdit suit le JOUEUR, pas la variante : c'est ce qui permet à la carte
+  // « Couleur bannie » d'avoir le même pouvoir. Sans couleur interdite posée
+  // sur le joueur, le chemin compte normalement.
+  assert.equal(E.scoreBoard(board, R, {}).colorPoints, 3)
   // une couleur interdite n'est jamais doublée par la couleur secrète
   const deux = withVariants({ forbiddenColor: true, secretColor: true })
   const mixte = E.scoreBoard(board, deux, { secretColor: 'R', forbiddenColors: ['R'] })

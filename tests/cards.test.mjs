@@ -55,18 +55,90 @@ const EXAMPLE = [
   'PPKKRYBG',
 ]
 
-test('12 cartes de la boîte + 12 cartes d’extension, toutes distinctes', () => {
-  assert.equal(E.CARDS.length, 24)
-  assert.equal(new Set(E.CARDS.map((c) => c.id)).size, 24)
-  assert.equal(E.CARDS.filter((c) => c.extra).length, 12)
-  // les deux cartes à couleur variable annoncent leur couleur dans leur texte
+test('trois séries de cartes, toutes distinctes, sans les retirées', () => {
+  // 12 de la boîte + 12 d'extension + 3 en bleu ciel, moins 7 mises de côté
+  assert.equal(E.TOUTES_LES_CARTES.length, 27)
+  assert.equal(E.CARDS.length, 20)
+  assert.equal(new Set(E.TOUTES_LES_CARTES.map((c) => c.id)).size, 27)
+  assert.equal(E.CARDS.filter((c) => c.ciel).length, 3, 'les trois cartes ciel sont en jeu')
+  // une carte retirée garde son code : elle reste lisible dans une archive
+  assert.ok(E.cardById('mapper'), 'la carte retirée existe toujours')
+  assert.ok(!E.CARDS.some((c) => c.id === 'mapper'), 'mais elle n’est plus tirée')
+  assert.equal(E.TOUTES_LES_CARTES.filter((c) => c.extra).length, 12)
+  assert.equal(E.CARDS.filter((c) => c.extra).length, 5, 'cinq extensions survivent')
+  // les cartes à couleur variable annoncent leur couleur dans leur texte
   const colorees = E.CARDS.filter((c) => c.colorized)
-  assert.equal(colorees.length, 2)
+  assert.equal(colorees.length, 3)
   for (const c of colorees) {
     assert.match(c.text, /\{couleur\}/)
     assert.match(E.cardText(c, 'G'), /vert/)
     assert.doesNotMatch(E.cardText(c, 'G'), /\{couleur\}/)
   }
+})
+
+test('bord assorti : +2 par tuile du bord à la couleur du plateau', () => {
+  // plateau orange. O en haut-gauche (coin), en haut-droite (coin), en bas au
+  // milieu — et un O sur le quart INTÉRIEUR d'une tuile du bord gauche.
+  const rows = [
+    'OKKKKKKO',
+    'KKKKKKKK',
+    'KOKKKKKK',
+    'KKKKKKKK',
+    'KKKKKKKK',
+    'KKKKKKKK',
+    'KKKKKKKK',
+    'KKOKKKKK',
+  ]
+  const r = evalCard('matching-edge', rows, [], { boardColor: 'O' })
+  assert.equal(r.points, 6, 'trois tuiles assorties, le quart intérieur ne compte pas')
+
+  // une tuile d'angle ne compte qu'une fois, même avec du orange des deux côtés
+  const angle = [
+    'OOKKKKKK',
+    'OOKKKKKK',
+    'KKKKKKKK',
+    'KKKKKKKK',
+    'KKKKKKKK',
+    'KKKKKKKK',
+    'KKKKKKKK',
+    'KKKKKKKK',
+  ]
+  assert.equal(evalCard('matching-edge', angle, [], { boardColor: 'O' }).points, 2)
+
+  // une autre couleur de plateau ne voit rien
+  assert.equal(evalCard('matching-edge', rows, [], { boardColor: 'B' }).points, 0)
+})
+
+test('couleur bannie : la carte interdit sa couleur à toute la table', () => {
+  const s = E.createGame({
+    players: [
+      { name: 'A', kind: 'human', boardColor: 'O' },
+      { name: 'B', kind: 'human', boardColor: 'B' },
+    ],
+    options: { ...E.defaultOptions('bannie-1'), useCards: true, cardId: 'banned-color' },
+  })
+  const couleur = s.cardColors['banned-color']
+  assert.ok(E.PATH_COLORS.includes(couleur))
+  // la MÊME couleur pour tout le monde, comme une couleur interdite commune
+  for (const p of s.players) assert.deepEqual(p.forbiddenColors, [couleur])
+  // sans la carte, personne n'a de couleur interdite
+  const sans = E.createGame({
+    players: [{ name: 'A', kind: 'human', boardColor: 'O' }],
+    options: { ...E.defaultOptions('bannie-1'), useCards: true, cardId: 'exact-4' },
+  })
+  assert.equal(sans.players[0].forbiddenColors, undefined)
+})
+
+test('couleur secrète (carte) : une couleur par joueur, comme la variante', () => {
+  const s = E.createGame({
+    players: [
+      { name: 'A', kind: 'human', boardColor: 'O' },
+      { name: 'B', kind: 'human', boardColor: 'B' },
+    ],
+    options: { ...E.defaultOptions('secrete-1'), useCards: true, cardId: 'secret-color' },
+  })
+  for (const p of s.players) assert.ok(E.PATH_COLORS.includes(p.secretColor))
+  assert.notEqual(s.players[0].secretColor, s.players[1].secretColor, 'une couleur chacun')
 })
 
 test('chemins d’exactement 4 tuiles (+5)', () => {

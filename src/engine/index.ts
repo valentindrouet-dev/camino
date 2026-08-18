@@ -29,6 +29,7 @@ export function scorePlayer(player: Player, state: GameState): ScoreBreakdown {
     {
       playerId: player.id,
       board: player.board,
+      boardColor: player.boardColor,
       ruleset,
       table: cardTable(state.players, ruleset),
     },
@@ -69,7 +70,16 @@ export function cardResults(
     if (!card) return []
     const color = state.cardColors?.[id]
     const axis = state.cardAxes?.[id]
-    const brut = card.evaluate({ playerId, board: player.board, breakdown, ruleset, table, color, axis })
+    const brut = card.evaluate({
+      playerId,
+      board: player.board,
+      boardColor: player.boardColor,
+      breakdown,
+      ruleset,
+      table,
+      color,
+      axis,
+    })
     // Scoring inversé : une mission accomplie coûte ce qu'elle rapportait.
     const points = scoreSign(ruleset) * brut.points || 0
     return [{ card, points, detail: brut.detail, structural: brut.structural, color, axis }]

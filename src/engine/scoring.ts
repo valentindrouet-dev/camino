@@ -361,7 +361,10 @@ export function scoreBoard(
   who: PlayerScoring = {},
 ): ScoreBreakdown {
   const { secretColor } = who
-  const forbidden = ruleset.variants?.forbiddenColor ? (who.forbiddenColors ?? []) : []
+  // Les couleurs interdites viennent du joueur : la variante les distribue,
+  // la carte « Couleur bannie » aussi. Pas de garde de variante ici, sinon la
+  // carte resterait sans effet.
+  const forbidden = who.forbiddenColors ?? []
   const zones = computeZones(board, ruleset, forbidden)
   const byColor = {} as Record<Color, ColorScore>
   for (const c of COLORS) byColor[c] = { color: c, points: 0, scoringZones: [], zones: [] }
@@ -408,10 +411,10 @@ export function scoreBoard(
     ? flip(sign, countCrystals(board, null, gridEffects(ruleset)))
     : 0
   // Une couleur secrète interdite ne doublerait qu'un malus : on n'y touche pas.
+  // Même principe pour la couleur secrète : variante ou carte, elle est déjà
+  // posée sur le joueur.
   const secretPoints =
-    ruleset.variants?.secretColor && secretColor && !forbidden.includes(secretColor)
-      ? secretBonus(zones, secretColor)
-      : 0
+    secretColor && !forbidden.includes(secretColor) ? secretBonus(zones, secretColor) : 0
   const basePoints = ruleset.variants?.reverseScoring ? REVERSED_BASE : 0
   // Plateau commun : « tching ! » — le score d'un joueur, ce sont les points
   // engrangés au moment de chacune de ses poses (delta du score du plateau,

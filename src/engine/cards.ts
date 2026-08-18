@@ -8,9 +8,9 @@
  *
  * Chaque carte est une fonction pure évaluée sur le plateau final.
  */
-import { quadGrid } from './board.ts'
+import { gridEffects, quadGrid, quadIndicesOf } from './board.ts'
 import { computeZones, scoreSign } from './scoring.ts'
-import type { Board, Color, Ruleset, ScoreBreakdown, Zone } from './types.ts'
+import type { Board, BoardColor, Color, Ruleset, ScoreBreakdown, Zone } from './types.ts'
 import { BLACK, PATH_COLORS } from './types.ts'
 import { COLOR_NAMES } from './scoring.ts'
 
@@ -31,6 +31,8 @@ export interface CardContext {
   color?: Color
   /** Axe tiré pour cette carte, quand elle en dépend (`randomAxis`). */
   axis?: 'col' | 'row'
+  /** Couleur du contour du plateau de ce joueur. */
+  boardColor?: BoardColor
 }
 
 export interface CardResult {
@@ -61,6 +63,13 @@ export interface MissionCard {
   randomAxis?: boolean
   /** Carte d'extension (affichée dans une autre couleur que celles de la boîte). */
   extra?: boolean
+  /** Troisième série, en bleu ciel. */
+  ciel?: boolean
+  /**
+   * Sa couleur secrète est tirée pour CHAQUE joueur, comme la variante du
+   * même nom : ce n'est pas une couleur de table.
+   */
+  colorParJoueur?: boolean
   evaluate(ctx: CardContext): CardResult
 }
 
@@ -193,7 +202,8 @@ function enclosesSomething(zone: Zone, board: Board): boolean {
 
 // ---------------------------------------------------------------------------
 
-export const CARDS: MissionCard[] = [
+/** Le catalogue complet, cartes retirées comprises : sert à relire une archive. */
+export const TOUTES_LES_CARTES: MissionCard[] = [
   {
     id: 'exact-4',
     name: 'Chemins de 4',
@@ -585,9 +595,105 @@ export const CARDS: MissionCard[] = [
       return { points: 0, detail: `une zone noire de ${noires[0].span} tuile${noires[0].span > 1 ? 's' : ''} (minimum 4)` }
     },
   },
+
+  // ------------------------------------------------------------- série ciel
+  {
+    id: 'matching-edge',
+    name: 'Bord assorti',
+    badge: '+2',
+    ciel: true,
+    text:
+      '+2 points par tuile qui touche le bord de votre plateau par un quart de la couleur de ' +
+      'ce plateau — une tuile d’angle ne compte qu’une fois.',
+    evaluate(ctx) {
+      const couleur = ctx.boardColor as Color | undefined
+      if (!couleur) return { points: 0, detail: 'plateau sans couleur' }
+      const w = ctx.board.size
+      const h = ctx.board.cells.length / w
+      const grille = quadGrid(ctx.board, gridEffects(ctx.ruleset))
+      let n = 0
+      for (let i = 0; i < ctx.board.cells.length; i++) {
+        if (!ctx.board.cells[i]) continue
+        const col = i % w
+        const ligne = Math.floor(i / w)
+        // quarts : 0 haut-gauche, 1 haut-droite, 2 bas-droite, 3 bas-gauche
+        const contreLeBord: number[] = []
+        if (ligne === 0) contreLeBord.push(0, 1)
+        if (ligne === h - 1) contreLeBord.push(2, 3)
+        if (col === 0) contreLeBord.push(0, 3)
+        if (col === w - 1) contreLeBord.push(1, 2)
+        if (!contreLeBord.length) continue
+        const quarts = quadIndicesOf(w, i)
+        // Une seule fois par tuile : un angle touche deux bords, tant pis.
+        if (contreLeBord.some((q) => grille.cells[quarts[q]] === couleur)) n++
+      }
+      return { points: n * 2, detail: plural(n, 'tuile assortie', 'tuiles assorties') }
+    },
+  },
+  {
+    id: 'banned-color',
+    name: 'Couleur bannie',
+    badge: '−2',
+    ciel: true,
+    colorized: true,
+    text:
+      '−2 points par zone {couleur} sur votre plateau, quelle que soit sa taille : cette ' +
+      'couleur se comporte comme le noir pour tout le monde.',
+    evaluate(ctx) {
+      // L'effet passe par le décompte lui-même : la couleur est inscrite dans
+      // les couleurs interdites de chaque joueur au début de la partie.
+      const zones = ctx.breakdown.zones.filter((z) => z.color === ctx.color)
+      return {
+        points: 0,
+        structural: true,
+        detail: zones.length
+          ? plural(zones.length, 'zone bannie', 'zones bannies') + ` (${zones.length * -2} pts)`
+          : 'aucune zone de cette couleur',
+      }
+    },
+  },
+  {
+    id: 'secret-color',
+    name: 'Couleur secrète',
+    badge: '×2',
+    ciel: true,
+    colorParJoueur: true,
+    text:
+      'Chaque joueur reçoit une couleur secrète, différente pour chacun : son plus grand ' +
+      'chemin de cette couleur compte double.',
+    evaluate() {
+      // Comme ci-dessus : le doublement est déjà dans le décompte.
+      return {
+        points: 0,
+        structural: true,
+        detail: 'plus grand chemin de votre couleur secrète doublé',
+      }
+    },
+  },
 ]
+
+/**
+ * Cartes mises de côté : leur code reste ici — elles pourront revenir — mais
+ * elles ne sont plus tirées, ni proposées, ni montrées dans le matériel.
+ */
+const RETIREES = new Set([
+  'immaculate',
+  'longest-table',
+  'heart',
+  'four-corners',
+  'mapper',
+  'four-sides',
+  'black-belt',
+])
+/** Les cartes réellement en jeu. */
+export const CARDS: MissionCard[] = TOUTES_LES_CARTES.filter((c) => !RETIREES.has(c.id))
+
+/**
+ * On cherche dans le catalogue complet : une partie archivée avec une carte
+ * depuis retirée doit continuer de s'afficher correctement.
+ */
 export function cardById(id: string | undefined): MissionCard | undefined {
-  return id ? CARDS.find((c) => c.id === id) : undefined
+  return id ? TOUTES_LES_CARTES.find((c) => c.id === id) : undefined
 }
 
 /**

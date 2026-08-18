@@ -35,6 +35,7 @@ export function playerStats(state: GameState): PlayerStats[] {
           {
             playerId: player.id,
             board: player.board,
+            boardColor: player.boardColor,
             ruleset,
             table: cardTable(state.players, ruleset),
           },
