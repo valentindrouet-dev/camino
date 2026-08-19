@@ -52,6 +52,11 @@ export function activeVariantInfos(options: GameOptions): VariantInfo[] {
     'Bords Multicolores',
     'Plateaux au verso sans cadre de couleur, bordés de 8 carrés colorés par côté (coins blancs) : chaque carré touché par un chemin de sa couleur ajoute une case, sans relier les chemins entre eux.',
   )
+  add(
+    v.balancedColors,
+    'Couleurs Équilibrées',
+    'Les douze tuiles en double de la boîte sont remplacées par douze tuiles uniques : autant de quarts par couleur, mais six couples de couleurs qui se rencontrent au lieu de trois.',
+  )
   add(v.monoTiles, 'Monochromes', '+12 tuiles unies dans le sac (2 par couleur).')
   add(
     v.whiteTiles,

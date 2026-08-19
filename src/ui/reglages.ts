@@ -37,6 +37,7 @@ export const CATALOGUE: GroupeCatalogue[] = [
       { cle: 'freePlace', label: 'Pose Libre' },
       { cle: 'lastRandom', label: 'Dernière Aléatoire' },
       { cle: 'randomBack', label: 'Verso Aléatoire' },
+      { cle: 'balanced', label: 'Couleurs Équilibrées' },
       { cle: 'mono', label: 'Monochromes' },
       { cle: 'personal', label: 'Personnelle' },
       { cle: 'mirror', label: 'Miroir' },

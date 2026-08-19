@@ -153,6 +153,15 @@ export function VariantsPanel({
             description="À son tour, un joueur peut retourner une tuile du centre : sa nouvelle face sort du sac, l’ancienne disparaît — et il doit la poser. On ne revient jamais en arrière (touche V)."
           />
     ),
+    balanced: (
+          <VariantToggle
+            cle="balanced"
+            label="Couleurs Équilibrées"
+            on={!!variants.balancedColors}
+            onChange={(v) => patchVariants({ balancedColors: v })}
+            description="Les douze tuiles en double de la boîte cèdent la place à douze tuiles uniques. Chaque couleur garde exactement le même nombre de quarts — ce sont les rencontres entre couleurs qui se répartissent mieux : six couples se touchent au lieu de trois."
+          />
+    ),
     mono: (
           <VariantToggle
             cle="mono"

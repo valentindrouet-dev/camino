@@ -882,6 +882,45 @@ test('cristaux : un quart précis, +4 s’il reste seul de sa couleur, −4 sino
   )
 })
 
+test('couleurs équilibrées : mêmes quarts, rencontres mieux réparties', () => {
+  assert.equal(E.BALANCED_TILE_IDS.length, 12)
+  assert.equal(E.DOUBLED_TILE_IDS.length, 12)
+
+  const motifs = E.BALANCED_TILE_IDS.map((id) => E.TILES[id].quads.join(''))
+  assert.equal(new Set(motifs).size, 12, 'douze motifs distincts')
+  for (const m of motifs) {
+    assert.equal(m[0], 'K')
+    assert.equal(m[3], 'K')
+    assert.notEqual(m[1], m[2], 'deux couleurs différentes')
+  }
+
+  // Chaque couleur garde exactement le compte de la boîte : 4 quarts sur ce bloc
+  const compte = (ids) => {
+    const n = {}
+    for (const id of ids) for (const q of E.TILES[id].quads) n[q] = (n[q] ?? 0) + 1
+    return n
+  }
+  const avant = compte(E.DOUBLED_TILE_IDS)
+  const apres = compte(E.BALANCED_TILE_IDS)
+  assert.deepEqual(apres, avant, 'le bloc remplacé pèse exactement le même poids')
+  for (const c of E.PATH_COLORS) assert.equal(apres[c], 4)
+
+  // Le sac ne change pas de taille : douze pour douze
+  const sac = (variants) => {
+    const s = E.createGame({
+      players: [{ name: 'A', kind: 'human', boardColor: 'O' }],
+      options: { ...E.defaultOptions('eq'), ruleset: withVariants(variants) },
+    })
+    return { taille: s.bag.length + s.pool.length, ids: new Set([...s.bag, ...s.pool.map((p) => p.tileId)]) }
+  }
+  const base = sac({})
+  const variante = sac({ balancedColors: true })
+  assert.equal(variante.taille, base.taille, 'même nombre de tuiles')
+  for (const id of E.DOUBLED_TILE_IDS) assert.ok(!variante.ids.has(id), `la tuile ${id} est retirée`)
+  for (const id of E.BALANCED_TILE_IDS) assert.ok(variante.ids.has(id), `la tuile ${id} est dans le sac`)
+  for (const id of E.DOUBLED_TILE_IDS) assert.ok(base.ids.has(id), 'sans la variante, les doubles restent')
+})
+
 test('teintures : la zone noire adjacente prend la couleur du pot', () => {
   assert.equal(E.DYES.size, 18)
   const parCouleur = {}

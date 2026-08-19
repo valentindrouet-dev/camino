@@ -12,6 +12,8 @@ import { Rng } from './rng.ts'
 import { scoreBoard, scoreOf } from './scoring.ts'
 import {
   COLOR_TILE_IDS,
+  BALANCED_TILE_IDS,
+  DOUBLED_TILE_IDS,
   MONO_TILE_IDS,
   MULTI_START_TILE_IDS,
   TILE_COUNT,
@@ -368,7 +370,13 @@ export function createGame(config: GameConfig): GameState {
   const avecCarteSecrete = players.filter((p) => cartesDe(p).includes('secret-color'))
   if (avecCarteSecrete.length) secretPour(avecCarteSecrete)
 
-  const ids = Array.from({ length: TILE_COUNT }, (_, i) => i)
+  let ids = Array.from({ length: TILE_COUNT }, (_, i) => i)
+  // Couleurs équilibrées : on retire les douze doubles et on met les douze
+  // tuiles uniques à leur place. Le sac garde exactement la même taille.
+  if (ruleset.variants?.balancedColors) {
+    const retirees = new Set(DOUBLED_TILE_IDS)
+    ids = ids.filter((id) => !retirees.has(id)).concat(BALANCED_TILE_IDS)
+  }
   if (ruleset.variants?.monoTiles) ids.push(...MONO_TILE_IDS)
   if (ruleset.variants?.whiteTiles) ids.push(...WHITE_TILE_IDS)
   const bag = rng.shuffle(ids)

@@ -25,6 +25,11 @@ interface Props {
   durationMs?: number;
   onReplaySameSeed: () => void;
   onNewGame: () => void;
+  /** Partie en ligne : on rejoue avec les mêmes joueurs, pas tout seul. */
+  enLigne?: boolean;
+  suisHote?: boolean;
+  /** Ramène au salon — l'hôte y ramène tout le monde. */
+  onSalon?: () => void;
   onBackToGame: () => void;
   onQuit: () => void;
   onOpenArchive: () => void;
@@ -36,6 +41,9 @@ export function ResultsScreen({
   durationMs,
   onReplaySameSeed,
   onNewGame,
+  enLigne,
+  suisHote,
+  onSalon,
   onBackToGame,
   onQuit,
   onOpenArchive,
@@ -76,15 +84,23 @@ export function ResultsScreen({
           <button className="btn small" onClick={onOpenArchive}>
             Statistiques cumulées
           </button>
-          <button className="btn small" onClick={onReplaySameSeed}>
-            Rejouer cette pioche
-          </button>
+          {!enLigne && (
+            <button className="btn small" onClick={onReplaySameSeed}>
+              Rejouer cette pioche
+            </button>
+          )}
           <button className="btn small" onClick={onQuit}>
             Quitter la partie
           </button>
-          <button className="btn primary small" onClick={onNewGame}>
-            Nouvelle partie
-          </button>
+          {enLigne ? (
+            <button className="btn primary small" onClick={onSalon}>
+              {suisHote ? '↻ Rejouer avec les mêmes joueurs' : '← Retour au salon'}
+            </button>
+          ) : (
+            <button className="btn primary small" onClick={onNewGame}>
+              Nouvelle partie
+            </button>
+          )}
         </div>
       </div>
 

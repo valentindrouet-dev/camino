@@ -120,6 +120,11 @@ export interface EtatSalon {
   choisirPlateau: (couleur: BoardColor | null) => void
   changerOptions: (options: Salon['options']) => void
   commencer: () => void
+  /**
+   * Ramène tout le monde dans la salle d'attente, joueurs et plateaux intacts,
+   * prêts à relancer. Réservé à l'hôte, comme le lancement.
+   */
+  relancer: () => void
   jouer: (action: Action) => void
   quitter: () => void
 }
@@ -368,6 +373,26 @@ export function useSalon(transport: Transport, actif = true): EtatSalon {
     transport.envoyer({ t: 'debut', salon: maj })
   }, [transport, moi.id])
 
+  /**
+   * Rejouer : le salon retourne en salle d'attente avec les mêmes joueurs et
+   * les mêmes réglages, le journal repart à zéro. Chacun revient à l'écran du
+   * salon — c'est le changement de phase qui les y ramène.
+   */
+  const relancer = useCallback(() => {
+    const courant = salonRef.current
+    if (!courant || courant.hote !== moi.id) return
+    const maj: Salon = {
+      ...courant,
+      phase: 'attente',
+      joueurs: courant.joueurs.map((j) => ({ ...j, siege: undefined })),
+      vuA: Date.now(),
+    }
+    setActions([])
+    setSalon(maj)
+    transport.publier(maj)
+    transport.envoyer({ t: 'salon', salon: maj })
+  }, [transport, moi.id])
+
   const jouer = useCallback(
     (action: Action) => {
       const n = actionsRef.current.length
@@ -398,13 +423,15 @@ export function useSalon(transport: Transport, actif = true): EtatSalon {
     return j?.siege ?? null
   }, [salon, moi.id])
 
-  // Fin de partie : l'hôte referme le salon, il disparaît de la liste.
+  /*
+   * La partie finie, le salon RESTE ouvert — c'est ce qui permet de rejouer
+   * avec les mêmes joueurs. Il ne réapparaît pas pour autant dans la liste :
+   * seuls les salons en attente s'y montrent. Il se referme quand l'hôte le
+   * quitte, ou tout seul après dix minutes sans signe de vie.
+   */
   useEffect(() => {
-    if (!suisHote || !salon || partie?.phase !== 'finished' || salon.phase === 'terminee') return
-    transport.envoyer({ t: 'fin' })
-    const ferme = { ...salon, phase: 'terminee' as const, vuA: Date.now() }
-    setSalon(ferme)
-    transport.publier(ferme)
+    if (!suisHote || !salon || partie?.phase !== 'finished') return
+    transport.publier({ ...salon, vuA: Date.now() })
   }, [suisHote, salon, partie?.phase, transport])
 
   return {
@@ -419,6 +446,7 @@ export function useSalon(transport: Transport, actif = true): EtatSalon {
     choisirPlateau,
     changerOptions,
     commencer,
+    relancer,
     jouer,
     quitter,
   }

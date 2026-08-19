@@ -127,9 +127,31 @@ export default function App() {
     affichage.current = {}
   }, [salonId])
 
+  /*
+   * Le va-et-vient salon ↔ partie suit la PHASE du salon, et seulement ses
+   * changements. Forcer l'écran de jeu tant qu'une partie existe empêcherait
+   * de revenir dans la salle d'attente pour en relancer une.
+   */
+  const phaseSalon = salon.salon?.phase ?? null
+  const phaseVue = useRef(phaseSalon)
   useEffect(() => {
-    if (enLigne && screen === 'salon') setScreen('game')
-  }, [enLigne, screen])
+    if (phaseSalon === phaseVue.current) return
+    const avant = phaseVue.current
+    phaseVue.current = phaseSalon
+    if (phaseSalon === 'en-cours') {
+      // Nouvelle partie en ligne : chrono à zéro et tout le monde à table.
+      settled.current = false
+      startedAt.current = Date.now()
+      endedAt.current = null
+      setElapsed(0)
+      setArchivedId(null)
+      setScreen('game')
+    } else if (avant === 'en-cours' && phaseSalon === 'attente') {
+      // L'hôte relance : retour à la salle d'attente, joueurs intacts.
+      setHistory([])
+      setScreen('salon')
+    }
+  }, [phaseSalon])
 
   const state = history[history.length - 1] ?? null
   const running = state?.phase === 'playing'
@@ -144,8 +166,6 @@ export default function App() {
   const startedAt = useRef<number | null>(null)
   const endedAt = useRef<number | null>(null)
   const [elapsed, setElapsed] = useState(0)
-  /** Salon dont le chrono est déjà lancé : on ne le relance pas à chaque coup. */
-  const chronoSalon = useRef<string | null>(null)
 
   // Une partie terminée n'est archivée qu'une fois, et le passage à l'écran de
   // résultats ne doit pas se redéclencher quand on revient voir les plateaux.
@@ -173,20 +193,6 @@ export default function App() {
     setElapsed(0)
     setScreen('game')
   }
-
-  /*
-   * Une partie en ligne ne passe pas par `start()` — elle naît du salon. C'est
-   * donc ici que son chrono démarre, une seule fois par salon : sans cela il
-   * resterait à zéro, et la partie s'archiverait sans durée.
-   */
-  useEffect(() => {
-    if (!enLigne || salonId === null || chronoSalon.current === salonId) return
-    chronoSalon.current = salonId
-    settled.current = false
-    startedAt.current = Date.now()
-    endedAt.current = null
-    setElapsed(0)
-  }, [enLigne, salonId])
 
   // Le chrono ne bat que tant qu'on joue ; une fois la partie finie il reste
   // figé sur son total, y compris quand on retourne voir les plateaux.
@@ -219,7 +225,6 @@ export default function App() {
     settled.current = false
     startedAt.current = null
     endedAt.current = null
-    chronoSalon.current = null
     setElapsed(0)
     setScreen(to)
   }, [])
@@ -249,11 +254,21 @@ export default function App() {
    * Quitter la partie depuis la barre du haut, en ligne comme autour d'une
    * table : c'est le même bouton, il ferme le salon quand il y en a un.
    */
+  /**
+   * Quitter la partie. En ligne, on ne rentre pas chez soi : on revient au
+   * salon, où les joueurs sont toujours là. L'hôte y ramène tout le monde ;
+   * un invité s'y rend seul, et attendra que l'hôte relance.
+   */
   const quitterPartie = () => {
-    if (enLigne) {
-      salon.quitter()
-      quitGame('setup')
-    } else quitFromGame()
+    if (!enLigne) {
+      quitFromGame()
+      return
+    }
+    if (salon.suisHote) salon.relancer()
+    else {
+      setHistory([])
+      setScreen('salon')
+    }
   }
 
   const onHistory = useCallback(
@@ -451,6 +466,15 @@ export default function App() {
           onBackToGame={() => setScreen('game')}
           onReplaySameSeed={() => config && start(config, true)}
           onNewGame={() => quitGame('setup')}
+          enLigne={enLigne}
+          suisHote={salon.suisHote}
+          onSalon={() => {
+            if (salon.suisHote) salon.relancer()
+            else {
+              setHistory([])
+              setScreen('salon')
+            }
+          }}
           onQuit={() => quitGame('setup')}
           onOpenArchive={() => setScreen('archive')}
         />

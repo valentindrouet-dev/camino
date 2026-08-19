@@ -8,8 +8,10 @@ import {
   COLOR_NAMES,
   createBoard,
   DEFAULT_RULESET,
+  BALANCED_TILE_IDS,
   CLOVERS,
   COLOR_TILE_IDS,
+  DOUBLED_TILE_IDS,
   CRYSTALS,
   DYES,
   FAULTS,
@@ -131,6 +133,27 @@ export function MaterialSection({
 
       {tab === 'variantes' && (
         <>
+          {visible('balanced') && (
+            <>
+              <h4 style={{ fontSize: 14, margin: '4px 0 8px' }}>
+                12 tuiles « couleurs équilibrées »
+              </h4>
+              <div className="material-tiles">
+                {BALANCED_TILE_IDS.map((id) => (
+                  <TileGlyph key={id} tileId={id} size={40} />
+                ))}
+              </div>
+              <p className="note" style={{ marginTop: 10 }}>
+                Elles remplacent les douze tuiles en double de la boîte, que voici :
+              </p>
+              <div className="material-tiles">
+                {DOUBLED_TILE_IDS.map((id) => (
+                  <TileGlyph key={`d${id}`} tileId={id} size={40} />
+                ))}
+              </div>
+            </>
+          )}
+
           {visible('mono') && (
             <>
               <h4 style={{ fontSize: 14, margin: '4px 0 8px' }}>12 tuiles monochromes</h4>

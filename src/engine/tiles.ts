@@ -57,6 +57,31 @@ const MULTI_STARTS: string[] = (() => {
   return Array.from({ length: 6 }, () => rng.shuffle([...palette]).slice(0, 4).join(''))
 })()
 /**
+ * Couleurs équilibrées (variante) : douze tuiles qui remplacent les douze
+ * tuiles en double de la boîte (ids 21 à 32 — six motifs, chacun en deux
+ * exemplaires). Même forme, même compte : deux quarts noirs à gauche, deux
+ * couleurs à droite, et exactement quatre quarts par couleur, si bien que le
+ * total de la boîte ne bouge pas d'un quart.
+ *
+ * Ce qui change, c'est QUI rencontre QUI. Les doubles ne font se toucher que
+ * trois couples (rouge-violet, vert-jaune, bleu-orange) ; ces douze-ci en font
+ * se toucher six, choisis pour que la matrice des rencontres soit la plus
+ * régulière possible — mesuré : écart-type 1,67 contre 2,16 aujourd'hui, et
+ * c'est le meilleur des 70 remplacements possibles.
+ */
+const BALANCED: string[] = [
+  'KYOK', 'KOYK',
+  'KYBK', 'KBYK',
+  'KORK', 'KROK',
+  'KRPK', 'KPRK',
+  'KGBK', 'KBGK',
+  'KGPK', 'KPGK',
+]
+
+/** Les douze tuiles de la boîte que la variante remplace. */
+export const DOUBLED_TILE_IDS: number[] = Array.from({ length: 12 }, (_, i) => 21 + i)
+
+/**
  * Six tuiles monochromes hors sac : elles servent de tuile de départ (à la
  * couleur du plateau) et de marqueur de couleur secrète. Elles ne sont jamais
  * mélangées à la pioche.
@@ -69,6 +94,7 @@ export const TILES: Tile[] = [
   ...WHITES,
   ...COLOR_MARKERS,
   ...MULTI_STARTS,
+  ...BALANCED,
 ].map((s, id) => ({
   id,
   quads: s.split('') as unknown as Quads,
@@ -88,6 +114,11 @@ export const COLOR_TILE_IDS: Record<string, number> = Object.fromEntries(
 /** Les six tuiles de départ multicolores. Hors sac elles aussi. */
 export const MULTI_START_TILE_IDS = MULTI_STARTS.map(
   (_, i) => RAW.length + MONO.length + WHITES.length + COLOR_MARKERS.length + i,
+)
+/** Les douze tuiles de la variante Couleurs équilibrées. */
+export const BALANCED_TILE_IDS = BALANCED.map(
+  (_, i) =>
+    RAW.length + MONO.length + WHITES.length + COLOR_MARKERS.length + MULTI_STARTS.length + i,
 )
 
 /** Quarts d'une tuile après rotation horaire de `rot` x 90°. */

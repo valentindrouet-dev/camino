@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.66',
+    date: '2026-08-18',
+    changes: [
+      'Nouvelle variante « Couleurs Équilibrées » : les douze tuiles en double de la boîte cèdent la place à douze tuiles uniques. Chaque couleur garde exactement ses 55 quarts et le sac ses 97 tuiles — ce sont les rencontres entre couleurs qui se répartissent mieux : six couples se touchent au lieu de trois.',
+      'En ligne, une partie terminée ne referme plus le salon : l’hôte y ramène tout le monde d’un bouton « Rejouer avec les mêmes joueurs », plateaux et couleurs intacts, et relance aussitôt.',
+      'Quitter une partie en ligne ne renvoie plus à l’accueil mais à la salle d’attente du salon. Un invité peut y retourner seul, l’hôte y ramène la table entière.',
+    ],
+  },
+  {
     version: '1.65',
     date: '2026-08-18',
     changes: [

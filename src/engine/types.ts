@@ -143,6 +143,12 @@ export interface Variants {
   /** Plateaux à bordures multicolores (exclusif avec coloredBorders). */
   multiBorders?: boolean
   /** +12 tuiles monochromes dans le sac (2 par couleur). */
+  /**
+   * Couleurs équilibrées : les douze tuiles en double de la boîte cèdent la
+   * place à douze tuiles uniques. Même nombre de quarts par couleur — ce sont
+   * les rencontres entre couleurs qui se répartissent mieux.
+   */
+  balancedColors?: boolean
   monoTiles?: boolean
   /**
    * +6 tuiles arc-en-ciel dans le sac : un grand carré irisé joker qui rejoint
