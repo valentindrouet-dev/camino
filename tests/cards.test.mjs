@@ -56,16 +56,17 @@ const EXAMPLE = [
 ]
 
 test('trois séries de cartes, toutes distinctes, sans les retirées', () => {
-  // 12 de la boîte + 12 d'extension + 3 en bleu ciel, moins 7 mises de côté
+  // 12 de la boîte + 12 d'extension + 3 en bleu ciel, moins 8 mises de côté
   assert.equal(E.TOUTES_LES_CARTES.length, 27)
-  assert.equal(E.CARDS.length, 20)
+  assert.equal(E.CARDS.length, 19)
   assert.equal(new Set(E.TOUTES_LES_CARTES.map((c) => c.id)).size, 27)
   assert.equal(E.CARDS.filter((c) => c.ciel).length, 3, 'les trois cartes ciel sont en jeu')
   // une carte retirée garde son code : elle reste lisible dans une archive
   assert.ok(E.cardById('mapper'), 'la carte retirée existe toujours')
   assert.ok(!E.CARDS.some((c) => c.id === 'mapper'), 'mais elle n’est plus tirée')
   assert.equal(E.TOUTES_LES_CARTES.filter((c) => c.extra).length, 12)
-  assert.equal(E.CARDS.filter((c) => c.extra).length, 5, 'cinq extensions survivent')
+  assert.equal(E.CARDS.filter((c) => c.extra).length, 4, 'quatre extensions survivent')
+  assert.ok(!E.CARDS.some((c) => c.id === 'missing-color'), '« Le Vide » n’est plus tirée')
   // les cartes à couleur variable annoncent leur couleur dans leur texte
   const colorees = E.CARDS.filter((c) => c.colorized)
   assert.equal(colorees.length, 3)
@@ -332,7 +333,18 @@ test('cartes missions multiples : x cartes tirées, cumulées pour tout le monde
 
   // Le cumul : la somme des cartes prises une à une = le total des cartes.
   const board = boardFrom(EXAMPLE.map((x) => x.split('')))
-  const state = { ...s, players: s.players.map((p) => ({ ...p, board })) }
+  // On remplace les cartes tirées par les nôtres : il faut donc aussi effacer
+  // ce que le tirage d'origine avait posé sur les joueurs (une couleur bannie
+  // ou secrète vient d'une carte, et fausserait le décompte de celles-ci).
+  const state = {
+    ...s,
+    players: s.players.map((p) => ({
+      ...p,
+      board,
+      forbiddenColors: undefined,
+      secretColor: undefined,
+    })),
+  }
   const ids = ['exact-4', 'exact-5', 'orange-paths'] // +5, +8, +16 sur l'exemple
   // « chemins d'une couleur » vise la couleur tirée : on la fixe sur l'orange
   const withCards = { ...state, cardId: ids[0], cardIds: ids, cardColors: { 'orange-paths': 'O' } }

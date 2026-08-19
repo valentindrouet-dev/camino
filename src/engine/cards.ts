@@ -755,6 +755,10 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
  * elles ne sont plus tirées, ni proposées, ni montrées dans le matériel.
  */
 const RETIREES = new Set([
+  // « Le Vide » : garder une des six couleurs entièrement hors de son plateau
+  // est hors de portée — on subit le tirage, et 55 quarts de chaque couleur
+  // circulent dans le sac.
+  'missing-color',
   'immaculate',
   'longest-table',
   'heart',

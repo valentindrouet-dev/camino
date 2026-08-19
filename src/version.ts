@@ -15,6 +15,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.67',
+    date: '2026-08-19',
+    changes: [
+      'La carte mission « Le Vide » (+15 si une couleur est absente du plateau) est mise de côté : elle n’est pas tenable. Le jeu propose donc 19 cartes.',
+    ],
+  },
+  {
     version: '1.66',
     date: '2026-08-18',
     changes: [
