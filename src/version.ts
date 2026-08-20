@@ -15,6 +15,17 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.69',
+    date: '2026-08-20',
+    changes: [
+      'La page Scanner lit désormais en direct : on vise le plateau, la caméra le lit six fois par seconde, et le plateau se reconstruit sous les yeux pendant qu’on cadre — le score, la qualité de l’image et le nombre de cases douteuses bougent en temps réel.',
+      'La lecture se fige d’elle-même dès qu’elle ne bouge plus : quatre lectures identiques d’affilée sans aucune case douteuse, et l’image se verrouille pour l’examen. Une pastille verte ou rouge dit à tout moment si ce qui est lu tient debout ; tant qu’elle est rouge, rien ne se verrouille.',
+      'Les quatre coins se déplacent aussi pendant le direct, et le repère revient au carré centré : il suffit d’y faire entrer le damier.',
+      'Sans caméra — sur ordinateur, ou si l’accès est refusé — le bouton retombe sur le choix d’une photo déjà prise, qui sur téléphone ouvre de toute façon l’appareil photo.',
+      'Le bouton « Choisir une photo » devient « Scanner », et le bouton « Plateau d’exemple » disparaît. Le générateur de fausses photos rejoint la suite de tests, où il vérifie la lecture à chaque construction.',
+    ],
+  },
+  {
     version: '1.68',
     date: '2026-08-20',
     changes: [
