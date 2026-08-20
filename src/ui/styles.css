@@ -2031,3 +2031,167 @@ button.mission-card.selected {
   border-color: #f3d27e;
   background: #fff8e0;
 }
+
+/* ------------------------------------------------------ lecture d'un plateau */
+
+/*
+ * La photo et son calque de repères doivent se superposer AU PIXEL : le SVG
+ * garde donc le format de l'image et se cale sur elle, pas sur le panneau.
+ */
+.scan-photo {
+  position: relative;
+  line-height: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  touch-action: none;
+}
+
+.scan-photo img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.scan-photo svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.scan-grille {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.72);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.scan-cadre {
+  fill: rgba(247, 147, 29, 0.08);
+  stroke: var(--accent);
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.scan-poignee {
+  fill: rgba(247, 147, 29, 0.85);
+  stroke: #fff;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+  cursor: grab;
+}
+
+.scan-poignee.active,
+.scan-poignee:hover {
+  fill: var(--accent);
+  cursor: grabbing;
+}
+
+.scan-resultat {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .scan-resultat {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.scan-total {
+  font-size: 40px;
+  font-weight: 800;
+  color: var(--accent-ink);
+  line-height: 1;
+}
+
+.sep {
+  border: 0;
+  border-top: 1px solid var(--line-soft);
+  margin: 4px 0;
+  width: 100%;
+}
+
+.good-box {
+  background: var(--good-soft);
+  border: 1px solid #a9dcae;
+  color: #1f6b2a;
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  font-size: 13px;
+}
+
+.tag.warnish {
+  background: var(--bad-soft);
+  border-color: #f3b5ae;
+  color: #8f2b25;
+}
+
+.scan-controle {
+  display: grid;
+  gap: 6px;
+  max-width: 480px;
+}
+
+.scan-case {
+  border: 2px solid var(--line);
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 4px;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  transition: 110ms ease;
+}
+
+.scan-case:hover {
+  border-color: var(--accent);
+}
+
+.scan-case.doute {
+  border-color: var(--bad);
+  background: var(--bad-soft);
+}
+
+.scan-case.choisie {
+  outline: 3px solid rgba(247, 147, 29, 0.4);
+  border-color: var(--accent);
+}
+
+.scan-vide {
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.scan-choix {
+  border-color: var(--accent);
+}
+
+.scan-candidat {
+  border: 2px solid var(--line);
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 5px 5px 2px;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+
+.scan-candidat:hover {
+  border-color: var(--accent);
+}
+
+.scan-candidat.actif {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 700;
+}

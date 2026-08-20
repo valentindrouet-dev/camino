@@ -10,6 +10,7 @@ import { HistoryScreen } from './screens/HistoryScreen.tsx'
 import { VersionsScreen } from './screens/VersionsScreen.tsx'
 import { SalonScreen } from './screens/SalonScreen.tsx'
 import { ReglagesScreen } from './screens/ReglagesScreen.tsx'
+import { ScanScreen } from './screens/ScanScreen.tsx'
 import { catalogueEffectif, chargerReglages, enregistrerReglages, signature } from './reglages.ts'
 import type { Reglages } from './reglages.ts'
 import { TransportLocal } from '../net/local.ts'
@@ -31,6 +32,7 @@ type Screen =
   | 'versions'
   | 'salon'
   | 'reglages'
+  | 'scan'
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('setup')
@@ -393,6 +395,15 @@ export default function App() {
             Versions
           </button>
         )}
+        {screen !== 'game' && screen !== 'scan' && (
+          <button
+            className="btn small ghost"
+            onClick={() => setScreen('scan')}
+            title="Lire un plateau photographié"
+          >
+            Scanner
+          </button>
+        )}
         {screen !== 'game' && screen !== 'reglages' && (
           <button
             className="btn small ghost icon"
@@ -479,6 +490,8 @@ export default function App() {
           onOpenArchive={() => setScreen('archive')}
         />
       )}
+
+      {screen === 'scan' && <ScanScreen onBack={goHome} />}
 
       {screen === 'history' && <HistoryScreen onBack={goHome} />}
 

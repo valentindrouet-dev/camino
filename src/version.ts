@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.68',
+    date: '2026-08-20',
+    changes: [
+      'Nouvelle page « Scanner » : on photographie un plateau terminé, on pose les quatre coins du damier, et l’application reconstruit les tuiles puis compte les points. La photo est redressée par homographie, chaque quart est mesuré en son centre, et les mesures sont recalées globalement sur la palette du jeu — c’est ce recalage qui absorbe la dominante d’une lampe chaude.',
+      'Chaque case lue affiche sa confiance et se corrige au doigt : on choisit la bonne tuile parmi les plus ressemblantes, on la tourne ou on vide la case. Les cases dont les couleurs collent mal sont entourées de rouge — sur les essais, les 11 % de cases signalées contiennent 92 % des erreurs.',
+      'Un bouton « Plateau d’exemple » fabrique une fausse photo — perspective, lampe chaude, grain, compression — et affiche le nombre de tuiles réellement retrouvées. C’est le seul moyen de juger la lecture sans plateau imprimé sous la main.',
+    ],
+  },
+  {
     version: '1.67',
     date: '2026-08-19',
     changes: [
