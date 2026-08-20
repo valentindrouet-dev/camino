@@ -52,6 +52,8 @@ interface Props {
   setShowScale: (v: boolean) => void;
   /** Ouvre l'écran des parties en ligne. */
   onOpenSalons: () => void;
+  /** Ouvre la lecture d'un plateau photographié. */
+  onOpenScan: () => void;
   /** Ce qui doit apparaître dans la colonne des variantes. */
   reglages: Reglages;
   /** Familles de variantes, rangées comme les Réglages le demandent. */
@@ -74,6 +76,7 @@ export function SetupScreen({
   groupesVariantes,
   resumable,
   onResume,
+  onOpenScan,
 }: Props) {
   // Règles et matériel : deux dépliants de la page d'accueil, fermés au départ.
   const [showRules, setShowRules] = useState(false);
@@ -307,6 +310,13 @@ export function SetupScreen({
             onClick={onOpenSalons}
           >
             🌐 Jouer en ligne, chacun sur son appareil
+          </button>
+          <button
+            className="btn"
+            style={{ padding: "10px 24px", alignSelf: "stretch" }}
+            onClick={onOpenScan}
+          >
+            📷 Scanner les Points d’un Plateau
           </button>
         </div>
 

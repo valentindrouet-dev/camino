@@ -15,6 +15,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.71',
+    date: '2026-08-20',
+    changes: [
+      'La page d’accueil propose « Scanner les Points d’un Plateau », sous le bouton des parties en ligne : la lecture d’un plateau photographié n’est plus réservée à la barre du haut.',
+    ],
+  },
+  {
     version: '1.70',
     date: '2026-08-20',
     changes: [

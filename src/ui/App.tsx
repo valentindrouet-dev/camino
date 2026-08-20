@@ -430,6 +430,7 @@ export default function App() {
             setSalonsOuverts(true)
             setScreen('salon')
           }}
+          onOpenScan={() => setScreen('scan')}
           reglages={reglages}
           resumable={running}
           onResume={() => setScreen('game')}
