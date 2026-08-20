@@ -2196,40 +2196,14 @@ button.mission-card.selected {
   font-weight: 700;
 }
 
-.scan-photo video {
-  display: block;
-  width: 100%;
-  height: auto;
-  background: #1b1b1b;
-}
 
-/* Le verdict de la lecture en cours, posé sur l'image de la caméra. */
-.scan-direct {
-  position: absolute;
-  left: 10px;
-  bottom: 10px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  background: rgba(24, 20, 16, 0.78);
-  color: #fff;
-  border-radius: 999px;
-  padding: 6px 13px 6px 9px;
-  font-size: 12.5px;
-  font-weight: 600;
-  line-height: 1;
-  pointer-events: none;
-}
-
-.scan-direct .pastille {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--good);
-  box-shadow: 0 0 0 3px rgba(47, 143, 60, 0.32);
-}
-
-.scan-direct.doute .pastille {
-  background: var(--bad);
-  box-shadow: 0 0 0 3px rgba(207, 58, 51, 0.32);
+/* Ce que l'écran est en train de faire : recherche du plateau, calage. */
+.scan-message {
+  background: var(--accent-soft);
+  border: 1px solid #f3c27e;
+  color: var(--accent-ink);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  font-size: 13px;
+  line-height: 1.5;
 }

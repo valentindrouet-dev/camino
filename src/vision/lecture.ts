@@ -147,7 +147,41 @@ export function projeter(h: readonly number[], x: number, y: number): Point {
 /** Nombre de points de mesure par quart, sur chaque axe. */
 const GRAIN = 5
 /** Part de la largeur d'un quart réellement mesurée (le reste évite les bords). */
-const FENETRE = 0.44
+const FENETRE = 0.5
+
+/**
+ * Le plateau n'est pas un damier plein : de grosses barres noires séparent les
+ * emplacements, et un liseré noir en fait le tour. Rapport relevé sur le
+ * plateau imprimé — barre ≈ 40, emplacement ≈ 230.
+ *
+ * En tenir compte n'est pas un détail : sans lui, les mesures des tuiles de
+ * bord glissent d'un huitième de tuile vers l'extérieur.
+ */
+export const JEU_PLATEAU = 0.174
+
+/**
+ * Géométrie d'un axe du plateau, en coordonnées du repère (0 à 1). Le repère
+ * va d'un coin EXTÉRIEUR de la grille noire à l'autre : c'est le point de
+ * reconnaissance le plus net du plateau, là où le noir rencontre le cadre.
+ * Il y a donc `taille` emplacements et `taille + 1` barres.
+ */
+export function geometrie(
+  taille: number,
+  jeu = JEU_PLATEAU,
+): { quarts: number[]; barres: number[]; largeurQuart: number } {
+  const emplacement = 1 / (taille + (taille + 1) * jeu)
+  const barre = emplacement * jeu
+  const quarts: number[] = []
+  for (let t = 0; t < taille; t++) {
+    const debut = barre + t * (emplacement + barre)
+    quarts.push(debut + emplacement / 4, debut + (3 * emplacement) / 4)
+  }
+  const barres = Array.from(
+    { length: taille + 1 },
+    (_, k) => k * (emplacement + barre) + barre / 2,
+  )
+  return { quarts, barres, largeurQuart: emplacement / 2 }
+}
 
 function mediane(v: number[]): number {
   const t = [...v].sort((a, b) => a - b)
@@ -157,8 +191,8 @@ function mediane(v: number[]): number {
 
 /**
  * Mesure la couleur de chaque quart. Les coins sont donnés en pixels de
- * l'image, dans l'ordre horaire depuis le haut-gauche du damier de tuiles
- * (le cadre du plateau reste dehors).
+ * l'image, dans l'ordre horaire depuis le coin extérieur haut-gauche de la
+ * grille noire — le cadre coloré du plateau reste dehors.
  *
  * Rend (2·taille)² couleurs, rangées ligne par ligne dans la grille de quarts.
  */
@@ -168,22 +202,27 @@ export function echantillonner(
   hauteur: number,
   coins: readonly Point[],
   taille: number,
+  /** Points de mesure par quart et par axe. La détection en prend moins. */
+  grain = GRAIN,
+  jeu = JEU_PLATEAU,
 ): Lab[] | null {
   const h = homographie(coins)
   if (!h) return null
   const Q = taille * 2
-  const pas = 1 / Q
+  const { quarts, largeurQuart } = geometrie(taille, jeu)
   const out: Lab[] = []
   for (let qr = 0; qr < Q; qr++) {
     for (let qc = 0; qc < Q; qc++) {
       const rs: number[] = []
       const gs: number[] = []
       const bs: number[] = []
-      for (let i = 0; i < GRAIN; i++) {
-        for (let j = 0; j < GRAIN; j++) {
-          // Point de mesure dans le carré unité, au centre du quart.
-          const u = (qc + 0.5 + ((j / (GRAIN - 1)) - 0.5) * FENETRE) * pas
-          const v = (qr + 0.5 + ((i / (GRAIN - 1)) - 0.5) * FENETRE) * pas
+      for (let i = 0; i < grain; i++) {
+        for (let j = 0; j < grain; j++) {
+          // Point de mesure au centre du quart, dans une fenêtre qui ne mord
+          // ni sur la barre noire ni sur le quart voisin.
+          const ecart = (t: number) => (grain > 1 ? t / (grain - 1) - 0.5 : 0) * FENETRE * largeurQuart
+          const u = quarts[qc] + ecart(j)
+          const v = quarts[qr] + ecart(i)
           const p = projeter(h, u, v)
           const px = Math.round(p.x)
           const py = Math.round(p.y)
@@ -291,6 +330,73 @@ export function recaler(labs: readonly Lab[]): { labs: Lab[]; residu: number; ap
     residu: meilleur.residu,
     applique: true,
   }
+}
+
+const chroma = (l: Lab) => Math.hypot(l[1], l[2])
+
+/** Poids de la phase de la grille dans le jugement d'un repère. */
+const POIDS_SEPARATEURS = 45
+
+/**
+ * Ce que vaudrait une lecture avec ce repère, SANS reconnaître les tuiles.
+ * C'est le juge de la détection automatique, et il est bon marché — pas de
+ * comparaison aux 388 motifs.
+ *
+ * Deux termes, et le second est le plus important :
+ *
+ *  - l'écart moyen à la palette une fois les couleurs recalées. Il dit si les
+ *    mesures ressemblent à des couleurs du jeu ;
+ *  - la SATURATION SUR LES SÉPARATEURS. Le premier terme, seul, ne sait pas
+ *    reconnaître une grille décalée d'une demi-tuile : les mesures tombent
+ *    alors dans des quarts voisins, et elles sont tout aussi propres. Ce qui
+ *    trahit le décalage, c'est que les frontières entre tuiles ne tombent plus
+ *    sur la grille grise du plateau mais en plein dans les couleurs. On compare
+ *    donc la saturation relevée sur les frontières à celle des quarts : proche
+ *    de zéro quand le repère est juste, proche de un quand il a glissé.
+ *
+ * Le rapport rend le critère insensible à la lumière : une dominante gonfle les
+ * deux saturations de la même façon.
+ */
+export function qualiteDuRepere(
+  pixels: Uint8ClampedArray,
+  largeur: number,
+  hauteur: number,
+  coins: readonly Point[],
+  taille: number,
+  grain = 3,
+): number {
+  const h = homographie(coins)
+  if (!h) return Infinity
+  const mesures = echantillonner(pixels, largeur, hauteur, coins, taille, grain)
+  if (!mesures) return Infinity
+  const { labs, residu } = recaler(mesures)
+  // Un repère minuscule posé dans un seul quart afficherait un résidu parfait.
+  // On exige donc la variété de couleurs qu'un vrai plateau montre forcément.
+  const vues = new Set(labs.map((l) => plusProche(l).couleur))
+  if (vues.size < 4) return residu + 100
+
+  const couleurQuarts = mesures.reduce((s, l) => s + chroma(l), 0) / mesures.length
+  const { quarts, barres } = geometrie(taille)
+  let somme = 0
+  let n = 0
+  for (const b of barres) {
+    for (const t of quarts) {
+      for (const [u, v] of [
+        [b, t],
+        [t, b],
+      ]) {
+        const p = projeter(h, u, v)
+        const px = Math.round(p.x)
+        const py = Math.round(p.y)
+        if (px < 0 || py < 0 || px >= largeur || py >= hauteur) continue
+        const o = (py * largeur + px) * 4
+        somme += chroma(rgbVersLab(pixels[o], pixels[o + 1], pixels[o + 2]))
+        n++
+      }
+    }
+  }
+  if (!n) return residu
+  return residu + POIDS_SEPARATEURS * (somme / n / Math.max(6, couleurQuarts))
 }
 
 // ------------------------------------------------------------- reconnaissance

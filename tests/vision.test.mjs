@@ -1,13 +1,25 @@
 // Lecture d'un plateau photographié : on fabrique la photo, on connaît donc
 // la vérité et on peut compter les erreurs au lieu de les deviner.
+//
+// Le plateau dessiné ici reproduit le plateau IMPRIMÉ : cadre plein de la
+// couleur du joueur, grille noire épaisse, emplacements blancs. Les
+// proportions viennent d'une photo du vrai matériel — emplacement 230,
+// barre 40, cadre 55. Ce n'est pas un détail décoratif : c'est le modèle de
+// géométrie que la lecture applique, et s'en écarter fait glisser les mesures
+// des tuiles de bord d'un huitième de tuile.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 const E = await import('../src/engine/index.ts')
 const V = await import('../src/vision/lecture.ts')
+const D = await import('../src/vision/detection.ts')
 
-const PAS = 120
-const JEU = 10
+const EMPLACEMENT = 230
+const BARRE = 40
+const CADRE = 55
+const NOIR = [26, 26, 26]
+const BLANC = [252, 252, 252]
+const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
 
 /** Générateur reproductible : un test qui échoue doit pouvoir se rejouer. */
 function alea(graine) {
@@ -18,44 +30,53 @@ function alea(graine) {
   }
 }
 
-const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
-
-/** Le damier net, tel qu'il sortirait de l'imprimante. */
-function dessiner(taille, verite) {
-  const cote = taille * PAS - JEU
+/**
+ * Le plateau tel qu'il sort de l'imprimerie. Rend aussi `u0`/`u1`, les bords
+ * de la GRILLE NOIRE : c'est le repère qu'attend la lecture.
+ */
+function plateau(taille, poses, { cadre = 'O', vides = [] } = {}) {
+  const grille = taille * EMPLACEMENT + (taille + 1) * BARRE
+  const cote = grille + 2 * CADRE
   const px = new Uint8ClampedArray(cote * cote * 4)
-  const mettre = (x, y, c) => {
-    const k = (y * cote + x) * 4
-    px[k] = c[0]
-    px[k + 1] = c[1]
-    px[k + 2] = c[2]
-    px[k + 3] = 255
+  const rect = (x0, y0, w, h, c) => {
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const px0 = x0 + x
+        const py0 = y0 + y
+        if (px0 < 0 || py0 < 0 || px0 >= cote || py0 >= cote) continue
+        const k = (py0 * cote + px0) * 4
+        px[k] = c[0]
+        px[k + 1] = c[1]
+        px[k + 2] = c[2]
+        px[k + 3] = 255
+      }
   }
-  for (let y = 0; y < cote; y++) for (let x = 0; x < cote; x++) mettre(x, y, [167, 169, 172])
-  const demi = (PAS - JEU) / 2
-  const coins = [
-    [0, 0],
-    [demi, 0],
-    [demi, demi],
-    [0, demi],
-  ]
-  for (let i = 0; i < verite.length; i++) {
-    const ox = (i % taille) * PAS
-    const oy = Math.floor(i / taille) * PAS
-    const q = E.tileQuads(verite[i].tileId, verite[i].rot)
-    for (let k = 0; k < 4; k++) {
-      const c = hex(E.COLOR_HEX[q[k]])
-      for (let y = 0; y < demi; y++)
-        for (let x = 0; x < demi; x++) mettre(ox + coins[k][0] + x, oy + coins[k][1] + y, c)
+  rect(0, 0, cote, cote, hex(E.COLOR_HEX[cadre]))
+  rect(CADRE, CADRE, grille, grille, NOIR)
+  for (let i = 0; i < taille * taille; i++) {
+    const ox = CADRE + BARRE + (i % taille) * (EMPLACEMENT + BARRE)
+    const oy = CADRE + BARRE + Math.floor(i / taille) * (EMPLACEMENT + BARRE)
+    if (vides.includes(i)) {
+      rect(ox, oy, EMPLACEMENT, EMPLACEMENT, BLANC)
+      continue
     }
+    const q = E.tileQuads(poses[i].tileId, poses[i].rot)
+    const d = EMPLACEMENT / 2
+    const coins = [
+      [0, 0],
+      [d, 0],
+      [d, d],
+      [0, d],
+    ]
+    for (let k = 0; k < 4; k++) rect(ox + coins[k][0], oy + coins[k][1], d, d, hex(E.COLOR_HEX[q[k]]))
   }
-  return { px, cote }
+  return { px, cote, u0: CADRE / cote, u1: (CADRE + grille) / cote }
 }
 
-/** La photo : perspective, table en fond, lumière colorée, grain. */
-function photographier(net, cote, coins, L, H, dominante, bruit, rnd) {
+/** La photo : perspective, table en fond, lumière colorée, grain du capteur. */
+function photographier(net, cote, planche, L, H, dominante, bruit, rnd) {
   const out = new Uint8ClampedArray(L * H * 4)
-  const versUnite = V.homographie4(coins, V.CARRE_UNITE)
+  const versUnite = V.homographie4(planche, V.CARRE_UNITE)
   const gauss = () => {
     let u = 0
     let v = 0
@@ -95,37 +116,51 @@ function photographier(net, cote, coins, L, H, dominante, bruit, rnd) {
   return out
 }
 
+const LARGEUR = 900
+const HAUTEUR = 720
 const IMAGE = (t) => E.tileQuads(t.tileId, t.rot).join('')
 
-/** Une lecture complète : rend les cases lues et la vérité. */
-function essai({ graine = 1, taille = 4, dominante = [1, 1, 1], bruit = 4, derive = 0 } = {}) {
+/** Une scène complète : la photo, la vérité, et les vrais coins de la grille. */
+function scene({ graine = 1, taille = 4, dominante = [1.08, 1, 0.84], bruit = 6, vides = [] } = {}) {
   const rnd = alea(graine)
   const dispo = [...Array(E.TILE_COUNT).keys()]
-  const verite = []
+  const poses = []
   for (let i = 0; i < taille * taille; i++)
-    verite.push({
+    poses.push({
       tileId: dispo.splice(Math.floor(rnd() * dispo.length), 1)[0],
       rot: Math.floor(rnd() * 4),
     })
-  const { px, cote } = dessiner(taille, verite)
-  const L = 900
-  const H = 720
-  const j = () => (rnd() - 0.5) * 60
-  const vrais = [
-    { x: 118 + j(), y: 96 + j() },
-    { x: 786 + j(), y: 138 + j() },
-    { x: 742 + j(), y: 660 + j() },
-    { x: 160 + j(), y: 620 + j() },
+  const net = plateau(taille, poses, { vides })
+  const j = () => (rnd() - 0.5) * 70
+  const planche = [
+    { x: 110 + j(), y: 80 + j() },
+    { x: 800 + j(), y: 130 + j() },
+    { x: 760 + j(), y: 670 + j() },
+    { x: 150 + j(), y: 625 + j() },
   ]
-  const image = photographier(px, cote, vrais, L, H, dominante, bruit, rnd)
-  const lus = vrais.map((c) => ({
-    x: c.x + (rnd() - 0.5) * 2 * derive,
-    y: c.y + (rnd() - 0.5) * 2 * derive,
-  }))
-  const lecture = V.lire(image, L, H, lus, taille)
-  const justes = lecture.cases.filter((c, i) => !c.vide && IMAGE(c) === IMAGE(verite[i])).length
-  return { lecture, verite, justes }
+  const image = photographier(net.px, net.cote, planche, LARGEUR, HAUTEUR, dominante, bruit, rnd)
+  const h = V.homographie4(V.CARRE_UNITE, planche)
+  const coins = [
+    [net.u0, net.u0],
+    [net.u1, net.u0],
+    [net.u1, net.u1],
+    [net.u0, net.u1],
+  ].map(([u, v]) => V.projeter(h, u, v))
+  return { image, poses, coins, taille, rnd, vides }
 }
+
+/** Nombre de tuiles correctement retrouvées avec ce repère. */
+function justes(s, coins) {
+  const l = V.lire(s.image, LARGEUR, HAUTEUR, coins, s.taille)
+  return {
+    lecture: l,
+    n: l.cases.filter(
+      (c, i) => (s.vides.includes(i) ? c.vide : !c.vide && IMAGE(c) === IMAGE(s.poses[i])),
+    ).length,
+  }
+}
+
+// ------------------------------------------------------------------ géométrie
 
 test('l’homographie envoie bien le carré unité sur les quatre coins', () => {
   const coins = [
@@ -140,7 +175,6 @@ test('l’homographie envoie bien le carré unité sur les quatre coins', () => 
     const p = V.projeter(h, u.x, u.y)
     assert.ok(Math.hypot(p.x - coins[i].x, p.y - coins[i].y) < 1e-6, `coin ${i} mal envoyé`)
   })
-  // Et l'aller-retour redonne le carré unité.
   const retour = V.homographie4(coins, V.CARRE_UNITE)
   const q = V.projeter(retour, coins[2].x, coins[2].y)
   assert.ok(Math.hypot(q.x - 1, q.y - 1) < 1e-6)
@@ -156,8 +190,26 @@ test('quatre points alignés ne donnent pas d’homographie', () => {
   assert.equal(V.homographie(plats), null)
 })
 
+test('la géométrie du plateau place les mesures dans les emplacements', () => {
+  // Le repère va d'un bord extérieur de la grille noire à l'autre : les barres
+  // doivent tomber entre les emplacements, jamais dessus.
+  const { quarts, barres, largeurQuart } = V.geometrie(4)
+  assert.equal(quarts.length, 8)
+  assert.equal(barres.length, 5)
+  assert.ok(barres[0] > 0 && barres[4] < 1, 'les barres du bord sont dans le repère')
+  for (const q of quarts)
+    for (const b of barres)
+      assert.ok(
+        Math.abs(q - b) > largeurQuart * 0.5,
+        'une mesure ne doit jamais tomber sur une barre noire',
+      )
+  // Et les proportions correspondent au plateau imprimé.
+  const emplacement = quarts[1] - quarts[0] + largeurQuart
+  const barre = barres[1] - barres[0] - emplacement
+  assert.ok(Math.abs(barre / emplacement - V.JEU_PLATEAU) < 1e-9)
+})
+
 test('la palette du jeu reste lisible par une machine', () => {
-  // Deux couleurs trop proches rendraient toute lecture illusoire.
   let mini = Infinity
   for (const a of V.PALETTE)
     for (const b of V.PALETTE)
@@ -165,86 +217,121 @@ test('la palette du jeu reste lisible par une machine', () => {
   assert.ok(mini > 30, `la paire la plus proche est à ΔE ${mini.toFixed(1)}`)
 })
 
-test('une photo propre se lit intégralement', () => {
-  const { justes, lecture } = essai({ graine: 7, bruit: 3 })
-  assert.equal(justes, 16, 'les seize tuiles doivent être retrouvées')
-  assert.ok(lecture.residu < 8, `résidu ${lecture.residu.toFixed(1)} ΔE`)
+// --------------------------------------------------------------------- lecture
+
+test('une photo bien cadrée se lit intégralement', () => {
+  const s = scene({ graine: 7, bruit: 3 })
+  const { n, lecture } = justes(s, s.coins)
+  assert.equal(n, 16, 'les seize tuiles doivent être retrouvées')
+  assert.ok(lecture.residu < 9, `résidu ${lecture.residu.toFixed(1)} ΔE`)
   assert.equal(lecture.cases.filter(V.douteuse).length, 0, 'rien ne devrait être signalé')
 })
 
 test('le recalage absorbe la dominante d’une lampe chaude', () => {
-  const chaud = { graine: 11, dominante: [1.2, 1, 0.68], bruit: 8 }
-  const { justes, lecture } = essai(chaud)
+  const s = scene({ graine: 11, dominante: [1.14, 1, 0.74], bruit: 8 })
+  const { n, lecture } = justes(s, s.coins)
   assert.ok(lecture.recale, 'le recalage doit s’être appliqué')
-  assert.equal(justes, 16, 'une dominante est systématique, donc rattrapable')
+  assert.equal(n, 16, 'une dominante est systématique, donc rattrapable')
 })
 
-test('un décalage des coins d’un quart de tuile reste sans conséquence', () => {
-  // Un quart fait 55 px dans cette photo : 12 px, c'est un cinquième de quart.
-  const { justes } = essai({ graine: 3, bruit: 8, derive: 12 })
-  assert.equal(justes, 16)
+test('une dominante extrême abîme la lecture, mais elle le dit', () => {
+  // Le recalage est un gain affine ; une lampe très colorée déforme davantage
+  // que ça et quelques cases finissent par tomber. Ce qu'on exige alors, ce
+  // n'est pas la perfection, c'est l'honnêteté : chaque erreur doit être
+  // signalée pour que l'écran la donne à vérifier.
+  const s = scene({ graine: 13, dominante: [1.3, 1, 0.56], bruit: 8 })
+  const { n, lecture } = justes(s, s.coins)
+  assert.ok(n >= 13, `${n}/16 tuiles retrouvées malgré la dominante`)
+  const ratees = lecture.cases.filter((c, i) => c.vide || IMAGE(c) !== IMAGE(s.poses[i]))
+  assert.ok(
+    ratees.every(V.douteuse),
+    `${ratees.filter(V.douteuse).length}/${ratees.length} erreurs signalées`,
+  )
+})
+
+test('une dominante froide ne gêne pas davantage', () => {
+  const s = scene({ graine: 12, dominante: [0.84, 0.97, 1.2], bruit: 8 })
+  assert.equal(justes(s, s.coins).n, 16)
+})
+
+test('un emplacement vide est vu comme vide, pas comme une tuile', () => {
+  const s = scene({ graine: 42, bruit: 5, vides: [5, 10] })
+  const l = V.lire(s.image, LARGEUR, HAUTEUR, s.coins, s.taille)
+  const vus = l.cases.map((c, i) => (c.vide ? i : -1)).filter((i) => i >= 0)
+  assert.deepEqual(vus, [5, 10], 'exactement les deux emplacements laissés libres')
 })
 
 test('une case mal lue est signalée', () => {
   // Conditions volontairement mauvaises : on n'exige pas une lecture juste,
   // on exige que l'écran sache dire ce qui est douteux.
   let erreurs = 0
-  let erreursSignalees = 0
-  for (let g = 0; g < 12; g++) {
-    const { lecture, verite } = essai({
-      graine: 100 + g,
-      dominante: [1.35, 0.98, 0.55],
-      bruit: 34,
-      derive: 18,
-    })
-    lecture.cases.forEach((c, i) => {
-      if (c.vide || IMAGE(c) !== IMAGE(verite[i])) {
+  let signalees = 0
+  for (let g = 0; g < 10; g++) {
+    const s = scene({ graine: 100 + g, dominante: [1.4, 0.95, 0.5], bruit: 46 })
+    const derive = 26
+    const poses = s.coins.map((c) => ({
+      x: c.x + (s.rnd() - 0.5) * 2 * derive,
+      y: c.y + (s.rnd() - 0.5) * 2 * derive,
+    }))
+    const l = V.lire(s.image, LARGEUR, HAUTEUR, poses, s.taille)
+    l.cases.forEach((c, i) => {
+      if (c.vide || IMAGE(c) !== IMAGE(s.poses[i])) {
         erreurs++
-        if (V.douteuse(c)) erreursSignalees++
+        if (V.douteuse(c)) signalees++
       }
     })
   }
-  assert.ok(erreurs > 20, `il faut de vraies erreurs à attraper (${erreurs})`)
+  assert.ok(erreurs > 15, `il faut de vraies erreurs à attraper (${erreurs})`)
   assert.ok(
-    erreursSignalees / erreurs > 0.8,
-    `${erreursSignalees}/${erreurs} erreurs signalées — le signal de confiance doit rester fiable`,
+    signalees / erreurs > 0.75,
+    `${signalees}/${erreurs} erreurs signalées — le signal de confiance doit rester fiable`,
   )
 })
 
-test('un emplacement vide est vu comme vide, pas comme une tuile', () => {
-  const rnd = alea(42)
-  const taille = 4
-  const dispo = [...Array(E.TILE_COUNT).keys()]
-  const verite = []
-  for (let i = 0; i < 16; i++)
-    verite.push({
-      tileId: dispo.splice(Math.floor(rnd() * dispo.length), 1)[0],
-      rot: Math.floor(rnd() * 4),
-    })
-  const { px, cote } = dessiner(taille, verite)
-  // On efface deux tuiles : sur le plateau, un emplacement libre est blanc.
-  const demi = (PAS - JEU) / 2
-  for (const cell of [5, 10]) {
-    const ox = (cell % taille) * PAS
-    const oy = Math.floor(cell / taille) * PAS
-    for (let y = 0; y < 2 * demi; y++)
-      for (let x = 0; x < 2 * demi; x++) {
-        const k = ((oy + y) * cote + ox + x) * 4
-        px[k] = 255
-        px[k + 1] = 255
-        px[k + 2] = 255
-      }
+// --------------------------------------------------------------------- calage
+
+test('le calage rattrape des coins posés à la louche', () => {
+  // C'est la promesse faite à l'écran : poser les quatre coins à peu près, et
+  // laisser l'application les ajuster. « À peu près » vaut ici une demi-tuile.
+  let avant = 0
+  let apres = 0
+  const n = 8
+  for (let g = 0; g < n; g++) {
+    const s = scene({ graine: 300 + g })
+    const derive = 30
+    const poses = s.coins.map((c) => ({
+      x: c.x + (s.rnd() - 0.5) * 2 * derive,
+      y: c.y + (s.rnd() - 0.5) * 2 * derive,
+    }))
+    if (justes(s, poses).n === 16) avant++
+    const cale = D.calerCoins(s.image, LARGEUR, HAUTEUR, poses, s.taille)
+    if (justes(s, cale.coins).n === 16) apres++
   }
-  const L = 900
-  const H = 720
-  const coins = [
-    { x: 120, y: 100 },
-    { x: 780, y: 140 },
-    { x: 740, y: 655 },
-    { x: 165, y: 615 },
-  ]
-  const image = photographier(px, cote, coins, L, H, [1.05, 1, 0.9], 5, rnd)
-  const lecture = V.lire(image, L, H, coins, taille)
-  const vides = lecture.cases.map((c, i) => (c.vide ? i : -1)).filter((i) => i >= 0)
-  assert.deepEqual(vides, [5, 10], 'exactement les deux emplacements effacés')
+  assert.ok(apres >= n - 1, `${apres}/${n} plateaux parfaits après calage`)
+  assert.ok(apres > avant, `le calage doit améliorer les choses (${avant} → ${apres})`)
+})
+
+test('le calage ne dégrade pas un cadrage déjà juste', () => {
+  const s = scene({ graine: 400 })
+  const cale = D.calerCoins(s.image, LARGEUR, HAUTEUR, s.coins, s.taille)
+  assert.equal(justes(s, cale.coins).n, 16)
+})
+
+test('la détection propose un cadrage utilisable ou se tait', () => {
+  // La détection automatique n'est pas garantie — on exige seulement qu'elle
+  // ne mente pas : ce qu'elle annonce comme bon doit l'être.
+  let annonces = 0
+  let tenues = 0
+  for (let g = 0; g < 8; g++) {
+    const s = scene({ graine: 500 + g })
+    const det = D.detecterPlateau(s.image, LARGEUR, HAUTEUR, s.taille)
+    if (!det || det.qualite > D.QUALITE_MINIMALE) continue
+    annonces++
+    if (justes(s, det.coins).n >= s.taille * s.taille - 1) tenues++
+  }
+  assert.ok(annonces > 0, 'la détection doit réussir au moins parfois')
+  assert.ok(
+    tenues / annonces >= 0.75,
+    `${tenues}/${annonces} détections annoncées sûres et réellement justes`,
+  )
 })

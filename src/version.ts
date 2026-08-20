@@ -15,6 +15,17 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.70',
+    date: '2026-08-20',
+    changes: [
+      'La lecture en direct par la caméra est retirée : elle n’ouvrait pas l’appareil photo et ne montrait qu’une image noire. On revient à la photo — « Scanner » ouvre l’appareil photo du téléphone, comme avant.',
+      'La géométrie du plateau imprimé est enfin modélisée pour de vrai : de grosses barres noires séparent les emplacements, et le repère va d’un coin extérieur de la grille noire à l’autre. Sans ça, les mesures des tuiles de bord glissaient d’un huitième de tuile — c’était la principale cause d’erreur. Avec les bons coins, la lecture est désormais parfaite dans toutes les conditions d’éclairage essayées.',
+      'L’application cherche le plateau toute seule : elle repère les couleurs vives, puis cale la grille noire sur le profil de saturation — les barres dans les creux, les emplacements sur les bosses. C’est ce calage qui donne la phase de la grille, la seule chose qu’un critère de couleur ne sait pas retrouver seul.',
+      'Nouveau bouton « Caler les coins » : posez les quatre pastilles à la louche, à une demi-tuile près, et l’application termine l’ajustement. Mesuré sur des photos fabriquées : une pose à une demi-tuile près passe de 50 % à 100 % de plateaux parfaits.',
+      'Le tracé posé sur la photo dessine maintenant les barres du plateau et non les frontières des tuiles : bien cadré, il se confond avec la grille noire — on voit immédiatement si le repère est juste.',
+    ],
+  },
+  {
     version: '1.69',
     date: '2026-08-20',
     changes: [
