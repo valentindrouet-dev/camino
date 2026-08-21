@@ -232,10 +232,24 @@ export function VariantsPanel({
             onChange={(v) =>
               patchVariants({
                 coloredBorders: v,
-                ...(v ? { multiBorders: false } : {}),
+                ...(v ? { multiBorders: false, quadBorders: false } : {}),
               })
             }
             description="Le bord du plateau est à la couleur du joueur. Un chemin de cette couleur qui touche le bord — une ou plusieurs fois, un ou plusieurs côtés — gagne une case, une seule. Les bords ne relient jamais deux chemins. Exclusif avec Bordures multicolores."
+          />
+    ),
+    quadBorders: (
+          <VariantToggle
+            cle="quadBorders"
+            label="Bords 4 Couleurs"
+            on={!!variants.quadBorders}
+            onChange={(v) =>
+              patchVariants({
+                quadBorders: v,
+                ...(v ? { coloredBorders: false, multiBorders: false } : {}),
+              })
+            }
+            description="Chaque côté du plateau a sa propre couleur, et le pouvoir des Bords Colorés : un chemin de cette couleur qui touche ce côté gagne une case. Les six plateaux de la boîte se partagent les six couleurs à parts égales — chacune sur quatre côtés — et aucun plateau ne porte sa propre couleur : personne ne peut s’appuyer sur la couleur qu’il a déjà sous la main. Exclusif avec les deux autres variantes de bords."
           />
     ),
     multiBorders: (
@@ -246,7 +260,7 @@ export function VariantsPanel({
             onChange={(v) =>
               patchVariants({
                 multiBorders: v,
-                ...(v ? { coloredBorders: false } : {}),
+                ...(v ? { coloredBorders: false, quadBorders: false } : {}),
               })
             }
             description="Plateaux au verso sans cadre de couleur, bordés de 8 carrés colorés par côté (coins blancs) : chaque carré touché par un chemin de sa couleur ajoute une case, sans relier les chemins entre eux. Exclusif avec Bordures colorées."
@@ -469,11 +483,42 @@ export function VariantsPanel({
               <MissionCardView
                 card={CARDS.find((c) => c.id === options.cardId)!}
                 compact
+                seuil={options.cardSeuils?.[options.cardId]}
               />
             </div>
           )}
         </div>
       )}
+
+      {/* Une carte qui demande un seuil le fait choisir ici : c'est une
+          décision de mise en place, pas un tirage. */}
+      {options.useCards &&
+        options.cardId &&
+        CARDS.find((c) => c.id === options.cardId)?.seuils && (
+          <label className="field">
+            <span>{CARDS.find((c) => c.id === options.cardId)!.name} — longueur du chemin</span>
+            <select
+              value={
+                options.cardSeuils?.[options.cardId] ??
+                CARDS.find((c) => c.id === options.cardId)!.seuils![0]
+              }
+              onChange={(e) =>
+                setOptions((o) => ({
+                  ...o,
+                  cardSeuils: { ...o.cardSeuils, [o.cardId!]: Number(e.target.value) },
+                }))
+              }
+            >
+              {[...CARDS.find((c) => c.id === options.cardId)!.seuils!]
+                .sort((a, b) => a - b)
+                .map((n) => (
+                  <option key={n} value={n}>
+                    {n} tuiles
+                  </option>
+                ))}
+            </select>
+          </label>
+        )}
 
       {showScale && (
         <div

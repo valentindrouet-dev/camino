@@ -48,6 +48,11 @@ export function activeVariantInfos(options: GameOptions): VariantInfo[] {
     'Le bord du plateau est à la couleur du joueur. Un chemin de cette couleur qui touche le bord — une ou plusieurs fois, un ou plusieurs côtés — gagne une case, une seule. Les bords ne relient jamais deux chemins.',
   )
   add(
+    v.quadBorders,
+    'Bords 4 Couleurs',
+    'Chaque côté du plateau a sa propre couleur, avec le pouvoir des Bords Colorés. Les six plateaux se partagent les six couleurs à parts égales — chacune sur quatre côtés — et aucun plateau ne porte la sienne.',
+  )
+  add(
     v.multiBorders,
     'Bords Multicolores',
     'Plateaux au verso sans cadre de couleur, bordés de 8 carrés colorés par côté (coins blancs) : chaque carré touché par un chemin de sa couleur ajoute une case, sans relier les chemins entre eux.',

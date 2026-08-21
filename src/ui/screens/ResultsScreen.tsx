@@ -4,6 +4,9 @@ import {
   cardResults,
   COLOR_HEX,
   COLOR_NAMES,
+  medaille,
+  NOM_MEDAILLE,
+  objectifsSolo,
   PATH_COLORS,
   playerStats,
   signed,
@@ -103,6 +106,17 @@ export function ResultsScreen({
           )}
         </div>
       </div>
+
+      {state.suddenWinner != null && (
+        <div className="good-box" style={{ marginBottom: 14, fontSize: 15 }}>
+          <strong>Mort subite</strong> — {state.players[state.suddenWinner].name} a composé le
+          chemin demandé et remporte la partie, quel que soit le score.
+        </div>
+      )}
+
+      {state.players.length === 1 && (
+        <BilanSolo state={state} score={stats[0].breakdown.total} />
+      )}
 
       <div className="podium" style={{ marginBottom: 18 }}>
         {ranked.map((s) => (
@@ -316,6 +330,64 @@ function Kpi({ k, v, s }: { k: string; v: string; s: string }) {
       <div className="k">{k}</div>
       <div className="v">{v}</div>
       <div className="s">{s}</div>
+    </div>
+  );
+}
+
+/**
+ * Le résultat d'une partie solo : la médaille décrochée, et les trois seuils
+ * pour voir ce qu'il aurait fallu. Une mort subite se juge à part — la partie
+ * s'arrête avant le décompte, le barème n'a plus de sens.
+ */
+function BilanSolo({ state, score }: { state: GameState; score: number }) {
+  const objectifs = objectifsSolo(state.options);
+  const gagne = state.suddenWinner != null;
+  const obtenue = gagne ? "or" : medaille(score, objectifs);
+  const emoji = { or: "🥇", argent: "🥈", bronze: "🥉" } as const;
+  return (
+    <div className="solo-bilan" style={{ marginBottom: 18 }}>
+      <div className={`solo-obtenue ${obtenue ?? "rate"}`}>
+        <span className="grosse">{obtenue ? emoji[obtenue] : "🎯"}</span>
+        <div>
+          {obtenue ? (
+            <>
+              <strong style={{ fontSize: 20 }}>
+                Médaille d’{NOM_MEDAILLE[obtenue].toLowerCase()}
+              </strong>
+              <div className="note" style={{ margin: 0 }}>
+                {gagne
+                  ? "Mort subite : le chemin est composé, la partie est gagnée."
+                  : `${score} points, objectif ${
+                      obtenue === "or"
+                        ? objectifs.or
+                        : obtenue === "argent"
+                          ? objectifs.argent
+                          : objectifs.bronze
+                    } atteint.`}
+              </div>
+            </>
+          ) : (
+            <>
+              <strong style={{ fontSize: 20 }}>Pas de médaille</strong>
+              <div className="note" style={{ margin: 0 }}>
+                {score} points — il en fallait {objectifs.bronze} pour le bronze.
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="solo-objectifs">
+        {(["bronze", "argent", "or"] as const).map((m) => (
+          <div
+            key={m}
+            className={`solo-medaille ${m} ${score >= objectifs[m] || gagne ? "atteinte" : ""}`}
+          >
+            <span className="pastille">{emoji[m]}</span>
+            <strong>{objectifs[m]}</strong>
+            <em>{NOM_MEDAILLE[m]}</em>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

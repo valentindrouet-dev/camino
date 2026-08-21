@@ -10,6 +10,10 @@ interface Props {
   structural?: boolean
   /** Couleur tirée pour cette carte, si elle en dépend. */
   color?: Color
+  /** Axe tiré pour cette carte, si elle en dépend. */
+  axis?: 'col' | 'row'
+  /** Seuil retenu pour cette carte, si elle en demande un. */
+  seuil?: number
   /** Version compacte pour le panneau latéral. */
   compact?: boolean
   selected?: boolean
@@ -26,6 +30,8 @@ export function MissionCardView({
   detail,
   structural,
   color,
+  axis,
+  seuil,
   compact,
   selected,
   onClick,
@@ -40,7 +46,7 @@ export function MissionCardView({
       type={onClick ? 'button' : undefined}
     >
       <span className="mission-badge">{card.badge}</span>
-      <span className="mission-text">{cardText(card, color)}</span>
+      <span className="mission-text">{cardText(card, color, axis, seuil)}</span>
       {points !== undefined && (
         <span
           className={`mission-score ${

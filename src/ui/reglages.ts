@@ -49,6 +49,7 @@ export const CATALOGUE: GroupeCatalogue[] = [
     titre: 'PLATEAUX',
     variantes: [
       { cle: 'borders', label: 'Bords Colorés' },
+      { cle: 'quadBorders', label: 'Bords 4 Couleurs' },
       { cle: 'multiBorders', label: 'Bords Multicolores' },
       { cle: 'shared', label: 'Commun' },
     ],

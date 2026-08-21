@@ -58,6 +58,8 @@ export type Side = 0 | 1 | 2 | 3
  */
 export type BorderSpec =
   | { kind: 'uniform'; color: Color }
+  /** Un côté, une couleur — quatre couleurs différentes (variante). */
+  | { kind: 'quad'; sides: [Color, Color, Color, Color] }
   | { kind: 'multi'; squares: [Color[], Color[], Color[], Color[]] }
 
 /** Plateau : tableau de `size * size` cases, `null` = case vide. */
@@ -142,6 +144,11 @@ export interface Variants {
   coloredBorders?: boolean
   /** Plateaux à bordures multicolores (exclusif avec coloredBorders). */
   multiBorders?: boolean
+  /**
+   * Bords 4 Couleurs : chaque côté du plateau a sa propre couleur, et les six
+   * plateaux de la boîte se partagent les six couleurs à parts égales.
+   */
+  quadBorders?: boolean
   /** +12 tuiles monochromes dans le sac (2 par couleur). */
   /**
    * Couleurs équilibrées : les douze tuiles en double de la boîte cèdent la
@@ -317,6 +324,11 @@ export interface GameOptions {
   /** Première carte imposée ; sinon tirage au hasard selon la graine. */
   cardId?: string
   /**
+   * Seuils choisis à la mise en place pour les cartes qui en demandent un
+   * (Mort subite : longueur du chemin qui met fin à la partie).
+   */
+  cardSeuils?: Record<string, number>
+  /**
    * La graine est saisie à la main : elle est conservée d'une partie à
    * l'autre. Sinon chaque nouvelle partie en tire une nouvelle.
    */
@@ -361,6 +373,13 @@ export interface GameState {
   mustTakeTileId?: number
   /** Axe tiré pour les cartes qui en dépendent (id de carte → colonne/ligne). */
   cardAxes?: Record<string, 'col' | 'row'>
+  /** Seuils retenus pour les cartes qui en demandent un (id → seuil). */
+  cardSeuils?: Record<string, number>
+  /**
+   * Mort subite : le joueur qui a rempli la condition. La partie s'arrête à
+   * l'instant où il pose sa tuile, et il gagne quel que soit le score.
+   */
+  suddenWinner?: number
   players: Player[]
   /** Pioche restante (ids de tuiles), mélangée. */
   bag: number[]

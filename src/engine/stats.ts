@@ -42,6 +42,7 @@ export function playerStats(state: GameState): PlayerStats[] {
           cards,
           state.cardColors,
           state.cardAxes,
+          state.cardSeuils,
         )
       : base
     // `scoring` porte le drapeau : en scoring inversé un chemin qui compte a
@@ -80,6 +81,14 @@ export function playerStats(state: GameState): PlayerStats[] {
   order.forEach((s, i) => {
     s.rank = i > 0 && order[i - 1].breakdown.total === s.breakdown.total ? order[i - 1].rank : i + 1
   })
+  // Mort subite : celui qui a composé le chemin gagne, quel que soit le score.
+  // Les autres gardent leur ordre relatif, décalé d'un rang.
+  if (state.suddenWinner != null) {
+    for (const s of raw) {
+      if (s.player.id === state.suddenWinner) s.rank = 1
+      else s.rank += 1
+    }
+  }
   return raw
 }
 

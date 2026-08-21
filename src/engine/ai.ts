@@ -345,6 +345,7 @@ export function enumerateMoves(state: GameState): ScoredMove[] {
             cards,
             state.cardColors,
             state.cardAxes,
+            state.cardSeuils,
           ).cardPoints
           value += AI_WEIGHTS.mission * missionPoints
           // La pente ne vaut qu'à l'endroit : en scoring inversé, accomplir une

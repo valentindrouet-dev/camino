@@ -824,12 +824,14 @@ function BorderRing({
   const clipId = useId()
   const g = bandGeom(spec, n)
   const qs = n * 2
-  const uniform = spec.kind === 'uniform'
-  const sep = uniform ? '#FFFFFF' : '#00000026'
-  const sepW = uniform ? 1.6 : 1
+  // Bordure colorée et Bords 4 Couleurs se dessinent pareil : un bloc par
+  // côté. Seule la couleur du bloc change — la même partout, ou une par côté.
+  const bloc = spec.kind === 'uniform' || spec.kind === 'quad'
+  const sep = bloc ? '#FFFFFF' : '#00000026'
+  const sepW = bloc ? 1.6 : 1
   const rects: React.ReactNode[] = []
   for (let side4 = 0; side4 < 4; side4++) {
-    if (uniform) {
+    if (bloc) {
       const { x, y, w, h } = borderBlockRect(side4, n, g)
       rects.push(
         <rect
@@ -838,7 +840,7 @@ function BorderRing({
           y={y}
           width={w}
           height={h}
-          fill={COLOR_HEX[spec.color]}
+          fill={COLOR_HEX[spec.kind === 'uniform' ? spec.color : spec.sides[side4 as 0 | 1 | 2 | 3]]}
           stroke={sep}
           strokeWidth={sepW}
         />,
@@ -1063,7 +1065,7 @@ function zoneOutlinePath(
     const pieces: { x: number; y: number; w: number; h: number }[] = []
     for (const id of zone.borderIds) {
       const v = -id - 1
-      if (spec.kind === 'uniform') {
+      if (spec.kind === 'uniform' || spec.kind === 'quad') {
         // un bloc par côté : il est entièrement annexé dès qu'il est relié
         const side4 = v
         for (let k = 0; k < qs; k++) {

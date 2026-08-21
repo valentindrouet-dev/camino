@@ -67,8 +67,12 @@ export function starClusterPoints(count: number, mode: StarScoring = 'linked'): 
   return mode === 'growing' ? count * count : 2 * count
 }
 
-/** Cases de bordure adjacentes à un quart donné, avec leur couleur. */
-function borderNeighbours(board: Board, qi: number): { id: number; color: Color }[] {
+/**
+ * Cases de bordure adjacentes à un quart donné, avec leur couleur. Exporté :
+ * la carte « Bord assorti » a besoin de savoir de quelle couleur est le bord
+ * qu'une tuile touche.
+ */
+export function borderNeighbours(board: Board, qi: number): { id: number; color: Color }[] {
   const spec = board.borders
   if (!spec) return []
   const qs = board.size * 2
@@ -76,9 +80,9 @@ function borderNeighbours(board: Board, qi: number): { id: number; color: Color 
   const c = qi % qs
   const out: { id: number; color: Color }[] = []
   const touch = (side: Side, index: number) => {
-    if (spec.kind === 'uniform') {
+    if (spec.kind === 'uniform' || spec.kind === 'quad') {
       // un bloc par côté : le côté touché compte pour une case, une seule fois
-      out.push({ id: -(side + 1), color: spec.color })
+      out.push({ id: -(side + 1), color: spec.kind === 'uniform' ? spec.color : spec.sides[side] })
     } else {
       const color = spec.squares[side][index]
       if (color !== WHITE) out.push({ id: -(1 + side * 100 + index), color })

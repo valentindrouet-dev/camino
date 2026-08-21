@@ -10,6 +10,7 @@ export * from './scoring.ts'
 export * from './game.ts'
 export * from './ai.ts'
 export * from './stats.ts'
+export * from './solo.ts'
 export * from './cards.ts'
 export * from './rng.ts'
 export * from './view.ts'
@@ -36,6 +37,7 @@ export function scorePlayer(player: Player, state: GameState): ScoreBreakdown {
     cards,
     state.cardColors,
     state.cardAxes,
+    state.cardSeuils,
   )
 }
 
@@ -57,6 +59,8 @@ export function cardResults(
   color?: Color
   /** Axe tiré pour cette carte, si elle en dépend. */
   axis?: 'col' | 'row'
+  /** Seuil retenu pour cette carte, si elle en demande un. */
+  seuil?: number
 }[] {
   const ids = playerCardIds(state, playerId)
   if (!ids.length) return []
@@ -70,6 +74,7 @@ export function cardResults(
     if (!card) return []
     const color = state.cardColors?.[id]
     const axis = state.cardAxes?.[id]
+    const seuil = state.cardSeuils?.[id]
     const brut = card.evaluate({
       playerId,
       board: player.board,
@@ -79,9 +84,10 @@ export function cardResults(
       table,
       color,
       axis,
+      seuil,
     })
     // Scoring inversé : une mission accomplie coûte ce qu'elle rapportait.
     const points = scoreSign(ruleset) * brut.points || 0
-    return [{ card, points, detail: brut.detail, structural: brut.structural, color, axis }]
+    return [{ card, points, detail: brut.detail, structural: brut.structural, color, axis, seuil }]
   })
 }

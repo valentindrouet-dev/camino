@@ -9,7 +9,7 @@
  * Chaque carte est une fonction pure évaluée sur le plateau final.
  */
 import { gridEffects, quadGrid, quadIndicesOf } from './board.ts'
-import { computeZones, scoreSign } from './scoring.ts'
+import { borderNeighbours, computeZones, scoreSign } from './scoring.ts'
 import type { Board, BoardColor, Color, Ruleset, ScoreBreakdown, Zone } from './types.ts'
 import { BLACK, PATH_COLORS } from './types.ts'
 import { COLOR_NAMES } from './scoring.ts'
@@ -33,6 +33,8 @@ export interface CardContext {
   axis?: 'col' | 'row'
   /** Couleur du contour du plateau de ce joueur. */
   boardColor?: BoardColor
+  /** Seuil choisi pour cette carte, quand elle en demande un (`seuils`). */
+  seuil?: number
 }
 
 export interface CardResult {
@@ -79,11 +81,35 @@ export interface MissionCard {
    * même nom : ce n'est pas une couleur de table.
    */
   colorParJoueur?: boolean
+  /**
+   * Seuils proposés au choix à la mise en place ; `{seuil}` est remplacé par
+   * celui qui a été retenu. Le premier est la valeur par défaut.
+   */
+  seuils?: number[]
+  /**
+   * Carte à mort subite : elle n'ajoute pas de points, elle met fin à la
+   * partie dès qu'un joueur remplit sa condition. `atteint` dit si c'est fait
+   * — c'est la partie, pas le décompte, qui s'en sert.
+   */
+  sudden?: boolean
+  atteint?(ctx: CardContext): boolean
   evaluate(ctx: CardContext): CardResult
 }
 
-/** Texte d'une carte, couleur et axe tirés compris. */
-export function cardText(card: MissionCard, color?: Color, axis?: 'col' | 'row'): string {
+/** Seuil retenu pour une carte qui en demande un. */
+export function cardSeuil(card: MissionCard, seuil?: number): number {
+  const proposes = card.seuils ?? []
+  if (seuil && proposes.includes(seuil)) return seuil
+  return proposes[0] ?? 0
+}
+
+/** Texte d'une carte, couleur, axe et seuil compris. */
+export function cardText(
+  card: MissionCard,
+  color?: Color,
+  axis?: 'col' | 'row',
+  seuil?: number,
+): string {
   let text = card.text
   if (card.colorized) {
     const nom = color ? COLOR_NAMES[color].toLowerCase() : 'de la couleur tirée'
@@ -92,6 +118,7 @@ export function cardText(card: MissionCard, color?: Color, axis?: 'col' | 'row')
   if (card.randomAxis) {
     text = text.replace('{axe}', axis === 'row' ? 'ligne' : 'colonne')
   }
+  if (card.seuils) text = text.replace('{seuil}', String(cardSeuil(card, seuil)))
   return text
 }
 
@@ -682,13 +709,24 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
     ciel: true,
     text:
       '+2 points par tuile qui touche le bord de votre plateau par un quart de la couleur de ' +
-      'ce plateau — une tuile d’angle ne compte qu’une fois.',
+      'ce bord — une tuile d’angle ne compte qu’une fois.',
     evaluate(ctx) {
-      const couleur = ctx.boardColor as Color | undefined
-      if (!couleur) return { points: 0, detail: 'plateau sans couleur' }
       const w = ctx.board.size
       const h = ctx.board.cells.length / w
       const grille = quadGrid(ctx.board, gridEffects(ctx.ruleset))
+      /*
+       * De quelle couleur est le bord qu'un quart touche ? Si le plateau porte
+       * une bordure — colorée, à quatre couleurs ou multicolore — c'est elle
+       * qui décide, côté par côté. Sinon c'est le cadre imprimé du plateau,
+       * qui est à la couleur du joueur.
+       */
+      const defaut = ctx.boardColor as Color | undefined
+      const assorti = (quart: number): boolean => {
+        const couleurDuQuart = grille.cells[quart]
+        const bords = borderNeighbours(ctx.board, quart)
+        if (bords.length) return bords.some((b) => b.color === couleurDuQuart)
+        return !!defaut && couleurDuQuart === defaut
+      }
       let n = 0
       for (let i = 0; i < ctx.board.cells.length; i++) {
         if (!ctx.board.cells[i]) continue
@@ -703,9 +741,47 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
         if (!contreLeBord.length) continue
         const quarts = quadIndicesOf(w, i)
         // Une seule fois par tuile : un angle touche deux bords, tant pis.
-        if (contreLeBord.some((q) => grille.cells[quarts[q]] === couleur)) n++
+        if (contreLeBord.some((q) => assorti(quarts[q]))) n++
       }
       return { points: n * 2, detail: plural(n, 'tuile assortie', 'tuiles assorties') }
+    },
+  },
+  {
+    id: 'sudden-death',
+    name: 'Mort subite',
+    badge: 'FIN',
+    ciel: true,
+    seuils: [7, 6, 8, 9],
+    sudden: true,
+    text:
+      'Le premier joueur qui compose un chemin de {seuil} tuiles ou plus remporte ' +
+      'immédiatement la partie, quel que soit le score.',
+    atteint(ctx) {
+      const seuil = cardSeuil(this as MissionCard, ctx.seuil)
+      return ctx.breakdown.zones.some((z) => z.color !== BLACK && z.span >= seuil)
+    },
+    evaluate(ctx) {
+      const seuil = cardSeuil(this as MissionCard, ctx.seuil)
+      const meilleur = ctx.breakdown.zones
+        .filter((z) => z.color !== BLACK)
+        .reduce((m, z) => Math.max(m, z.span), 0)
+      // Aucun point : c'est la partie qui s'arrête, pas le décompte qui bouge.
+      return {
+        points: 0,
+        detail:
+          meilleur >= seuil
+            ? `chemin de ${meilleur} tuiles — mort subite`
+            : `plus long chemin : ${meilleur}/${seuil}`,
+      }
+    },
+    outlook(ctx) {
+      // Une pente pour les bots : plus le plus long chemin approche du seuil,
+      // plus il vaut la peine de le pousser. Gagner vaut cher, mettons 20.
+      const seuil = cardSeuil(this as MissionCard, ctx.seuil)
+      const meilleur = ctx.breakdown.zones
+        .filter((z) => z.color !== BLACK)
+        .reduce((m, z) => Math.max(m, z.span), 0)
+      return 20 * Math.min(1, meilleur / seuil) ** 3
     },
   },
   {
@@ -871,6 +947,8 @@ export function applyCards(
   colors?: Record<string, Color>,
   /** Axes (colonne/ligne) tirés en début de partie, même principe. */
   axes?: Record<string, 'col' | 'row'>,
+  /** Seuils choisis à la mise en place pour les cartes qui en demandent un. */
+  seuils?: Record<string, number>,
 ): ScoreBreakdown {
   let out = breakdown
   let points = 0
@@ -883,7 +961,13 @@ export function applyCards(
   for (const id of cardIds) {
     const card = cardById(id)
     if (!card) continue
-    const brut = card.evaluate({ ...ctx, breakdown: out, color: colors?.[id], axis: axes?.[id] })
+    const brut = card.evaluate({
+      ...ctx,
+      breakdown: out,
+      color: colors?.[id],
+      axis: axes?.[id],
+      seuil: seuils?.[id],
+    })
     const r = sign === 1 ? brut : { ...brut, points: -brut.points || 0 }
     points += r.points
     labels.push(cardIds.length > 1 ? `${card.name} : ${r.detail}` : r.detail)

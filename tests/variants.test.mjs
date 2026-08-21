@@ -243,15 +243,19 @@ test('dernier choix aléatoire : une repioche, sans retour', () => {
   assert.equal(E.canRedrawLastTile(s3), false)
 })
 
-test('exclusivité : bordures colorées + multicolores refusées ensemble', () => {
-  const err = E.configError({
-    players: [{ name: 'A', kind: 'human', boardColor: 'O' }],
-    options: {
-      ...E.defaultOptions('x'),
-      ruleset: withVariants({ coloredBorders: true, multiBorders: true }),
-    },
-  })
-  assert.match(err ?? '', /en même temps/)
+test('exclusivité : deux variantes de bords refusées ensemble', () => {
+  // Les trois se disputent le même contour : jamais deux à la fois.
+  for (const paire of [
+    { coloredBorders: true, multiBorders: true },
+    { coloredBorders: true, quadBorders: true },
+    { quadBorders: true, multiBorders: true },
+  ]) {
+    const err = E.configError({
+      players: [{ name: 'A', kind: 'human', boardColor: 'O' }],
+      options: { ...E.defaultOptions('x'), ruleset: withVariants(paire) },
+    })
+    assert.match(err ?? '', /même contour/, JSON.stringify(paire))
+  }
 })
 
 test('une partie complète se joue avec toutes les variantes cumulables', () => {
@@ -265,6 +269,7 @@ test('une partie complète se joue avec toutes les variantes cumulables', () => 
       ...E.defaultOptions('integrale'),
       useCards: true,
       cardCount: 3,
+      cardId: 'six-colors',
       ruleset: withVariants({
         lastPickRandom: true,
         multiBorders: true,
@@ -292,7 +297,11 @@ test('une partie complète se joue avec toutes les variantes cumulables', () => 
     s = E.applyMove(s, mv)
   }
   assert.equal(s.phase, 'finished')
-  for (const p of s.players) assert.equal(E.placedCount(p.board), 16)
+  // « Mort subite » peut sortir parmi les trois cartes et arrêter la partie
+  // avant que les plateaux soient pleins : c'est justement ce qu'elle fait.
+  if (s.suddenWinner == null) {
+    for (const p of s.players) assert.equal(E.placedCount(p.board), 16)
+  }
   const stats = E.playerStats(s)
   for (const st of stats) {
     assert.ok(Number.isFinite(st.breakdown.total))

@@ -15,6 +15,17 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.72',
+    date: '2026-08-21',
+    changes: [
+      'Nouvelle variante « Bords 4 Couleurs » : chaque côté du plateau a sa propre couleur, avec le pouvoir des Bords Colorés. Les six plateaux de la boîte se partagent les six couleurs à parts strictement égales — chacune sur exactement quatre côtés — et aucun plateau ne porte la sienne : personne ne peut s’appuyer sur la couleur qu’il a déjà sous la main.',
+      'La carte mission « Bord assorti » suit désormais la couleur du BORD touché et non celle du plateau. Sans variante de bords, c’est le cadre imprimé, donc la couleur du joueur, comme avant ; avec Bords 4 Couleurs ou Bords Multicolores, c’est le côté ou le carré que la tuile touche.',
+      'Nouvelle carte mission « Mort subite » : le premier joueur qui compose un chemin de la longueur choisie — 6, 7, 8 ou 9 tuiles — remporte immédiatement la partie, quel que soit le score. La longueur se choisit à la mise en place, sous la carte.',
+      'Nouveau mode solo, sans adversaire : on affronte un barème à trois paliers — bronze, argent, or. On y choisit de jouer sans carte, avec une ou avec deux.',
+      'Les trois paliers ne sont pas devinés : ils viennent de parties réellement jouées par le bot Expert. Chaque variante et chaque carte a son écart mesuré, et le barème les additionne — Arc-en-Ciel vaut +14,6 points, Couleur interdite −8,9, une carte tirée au hasard +3,2. Sur la partie nue, l’Expert décroche le bronze sept fois sur dix et l’or une fois sur dix.',
+    ],
+  },
+  {
     version: '1.71',
     date: '2026-08-20',
     changes: [

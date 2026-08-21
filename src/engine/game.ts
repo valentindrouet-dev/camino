@@ -2,6 +2,8 @@ import { createBoard, createBoardRect, isFull, legalCells, placeTile } from './b
 import {
   activeRuleset,
   applyCards,
+  cardById,
+  cardSeuil,
   cardTable,
   CARDS,
   playerCardIds,
@@ -185,14 +187,15 @@ export function configError(config: GameConfig): string | null {
     return 'Deux joueurs ne peuvent pas prendre le même plateau : choisissez des couleurs différentes.'
   }
   const v = config.options.ruleset.variants
-  if (v?.coloredBorders && v?.multiBorders) {
-    return 'Bordures colorées et Bordures multicolores ne peuvent pas être activées en même temps.'
+  const bordures = [v?.coloredBorders, v?.quadBorders, v?.multiBorders].filter(Boolean).length
+  if (bordures > 1) {
+    return 'Bords Colorés, Bords 4 Couleurs et Bords Multicolores se disputent le même contour : n’en gardez qu’un.'
   }
   if (config.options.personalCards && config.options.useCards) {
     return 'Cartes missions persos et cartes de la table ne peuvent pas être activées en même temps.'
   }
-  if (v?.sharedBoard && (v?.coloredBorders || v?.multiBorders)) {
-    return 'Le Plateau commun n’a pas de bordures : décochez les Bordures colorées ou multicolores.'
+  if (v?.sharedBoard && bordures > 0) {
+    return 'Le Plateau commun n’a pas de contour : décochez la variante de bords.'
   }
   if (v?.syncDraw && (v?.extraTile || v?.lastPickRandom || v?.randomBack)) {
     return 'La Partie synchrone révèle une seule tuile, la même pour tous : Tuile supplémentaire, Dernier choix aléatoire et Verso aléatoire n’ont plus de sens avec elle.'
@@ -229,9 +232,29 @@ export function multiBorderFor(boardColor: BoardColor, size = 4): BorderSpec {
   return { kind: 'multi', squares }
 }
 
+/**
+ * Bordure à quatre couleurs : un côté, une couleur.
+ *
+ * Les six plateaux de la boîte se partagent les six couleurs à parts strictement
+ * égales — chaque couleur apparaît sur quatre côtés au total, jamais deux fois
+ * sur le même plateau. Un plateau ne porte JAMAIS sa propre couleur : c'est ce
+ * qui donne son intérêt à la variante, personne ne peut s'appuyer sur la
+ * couleur qu'il a déjà sous la main.
+ *
+ * La règle tient en une phrase : les quatre couleurs qui suivent la vôtre dans
+ * l'ordre Jaune, Orange, Rouge, Vert, Bleu, Violet.
+ */
+export function quadBorderFor(boardColor: BoardColor): BorderSpec {
+  const roue: Color[] = ['Y', 'O', 'R', 'G', 'B', 'P']
+  const i = roue.indexOf(boardColor)
+  const suivante = (k: number) => roue[(i + k) % roue.length]
+  return { kind: 'quad', sides: [suivante(1), suivante(2), suivante(3), suivante(4)] }
+}
+
 /** Bordure du plateau d'un joueur selon les variantes actives. */
 export function bordersFor(ruleset: Ruleset, boardColor: BoardColor): BorderSpec | undefined {
   if (ruleset.variants?.coloredBorders) return { kind: 'uniform', color: boardColor }
+  if (ruleset.variants?.quadBorders) return quadBorderFor(boardColor)
   if (ruleset.variants?.multiBorders) return multiBorderFor(boardColor, ruleset.boardSize)
   return undefined
 }
@@ -290,6 +313,12 @@ export function createGame(config: GameConfig): GameState {
   const cardAxes: Record<string, 'col' | 'row'> = {}
   for (const card of TOUTES_LES_CARTES) {
     if (card.randomAxis) cardAxes[card.id] = rng.int(2) === 0 ? 'col' : 'row'
+  }
+  // Seuils : ceux-là ne sont pas tirés, ils sont CHOISIS à la mise en place.
+  // À défaut, la première valeur proposée par la carte.
+  const cardSeuils: Record<string, number> = {}
+  for (const card of TOUTES_LES_CARTES) {
+    if (card.seuils) cardSeuils[card.id] = cardSeuil(card, config.options.cardSeuils?.[card.id])
   }
 
   /** Cartes en jeu pour un joueur : celles de la table, ou la sienne. */
@@ -398,6 +427,7 @@ export function createGame(config: GameConfig): GameState {
     cardIds,
     cardColors,
     cardAxes,
+    cardSeuils,
     swapCard: ruleset.variants?.boardSwap
       ? rng.int(2) === 0
         ? 'rotate'
@@ -638,6 +668,13 @@ export function applyMove(state: GameState, move: Move): GameState {
     mustTakeTileId: undefined,
   }
 
+  // Mort subite : la carte arrête la partie à l'instant où sa condition est
+  // remplie, sans attendre la fin du tour ni le décompte.
+  const vainqueur = mortSubite(next, playerId)
+  if (vainqueur !== null) {
+    return { ...next, phase: 'finished', suddenWinner: vainqueur, pool: [] }
+  }
+
   // Fin du tour : tous les joueurs ont choisi une tuile.
   if (next.turnIndex >= next.players.length) {
     // La courbe doit raconter la même histoire que le classement final :
@@ -667,6 +704,35 @@ export function applyMove(state: GameState, move: Move): GameState {
   return next
 }
 
+/**
+ * Mort subite : ce joueur vient-il de remplir la condition d'une carte qui
+ * met fin à la partie ? Rend son identifiant, ou `null`.
+ *
+ * On ne regarde que celui qui vient de jouer : les autres plateaux n'ont pas
+ * bougé, et une condition déjà remplie aurait déjà arrêté la partie.
+ */
+function mortSubite(state: GameState, playerId: number): number | null {
+  const cartes = playerCardIds(state, playerId).map(cardById)
+  if (!cartes.some((c) => c?.sudden)) return null
+  const player = state.players[playerId]
+  const ruleset = rulesetForPlayer(state, playerId)
+  const breakdown = scoreBoard(player.board, ruleset, player)
+  for (const carte of cartes) {
+    if (!carte?.sudden || !carte.atteint) continue
+    const atteint = carte.atteint({
+      playerId,
+      board: player.board,
+      boardColor: player.boardColor,
+      breakdown,
+      ruleset,
+      table: cardTable(state.players, ruleset),
+      seuil: state.cardSeuils?.[carte.id],
+    })
+    if (atteint) return playerId
+  }
+  return null
+}
+
 /** Score complet de chaque joueur à cet instant, cartes missions comprises. */
 function roundTotals(state: GameState, baseRuleset: Ruleset): number[] {
   if (!state.options.useCards && !state.options.personalCards) {
@@ -681,6 +747,7 @@ function roundTotals(state: GameState, baseRuleset: Ruleset): number[] {
       playerCardIds(state, p.id),
       state.cardColors,
       state.cardAxes,
+      state.cardSeuils,
     ).total
   })
 }

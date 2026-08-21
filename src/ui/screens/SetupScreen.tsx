@@ -6,6 +6,7 @@ import {
   BOARD_COLORS,
   configError,
   freeBoardColor,
+  objectifsSolo,
   randomSeed,
 } from "../../engine/index.ts";
 import type {
@@ -221,6 +222,8 @@ export function SetupScreen({
             ))}
           </div>
         </div>
+
+        {players.length === 1 && <PanneauSolo options={options} setOptions={setOptions} />}
 
         <div className="panel stack">
           <h3>Options de partie</h3>
@@ -443,6 +446,75 @@ function RulesSection() {
             partie.
           </p>
         </section>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Mode solo : pas d'adversaire, un barème.
+ *
+ * Les trois objectifs se recalculent à chaque case cochée — c'est tout
+ * l'intérêt : une partie avec Arc-en-Ciel et Cristaux ne se juge pas au même
+ * niveau qu'une partie nue. Les seuils viennent de parties réellement jouées
+ * par le bot Expert, pas d'une intuition (voir `src/engine/solo.ts`).
+ */
+function PanneauSolo({
+  options,
+  setOptions,
+}: {
+  options: GameOptions;
+  setOptions: React.Dispatch<React.SetStateAction<GameOptions>>;
+}) {
+  const objectifs = objectifsSolo(options);
+  const cartes = options.useCards ? Math.max(1, options.cardCount ?? 1) : 0;
+  const choisir = (n: number) =>
+    setOptions((o) => ({
+      ...o,
+      useCards: n > 0,
+      cardCount: n > 0 ? n : o.cardCount,
+      personalCards: false,
+    }));
+  return (
+    <div className="panel stack">
+      <h3>Mode solo</h3>
+      <p className="note" style={{ margin: 0 }}>
+        Personne en face : ce que vous affrontez, c'est un barème. Il tient compte de tout ce
+        qui est coché — chaque variante et chaque carte déplacent les trois seuils.
+      </p>
+      <div className="row wrap">
+        <span className="note" style={{ margin: 0 }}>
+          Cartes missions
+        </span>
+        <div className="seg">
+          {[0, 1, 2].map((n) => (
+            <button
+              key={n}
+              type="button"
+              className={cartes === n ? "on" : ""}
+              onClick={() => choisir(n)}
+            >
+              {n === 0 ? "Aucune" : n === 1 ? "1 carte" : "2 cartes"}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="solo-objectifs">
+        <div className="solo-medaille bronze">
+          <span className="pastille">🥉</span>
+          <strong>{objectifs.bronze}</strong>
+          <em>Bronze</em>
+        </div>
+        <div className="solo-medaille argent">
+          <span className="pastille">🥈</span>
+          <strong>{objectifs.argent}</strong>
+          <em>Argent</em>
+        </div>
+        <div className="solo-medaille or">
+          <span className="pastille">🥇</span>
+          <strong>{objectifs.or}</strong>
+          <em>Or</em>
+        </div>
       </div>
     </div>
   );
