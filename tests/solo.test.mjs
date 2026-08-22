@@ -186,22 +186,87 @@ test('le barème solo suit les variantes cochées', () => {
   const interdite = E.objectifsSolo(opts({ forbiddenColor: true }))
   assert.ok(interdite.or < nu.or - 5, `Couleur interdite doit l’abaisser (${nu.or} → ${interdite.or})`)
 
-  // Les cartes aussi, et deux cartes plus qu'une.
+  // Les cartes aussi, et deux cartes plus qu'une. On compare les trois paliers
+  // ensemble : arrondis au multiple de 5, un petit écart peut ne se voir que
+  // sur l'argent ou sur l'or, pas sur le bronze.
+  const total = (o) => o.bronze + o.argent + o.or
   const une = E.objectifsSolo(opts({}, { useCards: true }))
   const deux = E.objectifsSolo(opts({}, { useCards: true, cardCount: 2 }))
-  assert.ok(une.bronze > nu.bronze)
-  assert.ok(deux.bronze > une.bronze)
+  assert.ok(total(une) > total(nu), `une carte relève le barème (${total(nu)} → ${total(une)})`)
+  assert.ok(total(deux) > total(une), `deux cartes davantage (${total(une)} → ${total(deux)})`)
 
   // Le bronze suit le décalage mesuré et ne le dépasse jamais : c'est la
   // somme brute des écarts, tassée. L'or, lui, monte plus vite — il inclut
   // l'étirement, puisqu'une partie chargée est aussi plus irrégulière.
   const empile = E.objectifsSolo(opts({ whiteTiles: true, crystals: true, dyes: true }))
-  assert.ok(empile.bronze <= nu.bronze + 14.6 + 10.7 + 6.5 + 1)
+  assert.ok(empile.bronze <= nu.bronze + 14.6 + 10.7 + 6.5 + 5)
   assert.ok(empile.bronze > arc.bronze, 'chaque variante de plus relève la barre')
   assert.ok(
     empile.or - empile.bronze > nu.or - nu.bronze,
     'et l’écart entre médailles s’étire avec le barème',
   )
+})
+
+test('les objectifs sont toujours des multiples de 5, et distincts', () => {
+  // Un but doit se retenir de tête : 35 ou 40, jamais 37 ni 46.
+  const combinaisons = [
+    {},
+    { whiteTiles: true },
+    { forbiddenColor: true },
+    { windmills: true, forbiddenColor: true, monoTiles: true },
+    { crystals: true, dyes: true, magicStars: true },
+    { multiBorders: true, whiteTiles: true, crystals: true, personalTile: true },
+  ]
+  for (const variants of combinaisons) {
+    for (const extra of [{}, { useCards: true }, { useCards: true, cardCount: 2 }]) {
+      const o = E.objectifsSolo({
+        ...E.defaultOptions('m'),
+        ...extra,
+        ruleset: withVariants(variants),
+      })
+      for (const [nom, v] of Object.entries(o)) {
+        assert.equal(v % 5, 0, `${nom} = ${v} devrait être un multiple de 5`)
+        assert.ok(v >= 5, `${nom} = ${v} doit rester positif`)
+      }
+      assert.ok(o.bronze < o.argent, `${o.bronze} < ${o.argent}`)
+      assert.ok(o.argent < o.or, `${o.argent} < ${o.or}`)
+    }
+  }
+})
+
+test('un carré noir ne compte pas, même teinté', () => {
+  // Avec les Teintures, une zone noire adjacente au pot prend sa couleur : un
+  // carré de tuiles NOIRES rapportait alors les points de la carte « Les
+  // carrés » alors qu'il reste noir à l'œil.
+  const ruleset = withVariants({ dyes: true })
+  let comptes = 0
+  for (let g = 0; g < 25; g++) {
+    let s = E.createGame({
+      players: [{ name: 'A', kind: 'bot-expert', boardColor: 'O' }],
+      options: { ...E.defaultOptions(`d-${g}`), useCards: true, cardId: 'squares', ruleset },
+    })
+    const rng = new E.Rng(`d-${g}`)
+    let garde = 0
+    while (s.phase === 'playing' && garde++ < 100) {
+      const m = E.bestMove(s, 'bot-expert', rng)
+      if (!m) break
+      s = E.applyMove(s, m)
+    }
+    const p = s.players[0]
+    const b = E.scoreBoard(p.board, ruleset, p)
+    const qs = p.board.size * 2
+    const brut = E.quadGrid(p.board, undefined)
+    for (const z of b.zones) {
+      if (z.color === 'K' || z.cells.length !== 4 || z.span < 2) continue
+      const rows = z.cells.map((c) => Math.floor(c / qs))
+      const cols = z.cells.map((c) => c % qs)
+      if (Math.max(...rows) - Math.min(...rows) !== 1) continue
+      if (Math.max(...cols) - Math.min(...cols) !== 1) continue
+      // Un carré retenu par la carte ne doit contenir aucun quart noir.
+      if (z.cells.some((c) => brut.cells[c] === 'K')) comptes++
+    }
+  }
+  assert.equal(comptes, 0, `${comptes} carrés à quarts noirs comptés`)
 })
 
 test('les médailles se décernent dans le bon ordre', () => {

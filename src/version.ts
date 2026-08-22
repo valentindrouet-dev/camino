@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.73',
+    date: '2026-08-21',
+    changes: [
+      'La carte « Les carrés » ne compte plus un carré de tuiles noires. Avec les Teintures, une zone noire adjacente à un pot prend sa couleur : un carré resté noir à l’œil rapportait les points — ça arrivait dans une partie sur huit avec la variante. Un quart noir sur la tuile ne compose plus rien, et une couleur interdite non plus, puisqu’elle s’affiche et coûte comme le noir.',
+      'Les objectifs du mode solo sont désormais des multiples de 5 : 35, 40, 65, jamais 37 ni 46. Deux paliers que l’arrondi collerait l’un sur l’autre restent écartés de cinq points.',
+    ],
+  },
+  {
     version: '1.72',
     date: '2026-08-21',
     changes: [

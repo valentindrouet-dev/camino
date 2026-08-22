@@ -165,11 +165,28 @@ function edgeQuads(boardSize: number): Set<number> {
 
 // ---------------------------------------------------------------------------
 
-/** Zones de couleur dont la forme est exactement un carré de 2 x 2 quarts. */
+/**
+ * Zones de couleur dont la forme est exactement un carré de 2 x 2 quarts.
+ *
+ * « Faire un carré », c'est le COMPOSER avec des quarts de couleur. Deux
+ * exclusions, donc, et la première n'allait pas de soi :
+ *
+ *  - un quart NOIR sur la tuile ne compose rien, même si une teinture lui a
+ *    donné une couleur en cours de partie. Sans cette garde, un carré de
+ *    tuiles noires teinté rapportait les points alors qu'il reste noir à
+ *    l'œil — ça arrivait dans une partie sur huit avec la variante ;
+ *  - une couleur interdite non plus : elle s'affiche comme le noir, elle
+ *    coûte comme le noir, elle ne doit pas rapporter comme une couleur.
+ */
 function squareZones(ctx: CardContext): Zone[] {
   const qs = ctx.board.size * 2
+  // Sans effets de variantes : les couleurs telles qu'elles sont IMPRIMÉES.
+  const brut = quadGrid(ctx.board, undefined)
+  const interdites = ctx.breakdown.forbidden ?? []
   return ctx.breakdown.zones.filter((z) => {
-    if (z.color === BLACK || z.cells.length !== 4) return false
+    if (z.color === BLACK || interdites.includes(z.color)) return false
+    if (z.cells.length !== 4) return false
+    if (z.cells.some((c) => brut.cells[c] === BLACK)) return false
     const rows = z.cells.map((c) => Math.floor(c / qs))
     const cols = z.cells.map((c) => c % qs)
     const carre =

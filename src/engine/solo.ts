@@ -64,6 +64,9 @@ const VARIANTES: Partial<Record<keyof Variants, number>> = {
 /** Pose Libre ne vit pas dans les variantes mais dans le barème. */
 const POSE_LIBRE = 0.4
 
+/** Les objectifs sont arrondis à ce pas : un but doit se retenir de tête. */
+const PAS = 5
+
 /**
  * Écart apporté par chaque carte mission, mesuré carte par carte. Une carte
  * inconnue de cette table — une carte mise de côté, rejouée depuis une
@@ -160,9 +163,13 @@ export function objectifsSolo(options: GameOptions): ObjectifsSolo {
    * médailles dans la même proportion que le barème lui-même.
    */
   const etirement = Math.sqrt(Math.max(0.35, bronze / SOCLE.bronze))
+  // Un objectif se retient : ce sont des multiples de 5, jamais 37 ni 46.
   const seuil = (base: number) =>
-    Math.max(3, Math.round((bronze + (base - SOCLE.bronze) * etirement) * facteur))
-  return { bronze: seuil(SOCLE.bronze), argent: seuil(SOCLE.argent), or: seuil(SOCLE.or) }
+    Math.max(PAS, Math.round(((bronze + (base - SOCLE.bronze) * etirement) * facteur) / PAS) * PAS)
+  const b = seuil(SOCLE.bronze)
+  // L'arrondi peut coller deux paliers l'un sur l'autre : on les écarte.
+  const a = Math.max(seuil(SOCLE.argent), b + PAS)
+  return { bronze: b, argent: a, or: Math.max(seuil(SOCLE.or), a + PAS) }
 }
 
 export type Medaille = 'or' | 'argent' | 'bronze' | null
