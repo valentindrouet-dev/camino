@@ -15,6 +15,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.80',
+    date: '2026-08-24',
+    changes: [
+      'L’étiquette « lecture seule » n’apparaît plus quand on va voir le plateau d’un autre joueur : on sait ce qu’on vient de toucher, et la carte du joueur reste allumée pour le dire. Seul demeure « Joueur 2 joue… », le cas où l’écran change de plateau sans qu’on l’ait demandé.',
+    ],
+  },
+  {
     version: '1.79',
     date: '2026-08-24',
     changes: [

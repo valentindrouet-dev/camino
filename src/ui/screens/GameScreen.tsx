@@ -695,13 +695,15 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
           </>
         ) : (
           <>
-            {viewId !== activeId && (
+            {/*
+              Reste le seul cas où le plateau affiché n'est pas le vôtre SANS
+              que vous l'ayez demandé : le bot réfléchit, et l'écran suit le
+              joueur actif. Aller voir le plateau d'un autre de son plein gré
+              ne s'annonce pas — on sait ce qu'on a touché.
+            */}
+            {viewId !== activeId && isBot(active) && pinned === null && (
               <div className="board-caption" style={{ justifyContent: 'center' }}>
-                {isBot(active) && pinned === null ? (
-                  <span className="tag">{active.name} joue…</span>
-                ) : (
-                  <span className="tag">lecture seule</span>
-                )}
+                <span className="tag">{active.name} joue…</span>
               </div>
             )}
 
