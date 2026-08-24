@@ -217,3 +217,66 @@
     place-items: center;
   }
 }
+
+/* ------------------------------------------------------------ les variantes */
+
+/*
+ * Hors téléphone, le panneau des variantes est toujours ouvert : le bouton
+ * qui le replie n'existe pas, et le corps se comporte comme s'il n'avait pas
+ * d'emballage.
+ */
+.variantes-bascule .chevron {
+  display: none;
+}
+
+.variantes-bascule {
+  background: none;
+  border: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: default;
+}
+
+.variantes-corps {
+  display: contents;
+}
+
+@media (max-width: 700px) {
+  /*
+   * Repliée, la liste des variantes fait à elle seule la moitié de la page
+   * d'accueil. On la referme, et on ne mémorise rien : chaque arrivée sur
+   * l'accueil part d'une page courte.
+   */
+  .variantes-corps {
+    display: none;
+  }
+
+  .variantes-corps.deplie {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .variantes-bascule {
+    cursor: pointer;
+    flex: 1;
+    padding: 4px 0;
+  }
+
+  .variantes-bascule .chevron {
+    display: inline-block;
+    color: var(--ink-faint);
+    font-size: 13px;
+    transition: transform 140ms ease;
+  }
+
+  .variantes-bascule[aria-expanded='true'] .chevron {
+    transform: rotate(90deg);
+  }
+
+  .variantes-entete {
+    align-items: center;
+  }
+}

@@ -85,6 +85,18 @@ export function SetupScreen({
   const config: GameConfig = { players, options };
   const error = configError(config);
 
+  /** Une option d'affichage est-elle proposée à la table ? (voir Réglages) */
+  const visible = (cle: string) => varianteVisible(reglages, cle);
+  const OPTIONS = [
+    "optScore",
+    "optZones",
+    "optPremier",
+    "optDerniere",
+    "optIndices",
+    "optGraine",
+  ];
+  const optionsVisibles = OPTIONS.filter(visible);
+
   const setCount = (n: number) => {
     setPlayers((prev) => {
       const next = prev.slice(0, n);
@@ -230,34 +242,52 @@ export function SetupScreen({
 
         {players.length === 1 && <PanneauSolo options={options} setOptions={setOptions} />}
 
+        {/*
+          Les options d'affichage passent par les Réglages, comme les
+          variantes : l'organisateur décide de ce que la table voit. Trois
+          d'entre elles — dernière tuile, indices, graine — sont masquées
+          d'origine ; elles servent à régler le jeu, pas à y jouer.
+        */}
+        {optionsVisibles.length > 0 && (
         <div className="panel stack">
           <h3>Options de partie</h3>
           <div className="row wrap">
+            {visible('optScore') && (
             <Toggle
               label="Score"
               on={options.liveScore}
               onChange={(v) => setOptions((o) => ({ ...o, liveScore: v }))}
             />
+            )}
+            {visible('optZones') && (
             <Toggle
               label="Points par Zone"
               on={options.showZones}
               onChange={(v) => setOptions((o) => ({ ...o, showZones: v }))}
             />
+            )}
+            {visible('optPremier') && (
             <Toggle
               label="1er Joueur Aléatoire"
               on={!!options.randomFirst}
               onChange={(v) => setOptions((o) => ({ ...o, randomFirst: v }))}
             />
+            )}
+            {visible('optDerniere') && (
             <Toggle
               label="Dernière Tuile"
               on={!!options.showLastPlaced}
               onChange={(v) => setOptions((o) => ({ ...o, showLastPlaced: v }))}
             />
+            )}
+            {visible('optIndices') && (
             <Toggle
               label="Indices"
               on={options.showHints}
               onChange={(v) => setOptions((o) => ({ ...o, showHints: v }))}
             />
+            )}
+            {visible('optGraine') && (
             <Toggle
               label="Graine"
               on={!!options.manualSeed}
@@ -269,9 +299,10 @@ export function SetupScreen({
                 }))
               }
             />
+            )}
           </div>
 
-          {options.manualSeed && (
+          {visible('optGraine') && options.manualSeed && (
             <div className="field">
               <span>Graine de la partie (même graine = même pioche)</span>
               <div className="row">
@@ -301,6 +332,7 @@ export function SetupScreen({
           )}
 
         </div>
+        )}
 
           {error && <div className="warn">{error}</div>}
 

@@ -1,5 +1,5 @@
 import type React from "react";
-import { createContext, Fragment, useContext } from "react";
+import { createContext, Fragment, useContext, useState } from "react";
 import { CARDS, clearVariants, DEFAULT_RULESET } from "../../engine/index.ts";
 import type {
   GameOptions,
@@ -41,6 +41,13 @@ export function VariantsPanel({
   showScale,
   setShowScale,
 }: Props) {
+  /**
+   * Replié ou déplié — n'a d'effet que sur téléphone, où la CSS masque le
+   * corps du panneau. Rien n'est mémorisé : chaque arrivée sur l'accueil
+   * repart replié, c'est le but.
+   */
+  const [deplie, setDeplie] = useState(false);
+
   const patchRuleset = (patch: Partial<Ruleset>) =>
     setOptions((o) => ({ ...o, ruleset: { ...o.ruleset, ...patch } }));
 
@@ -439,9 +446,24 @@ export function VariantsPanel({
 
   return (
     <Visibilite.Provider value={visible ?? (() => true)}>
-    <div className="panel stack">
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h3>Variantes</h3>
+    <div className="panel stack variantes-panneau">
+      <div className="row variantes-entete" style={{ justifyContent: 'space-between' }}>
+        {/*
+          Sur téléphone, la liste des variantes fait à elle seule la moitié de
+          la page : on la replie. Le titre devient le bouton qui la déplie, et
+          l'état n'est PAS mémorisé — on revient toujours sur une page
+          d'accueil courte, au rechargement comme à l'arrivée.
+        */}
+        <button
+          className="variantes-bascule"
+          aria-expanded={deplie}
+          onClick={() => setDeplie((v) => !v)}
+        >
+          <span className="chevron" aria-hidden>
+            ▸
+          </span>
+          <h3>Variantes</h3>
+        </button>
         <button
           className="btn icon ghost variant-reset"
           title="Tout décocher"
@@ -451,7 +473,16 @@ export function VariantsPanel({
           ↺
         </button>
       </div>
-      {groupes.map((g) => (
+      <div className={`variantes-corps ${deplie ? 'deplie' : ''}`}>
+      {/*
+        Le catalogue contient aussi la famille des OPTIONS DE PARTIE, qui vit
+        dans l'écran d'accueil et n'a pas d'interrupteur ici. On ne montre que
+        les familles dont ce panneau sait dessiner au moins une case, sinon
+        leur titre apparaîtrait au-dessus d'une rangée vide.
+      */}
+      {groupes
+        .filter((g) => g.variantes.some((v) => INTERRUPTEURS[v.cle]))
+        .map((g) => (
         <Groupe key={g.titre} titre={g.titre} cles={g.variantes.map((v) => v.cle)}>
           {g.variantes.map((v) => (
             <Fragment key={v.cle}>{INTERRUPTEURS[v.cle]}</Fragment>
@@ -613,6 +644,7 @@ export function VariantsPanel({
           </button>
         </div>
       )}
+      </div>
     </div>
     </Visibilite.Provider>
   );

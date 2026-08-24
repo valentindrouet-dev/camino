@@ -24,6 +24,21 @@ export interface GroupeCatalogue {
 
 export const CATALOGUE: GroupeCatalogue[] = [
   {
+    // Ce ne sont pas des variantes mais des conforts d'affichage. Ils vivent
+    // ici pour la même raison : c'est l'organisateur qui décide de ce que la
+    // table voit, et trois d'entre eux n'ont rien à faire sous les yeux d'un
+    // joueur qui découvre le jeu.
+    titre: 'OPTIONS DE PARTIE',
+    variantes: [
+      { cle: 'optScore', label: 'Score' },
+      { cle: 'optZones', label: 'Points par Zone' },
+      { cle: 'optPremier', label: '1er Joueur Aléatoire' },
+      { cle: 'optDerniere', label: 'Dernière Tuile' },
+      { cle: 'optIndices', label: 'Indices' },
+      { cle: 'optGraine', label: 'Graine' },
+    ],
+  },
+  {
     titre: 'CARTES MISSIONS',
     variantes: [
       { cle: 'cards', label: 'Cartes missions' },
@@ -131,11 +146,13 @@ export const REGLAGES_VIDES: Reglages = { groupesMasques: [], variantesMasquees:
  * navigateur de chacun, c'est le SEUL moyen d'agir sur la table entière : les
  * cases cochées ici, dans le code, partent avec la version publiée.
  *
- * Aujourd'hui : tout le jeu, sauf la famille des variantes écartées.
+ * Aujourd'hui : tout le jeu, sauf la famille des variantes écartées et trois
+ * options d'affichage qui ne servent qu'au réglage — la dernière tuile, les
+ * indices et la graine. Elles restent à un clic d'ici pour qui en a besoin.
  */
 export const REGLAGES_DEFAUT: Reglages = {
   groupesMasques: ['NON CONSERVÉES'],
-  variantesMasquees: [],
+  variantesMasquees: ['optDerniere', 'optIndices', 'optGraine'],
 }
 
 /*
@@ -144,8 +161,8 @@ export const REGLAGES_DEFAUT: Reglages = {
  * chacun repart de REGLAGES_DEFAUT. On le change donc quand — et seulement
  * quand — le réglage d'origine doit primer sur les choix déjà faits.
  */
-const CLE_STOCKAGE = 'camino.reglages.v2'
-const CLES_ANCIENNES = ['camino.reglages.v1']
+const CLE_STOCKAGE = 'camino.reglages.v3'
+const CLES_ANCIENNES = ['camino.reglages.v1', 'camino.reglages.v2']
 
 export function chargerReglages(): Reglages {
   try {

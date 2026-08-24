@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.76',
+    date: '2026-08-24',
+    changes: [
+      '« Dernière Tuile », « Indices » et « Graine » n’apparaissent plus sur la page d’accueil : ce sont des outils de réglage, pas des options de jeu. Les six options de partie rejoignent les Réglages, qui décident déjà de ce que la table voit, et ces trois-là y sont décochées d’origine — un clic suffit à les faire revenir.',
+      'Ce nouveau réglage d’origine s’impose à TOUS les navigateurs : ce qui avait été mémorisé auparavant est effacé, chacun repart de la configuration du site.',
+      'Sur téléphone, le panneau des variantes se replie : il faisait à lui seul la moitié de la page. Un appui sur son titre le déplie, et il repart replié à chaque arrivée sur l’accueil — rien n’est mémorisé, c’est voulu. La page d’accueil passe de 2 064 à 1 102 pixels de haut depuis la version 1.74.',
+    ],
+  },
+  {
     version: '1.75',
     date: '2026-08-24',
     changes: [
