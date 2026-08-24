@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.79',
+    date: '2026-08-24',
+    changes: [
+      'En partie, la ligne « ● Plateau de Joueur 1 » au-dessus du plateau disparaît : la carte du joueur la nomme déjà, et le cadre du plateau porte sa couleur. Seul reste l’avertissement « lecture seule » — ou « Joueur 2 joue… » — quand on regarde le plateau de quelqu’un d’autre.',
+      'La manche en cours quitte cette ligne pour la barre du haut, juste avant le chrono : deux façons de dire où en est la partie, désormais au même endroit. Sur téléphone en partie, le mot « CAMINO » s’efface pour lui faire de la place ; le carré de couleurs reste, et ramène toujours à l’accueil.',
+    ],
+  },
+  {
     version: '1.78',
     date: '2026-08-24',
     changes: [

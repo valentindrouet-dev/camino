@@ -38,6 +38,22 @@
   }
 }
 
+/*
+ * EN PARTIE, la barre du haut porte la manche en plus du chrono, et à partir
+ * en dessous du bureau elle n'a plus la place du mot « CAMINO » : sans ça
+ * « Accueil » tombait sur une deuxième ligne et la barre doublait de hauteur
+ * (52 px → 97 sur un iPad en paysage). Mesurée, la barre complète d'une
+ * partie à deux demande 1230 px avec le mot et 1120 px sans — d'où ce palier,
+ * le même que celui qui replie déjà la table. Le carré de couleurs reste, et
+ * reste le chemin du retour vers l'accueil.
+ */
+@media (max-width: 1240px) {
+  .topbar.en-partie .wordmark-texte {
+    display: none;
+  }
+}
+
+
 @media (max-width: 1240px) {
   .table.multi {
     grid-template-columns: minmax(0, 1fr) 300px;
@@ -364,5 +380,9 @@
 @media (max-width: 700px) {
   .turn-banner {
     display: none;
+  }
+
+  .topbar.en-partie {
+    gap: 10px;
   }
 }

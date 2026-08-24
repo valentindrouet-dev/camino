@@ -327,7 +327,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="topbar">
+      <header className={`topbar ${screen === 'game' ? 'en-partie' : ''}`}>
         <button className="wordmark" onClick={goHome} title="Revenir à l’accueil">
           <span className="mark">
             <i style={{ background: '#F7931D' }} />
@@ -335,7 +335,7 @@ export default function App() {
             <i style={{ background: '#40AE49' }} />
             <i style={{ background: '#D1232A' }} />
           </span>
-          Camino
+          <span className="wordmark-texte">Camino</span>
         </button>
         <button
           className="version-tag"
@@ -345,16 +345,21 @@ export default function App() {
           v{VERSION}
         </button>
 
+        {/*
+          La manche vivait au-dessus du plateau, sur une ligne qui ne servait
+          qu'à ça. Elle est de la même nature que le chrono — où en est-on —
+          et elle a rejoint sa place, juste avant lui.
+        */}
+        {state && (screen === 'game' || screen === 'results') && (
+          <span className="tag">
+            Manche <strong>{Math.min(state.round + 1, state.totalRounds)}</strong>/
+            {state.totalRounds}
+          </span>
+        )}
         {state && screen === 'results' && (
-          <>
-            <span className="tag">
-              Manche <strong>{Math.min(state.round + 1, state.totalRounds)}</strong>/
-              {state.totalRounds}
-            </span>
-            <span className="tag">
-              Graine <strong>{state.options.seed}</strong>
-            </span>
-          </>
+          <span className="tag">
+            Graine <strong>{state.options.seed}</strong>
+          </span>
         )}
 
         {state && (screen === 'game' || screen === 'results') && (

@@ -644,12 +644,6 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
         {multi ? (
           /* écran partagé : tous les plateaux d'un coup, la taille suit le nombre */
           <>
-          <div className="board-caption" style={{ justifyContent: 'center' }}>
-            <span className="tag">
-              Manche <strong>{Math.min(state.round + 1, state.totalRounds)}</strong> /{' '}
-              {state.totalRounds}
-            </span>
-          </div>
           <div
             className="boards-grid"
             data-cols={cols}
@@ -701,22 +695,15 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
           </>
         ) : (
           <>
-            <div className="board-caption">
-              <span className="who">
-                <span className="dot" style={{ background: viewed.color }} />
-                {variants?.sharedBoard ? 'Plateau commun' : `Plateau de ${viewed.name}`}
-                {viewId !== activeId &&
-                  (isBot(active) && pinned === null ? (
-                    <span className="tag">{active.name} joue…</span>
-                  ) : (
-                    <span className="tag">lecture seule</span>
-                  ))}
-              </span>
-              <span className="tag">
-                Manche <strong>{Math.min(state.round + 1, state.totalRounds)}</strong> /{' '}
-                {state.totalRounds}
-              </span>
-            </div>
+            {viewId !== activeId && (
+              <div className="board-caption" style={{ justifyContent: 'center' }}>
+                {isBot(active) && pinned === null ? (
+                  <span className="tag">{active.name} joue…</span>
+                ) : (
+                  <span className="tag">lecture seule</span>
+                )}
+              </div>
+            )}
 
             <div className="board-wrap">
               <BoardView
