@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.81',
+    date: '2026-08-24',
+    changes: [
+      'Choisir une tuile ne déplace plus rien. Elle était redessinée douze pixels plus grande, le centre grandissait d’autant, et tout ce qui suit — les boutons de rotation, le plateau, les panneaux — descendait d’un cran sous le doigt. La tuile choisie garde désormais sa place et se signale par son halo et un grossissement rendu à l’écran seul, qui ne pousse personne.',
+      'Le centre y gagne aussi de la hauteur en permanence : à quatre joueurs sur téléphone, vingt-et-un pixels rendus au plateau.',
+    ],
+  },
+  {
     version: '1.80',
     date: '2026-08-24',
     changes: [

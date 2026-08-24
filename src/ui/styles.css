@@ -706,12 +706,23 @@ code {
   background: #fff;
   box-shadow: 0 2px 8px rgba(120, 90, 40, 0.18);
   outline: 2px solid transparent;
-  transition: outline-color 120ms ease;
+  transition:
+    outline-color 120ms ease,
+    transform 140ms ease;
 }
 
+/*
+ * La tuile choisie se détache par son halo et par un léger grossissement.
+ * Celui-ci passe par `transform`, qui NE RÉSERVE PAS de place : la boîte
+ * garde sa taille, le centre garde sa hauteur, et rien ne descend d'un pixel
+ * au moment du clic. Le facteur reste modeste — 6 px de plus au total, la
+ * moitié de l'espace entre deux tuiles — pour que le halo ne déborde pas sur
+ * la voisine.
+ */
 .pool-tile.selected .frame {
   outline-color: var(--accent);
   box-shadow: 0 0 0 4px rgba(247, 147, 29, 0.22), 0 6px 16px rgba(120, 90, 40, 0.2);
+  transform: scale(1.08);
 }
 
 .pool-tile.taken {

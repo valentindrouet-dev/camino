@@ -527,7 +527,14 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
                     showDye={Boolean(variants?.dyes)}
                     showWindmill={Boolean(variants?.windmills)}
                     angle={selected === t.tileId && !fromPersonal ? spin : 0}
-                    size={selected === t.tileId && !fromPersonal ? 78 : 66}
+                    /*
+                      Taille FIXE. Elle valait 78 px une fois choisie contre 66
+                      sinon : le centre gagnait douze pixels au clic et tout ce
+                      qui suit — les boutons, le plateau — descendait d'autant.
+                      Le grossissement est rendu en CSS, où il ne réserve
+                      aucune place.
+                    */
+                    size={66}
                   />
                 </span>
                 {(t.flipped || taken) && (
@@ -567,7 +574,7 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
                   showDye={Boolean(variants?.dyes)}
                   showWindmill={Boolean(variants?.windmills)}
                   angle={selected === active.personalTileId && fromPersonal ? spin : 0}
-                  size={selected === active.personalTileId && fromPersonal ? 78 : 66}
+                  size={66}
                 />
               </span>
               <small>tuile perso</small>
