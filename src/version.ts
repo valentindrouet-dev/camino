@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.75',
+    date: '2026-08-24',
+    changes: [
+      'Tout ce qui ne concerne que la tablette et le téléphone vit désormais dans un fichier à part, en deux paliers : tablette sous 1024 px — un iPad y tombe, 820 px en portrait — et téléphone sous 700 px. Retoucher le mobile ne peut plus abîmer l’affichage sur ordinateur, et la géométrie du bureau est comparée avant et après à chaque changement pour le prouver.',
+      'Sur téléphone, les cinq liens de la barre du haut se replient derrière un bouton ☰ : la barre tenait sur deux lignes, elle n’en occupe plus qu’une — 47 px au lieu de 97. Le menu se referme dès qu’on choisit une destination ou qu’on appuie ailleurs.',
+      'Sur téléphone toujours, le sélecteur du nombre de joueurs rejoint le titre « Joueurs » et le rappel « 2 joueurs » disparaît, le champ du nom est plus discret, le bouton de retrait devient un petit carré au lieu d’une barre pleine largeur, et le choix humain/bot partage sa ligne avec les couleurs. La page d’accueil perd 180 pixels de hauteur.',
+    ],
+  },
+  {
     version: '1.74',
     date: '2026-08-21',
     changes: [

@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import App from './ui/App.tsx'
 import { ErrorBoundary } from './ui/components/ErrorBoundary.tsx'
 import './ui/styles.css'
+// Chargé après : à spécificité égale, l'adaptation mobile l'emporte.
+import './ui/mobile.css'
 
 // Le filet de sécurité d'index.html peut charger ce module une seconde fois
 // (script principal lent + secours) : on ne monte l'application qu'une fois.

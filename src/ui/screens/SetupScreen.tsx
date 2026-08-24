@@ -142,22 +142,30 @@ export function SetupScreen({
       <div className="grid-2">
         <div className="stack">
         <div className="panel stack">
-          <h3>Joueurs</h3>
-          <div className="row wrap">
-            <div className="seg">
-              {[1, 2, 3, 4, 5, 6].map((n) => (
-                <button
-                  key={n}
-                  className={players.length === n ? "on" : ""}
-                  onClick={() => setCount(n)}
-                >
-                  {n}
-                </button>
-              ))}
+          {/*
+            Cet emballage vaut `display: contents` partout sauf sur téléphone :
+            au-dessus, tout se dispose exactement comme s'il n'existait pas.
+            Sur téléphone il devient une ligne, et le titre partage sa hauteur
+            avec le sélecteur au lieu de la gaspiller.
+          */}
+          <div className="joueurs-entete">
+            <h3>Joueurs</h3>
+            <div className="row wrap">
+              <div className="seg">
+                {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <button
+                    key={n}
+                    className={players.length === n ? "on" : ""}
+                    onClick={() => setCount(n)}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <span className="note joueurs-compte">
+                {players.length === 1 ? "solo" : `${players.length} joueurs`}
+              </span>
             </div>
-            <span className="note">
-              {players.length === 1 ? "solo" : `${players.length} joueurs`}
-            </span>
           </div>
 
           <div className="stack" style={{ gap: 10 }}>
@@ -206,9 +214,9 @@ export function SetupScreen({
                   ))}
                 </select>
                 <button
-                  className="btn small ghost"
+                  className="btn small ghost retirer-joueur"
                   disabled={players.length <= 1}
-                  title="Retirer"
+                  title="Retirer ce joueur"
                   onClick={() =>
                     setPlayers((prev) => prev.filter((_, k) => k !== i))
                   }

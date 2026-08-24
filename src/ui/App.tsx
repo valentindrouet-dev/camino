@@ -82,6 +82,26 @@ export default function App() {
     return base.cardId && !cardById(base.cardId) ? { ...base, cardId: undefined } : base
   })
   const [showScale, setShowScale] = useState(false)
+  /**
+   * Menu replié de la barre du haut — n'existe que sur téléphone. Il se
+   * referme dès qu'on choisit une destination, et dès qu'on change d'écran :
+   * un menu resté ouvert par-dessus la page suivante serait pénible.
+   */
+  const [menuOuvert, setMenuOuvert] = useState(false)
+  const fermerMenu = () => setMenuOuvert(false)
+  useEffect(() => setMenuOuvert(false), [screen])
+  // Un appui n'importe où ailleurs referme le menu — c'est ce qu'on attend
+  // d'un panneau posé par-dessus la page.
+  useEffect(() => {
+    if (!menuOuvert) return
+    const ailleurs = (e: PointerEvent) => {
+      const cible = e.target as HTMLElement | null
+      if (cible?.closest('.topbar-liens, .topbar-menu')) return
+      setMenuOuvert(false)
+    }
+    document.addEventListener('pointerdown', ailleurs)
+    return () => document.removeEventListener('pointerdown', ailleurs)
+  }, [menuOuvert])
 
   /*
    * On enregistre à chaque changement, pas seulement au lancement d'une
@@ -379,14 +399,31 @@ export default function App() {
             ⏵ Partie en cours
           </button>
         )}
-        {screen !== 'setup' && (
-          <button className="btn small ghost" onClick={goHome}>
-            Accueil
-          </button>
-        )}
         {screen === 'game' && (
           <button className="btn small ghost" onClick={quitterPartie}>
             Quitter la partie
+          </button>
+        )}
+
+        {/*
+          Sur téléphone, la barre du haut débordait sur deux lignes : les liens
+          se replient derrière ce bouton. Il est masqué partout ailleurs, et
+          `.topbar-liens` vaut `display: contents` au-dessus du téléphone —
+          les boutons restent donc exactement où ils étaient.
+        */}
+        <button
+          className={`btn small ghost topbar-menu ${menuOuvert ? 'ouvert' : ''}`}
+          aria-expanded={menuOuvert}
+          aria-label="Menu"
+          title="Menu"
+          onClick={() => setMenuOuvert((v) => !v)}
+        >
+          ☰
+        </button>
+        <nav className={`topbar-liens ${menuOuvert ? 'ouvert' : ''}`} onClick={fermerMenu}>
+        {screen !== 'setup' && (
+          <button className="btn small ghost" onClick={goHome}>
+            Accueil
           </button>
         )}
         {screen !== 'game' && screen !== 'history' && (
@@ -423,6 +460,7 @@ export default function App() {
             ⚙
           </button>
         )}
+        </nav>
       </header>
 
       {screen === 'setup' && (

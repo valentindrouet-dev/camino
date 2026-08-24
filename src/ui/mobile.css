@@ -1,0 +1,219 @@
+/**
+ * Tout ce qui ne concerne QUE la tablette et le téléphone.
+ *
+ * Deux règles de vie, et elles sont ce qui rend ce fichier utile :
+ *
+ *  1. rien ici ne s'applique au-dessus de 1024 px de large. Une règle placée
+ *     dans un `@media (max-width: …)` n'existe pas sur un écran plus grand —
+ *     ce n'est pas une convention, c'est le langage. Retoucher le mobile ne
+ *     peut donc pas abîmer le bureau ;
+ *  2. réciproquement, tout ce qui est mobile vit ICI. Une adaptation glissée
+ *     au milieu de `styles.css` redeviendrait invisible et on hésiterait à y
+ *     toucher.
+ *
+ * Deux paliers, et un iPad tombe dans le premier :
+ *   - TABLETTE, sous 1024 px — un iPad fait 820 px en portrait, 1180 en
+ *     paysage ; le paysage n'est donc concerné par presque rien ;
+ *   - TÉLÉPHONE, sous 700 px.
+ *
+ * Le fichier est chargé APRÈS styles.css : à spécificité égale, c'est lui qui
+ * l'emporte.
+ */
+
+@media (max-width: 1240px) {
+  .table {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+  .table .col-left {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+  }
+}
+
+@media (max-width: 860px) {
+  .table {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1240px) {
+  .table.multi {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+}
+
+@media (max-width: 860px) {
+  .table.multi {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .boards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+  .boards-grid .board-cell {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 700px) {
+  .player-row {
+    grid-template-columns: minmax(0, 1fr) 30px;
+  }
+  .player-row .color-picker,
+  .player-row select {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .history-row {
+    grid-template-columns: 64px 1fr 20px;
+  }
+  .history-row .meta {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .scan-resultat {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* =========================================================================
+ * TÉLÉPHONE — page d'accueil
+ * ========================================================================= */
+
+/*
+ * La barre du haut débordait sur deux lignes (97 px de haut au lieu de 52) :
+ * les six liens se replient derrière un bouton ☰. Au-dessus du téléphone,
+ * `.topbar-liens` vaut `display: contents` — l'emballage disparaît et les
+ * boutons restent exactement où ils étaient, ce qui est vérifié à chaque
+ * version en comparant la géométrie du bureau avant et après.
+ */
+.topbar-menu {
+  display: none;
+}
+
+.topbar-liens {
+  display: contents;
+}
+
+@media (max-width: 700px) {
+  .topbar {
+    position: sticky;
+    flex-wrap: nowrap;
+  }
+
+  .topbar-menu {
+    display: inline-flex;
+    font-size: 17px;
+    line-height: 1;
+    padding: 6px 11px;
+  }
+
+  .topbar-menu.ouvert {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  /* Replié : rien. Déplié : un panneau sous la barre, aligné à droite. */
+  .topbar-liens {
+    display: none;
+  }
+
+  .topbar-liens.ouvert {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    position: absolute;
+    top: 100%;
+    right: 8px;
+    min-width: 190px;
+    padding: 8px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 10px 28px rgba(80, 60, 20, 0.18);
+  }
+
+  .topbar-liens.ouvert .btn {
+    justify-content: flex-start;
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  /*
+   * Le rouage n'a plus de voisins pour dire ce qu'il est : dans la liste,
+   * il lui faut son nom.
+   */
+  .topbar-liens.ouvert .btn.icon::after {
+    content: " Réglages";
+  }
+}
+
+/* ------------------------------------------------------------- les joueurs */
+
+/*
+ * Hors téléphone, l'emballage n'existe pas : le titre et le sélecteur se
+ * suivent dans la colonne du panneau, comme avant.
+ */
+.joueurs-entete {
+  display: contents;
+}
+
+@media (max-width: 700px) {
+  .joueurs-entete {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  /* Le sélecteur dit déjà combien ils sont : le répéter à côté ne sert à rien. */
+  .joueurs-compte {
+    display: none;
+  }
+
+  /*
+   * Deux lignes par joueur au lieu de quatre : le nom et le bouton de retrait
+   * sur la première, les couleurs et le profil sur la seconde.
+   */
+  .player-row {
+    grid-template-columns: auto minmax(0, 1fr) 34px;
+    grid-template-areas:
+      'nom nom retirer'
+      'couleurs profil profil';
+    gap: 8px 10px;
+  }
+
+  .player-row > input {
+    grid-area: nom;
+    font-size: 14px;
+    padding: 7px 10px;
+  }
+
+  .player-row > .color-picker {
+    grid-area: couleurs;
+  }
+
+  .player-row > select {
+    grid-area: profil;
+    font-size: 14px;
+    padding: 7px 8px;
+  }
+
+  /* Un carré, pas une barre : il ne mérite pas toute la largeur. */
+  .player-row > .retirer-joueur {
+    grid-area: retirer;
+    width: 34px;
+    min-width: 0;
+    height: 34px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+  }
+}

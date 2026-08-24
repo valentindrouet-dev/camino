@@ -432,7 +432,14 @@ code {
   box-shadow: var(--shadow);
 }
 
-.panel > h3 {
+/*
+ * `.joueurs-entete` est un emballage en `display: contents` : sa boîte
+ * n'existe pas, mais il compte quand même comme un niveau dans l'arbre — un
+ * sélecteur en `>` cesserait donc de voir le titre. On le nomme ici plutôt
+ * que de relâcher le `>`, qui protège les titres des sous-panneaux.
+ */
+.panel > h3,
+.panel > .joueurs-entete > h3 {
   font-size: 11.5px;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -516,24 +523,6 @@ code {
   gap: 16px;
   padding: 16px;
   align-items: start;
-}
-
-@media (max-width: 1240px) {
-  .table {
-    grid-template-columns: minmax(0, 1fr) 300px;
-  }
-  .table .col-left {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 10px;
-  }
-}
-
-@media (max-width: 860px) {
-  .table {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 .col-left,
@@ -652,24 +641,6 @@ code {
 
 .boards-grid[data-cols='3'] figcaption .score-big {
   font-size: 15px;
-}
-
-@media (max-width: 1240px) {
-  .table.multi {
-    grid-template-columns: minmax(0, 1fr) 300px;
-  }
-}
-
-@media (max-width: 860px) {
-  .table.multi {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .boards-grid {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  }
-  .boards-grid .board-cell {
-    max-width: 100%;
-  }
 }
 
 .board-caption {
@@ -1322,16 +1293,6 @@ table.data tr:last-child td {
   min-width: 0;
 }
 
-@media (max-width: 700px) {
-  .player-row {
-    grid-template-columns: minmax(0, 1fr) 30px;
-  }
-  .player-row .color-picker,
-  .player-row select {
-    grid-column: 1 / -1;
-  }
-}
-
 /* règles du jeu dépliées sur la page d'accueil */
 
 /* colonnes qui se remplissent au fil du texte : une section courte ne laisse
@@ -1557,15 +1518,6 @@ button.mission-card.selected {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-}
-
-@media (max-width: 760px) {
-  .history-row {
-    grid-template-columns: 64px 1fr 20px;
-  }
-  .history-row .meta {
-    display: none;
-  }
 }
 
 .history-detail {
@@ -2098,12 +2050,6 @@ button.mission-card.selected {
   align-items: start;
 }
 
-@media (max-width: 860px) {
-  .scan-resultat {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 .scan-total {
   font-size: 40px;
   font-weight: 800;
@@ -2195,7 +2141,6 @@ button.mission-card.selected {
   color: var(--accent-ink);
   font-weight: 700;
 }
-
 
 /* Ce que l'écran est en train de faire : recherche du plateau, calage. */
 .scan-message {
