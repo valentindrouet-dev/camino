@@ -48,6 +48,19 @@ export function VariantsPanel({
    */
   const [deplie, setDeplie] = useState(false);
 
+  /**
+   * Ce que le bouton annonce quand la liste est repliée : combien de cases
+   * sont cochées là-dedans. Sans ce compte, replier la liste reviendrait à
+   * cacher un réglage actif — on saurait qu'il y a des variantes, pas qu'on
+   * en a laissé traîner une.
+   */
+  const cochees =
+    Object.values(options.ruleset.variants ?? {}).filter((v) => v === true).length +
+    (options.useCards ? 1 : 0) +
+    (options.personalCards ? 1 : 0) +
+    (options.ruleset.requireAdjacency ? 0 : 1) +
+    (showScale ? 1 : 0);
+
   const patchRuleset = (patch: Partial<Ruleset>) =>
     setOptions((o) => ({ ...o, ruleset: { ...o.ruleset, ...patch } }));
 
@@ -447,7 +460,10 @@ export function VariantsPanel({
   return (
     <Visibilite.Provider value={visible ?? (() => true)}>
     <div className="panel stack variantes-panneau">
-      <div className="row variantes-entete" style={{ justifyContent: 'space-between' }}>
+      <div
+        className={`row variantes-entete ${deplie ? 'deplie' : ''}`}
+        style={{ justifyContent: 'space-between' }}
+      >
         {/*
           Sur téléphone, la liste des variantes fait à elle seule la moitié de
           la page : on la replie. Le titre devient le bouton qui la déplie, et
@@ -459,10 +475,20 @@ export function VariantsPanel({
           aria-expanded={deplie}
           onClick={() => setDeplie((v) => !v)}
         >
-          <span className="chevron" aria-hidden>
-            ▸
-          </span>
           <h3>Variantes</h3>
+          <span className="variantes-resume" aria-hidden>
+            {cochees === 0 ? 'aucune' : `${cochees} cochée${cochees > 1 ? 's' : ''}`}
+          </span>
+          <svg className="chevron" viewBox="0 0 20 20" width="22" height="22" aria-hidden>
+            <path
+              d="M5 8l5 5 5-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </button>
         <button
           className="btn icon ghost variant-reset"

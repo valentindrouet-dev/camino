@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.77',
+    date: '2026-08-24',
+    changes: [
+      'Sur téléphone, le bouton qui déplie les variantes se lit enfin comme un menu déroulant : un cadre sur toute la largeur, 48 pixels de haut, et un gros chevron orange qui bascule à l’ouverture. Il annonce aussi ce qu’il cache — « aucune » ou « 3 cochées » — pour qu’une variante laissée active ne disparaisse jamais des yeux.',
+      'Le bouton « tout décocher » ne s’affiche plus quand la liste est repliée : il n’aurait rien à décocher sous les yeux.',
+    ],
+  },
+  {
     version: '1.76',
     date: '2026-08-24',
     changes: [

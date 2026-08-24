@@ -221,11 +221,11 @@
 /* ------------------------------------------------------------ les variantes */
 
 /*
- * Hors téléphone, le panneau des variantes est toujours ouvert : le bouton
- * qui le replie n'existe pas, et le corps se comporte comme s'il n'avait pas
- * d'emballage.
+ * Hors téléphone, le panneau des variantes est toujours ouvert : ni chevron,
+ * ni résumé, et le corps se comporte comme s'il n'avait pas d'emballage.
  */
-.variantes-bascule .chevron {
+.variantes-bascule .chevron,
+.variantes-resume {
   display: none;
 }
 
@@ -259,24 +259,66 @@
     gap: 12px;
   }
 
+  /*
+   * Replié, ce bouton est le SEUL indice qu'il reste quelque chose dessous :
+   * il doit se lire comme un menu déroulant et non comme un titre. D'où le
+   * cadre, la pleine largeur, le résumé de ce qui est coché, et un chevron de
+   * 22 px qui bascule à l'ouverture.
+   */
   .variantes-bascule {
     cursor: pointer;
     flex: 1;
-    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 48px;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--bg-2);
+    color: var(--ink);
+  }
+
+  .variantes-bascule:active {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+
+  /* Le résumé pousse le chevron tout à droite. */
+  .variantes-resume {
+    display: inline-block;
+    margin-left: auto;
+    font-size: 12.5px;
+    color: var(--ink-dim);
   }
 
   .variantes-bascule .chevron {
-    display: inline-block;
-    color: var(--ink-faint);
-    font-size: 13px;
-    transition: transform 140ms ease;
+    display: block;
+    flex: none;
+    color: var(--accent-ink);
+    transition: transform 160ms ease;
+  }
+
+  .variantes-bascule[aria-expanded='true'] {
+    background: var(--accent-soft);
+    border-color: var(--accent);
   }
 
   .variantes-bascule[aria-expanded='true'] .chevron {
-    transform: rotate(90deg);
+    transform: rotate(180deg);
   }
 
   .variantes-entete {
     align-items: center;
+    gap: 8px;
+  }
+
+  /*
+   * Replié, le bouton « tout décocher » n'a rien à décocher sous les yeux :
+   * il ne réapparaît qu'avec la liste, et le titre prend toute la largeur.
+   */
+  .variantes-entete:not(.deplie) .variant-reset {
+    display: none;
   }
 }
