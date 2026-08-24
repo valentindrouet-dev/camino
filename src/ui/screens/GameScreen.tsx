@@ -108,6 +108,11 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
   const variants = state.options.ruleset.variants
   const personalAvailable =
     variants?.personalTile && active.personalTileId !== undefined && !active.personalUsed
+  /*
+   * La tuile personnelle reste AFFICHÉE après usage, grisée : la retirer du
+   * centre décalait toutes les tuiles voisines, et le plateau avec elles.
+   */
+  const personalExiste = variants?.personalTile && active.personalTileId !== undefined
   const redrawPossible = canRedrawLastTile(state)
 
   const breakdowns = useMemo(() => scoreAll(state), [state])
@@ -478,7 +483,7 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
                   ? '— réfléchit…'
                   : selected === null
                     ? '— choisis une tuile au centre'
-                    : ''}
+                    : '— pose-la sur ton plateau'}
           </span>
         </div>
 
@@ -537,22 +542,16 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
                     size={66}
                   />
                 </span>
-                {(t.flipped || taken) && (
-                  <small>
-                    {t.flipped ? '↷ verso' : ''}
-                    {t.flipped && taken ? ' · ' : ''}
-                    {taken ? (owner?.name ?? '—') : ''}
-                  </small>
-                )}
+                {t.flipped && <span className="pastille">↷ verso</span>}
               </button>
             )
           })}
-          {personalAvailable && (
+          {personalExiste && (
             <button
               className={`pool-tile personal ${
                 selected === active.personalTileId && fromPersonal ? 'selected' : ''
-              }`}
-              disabled={!humanTurn}
+              } ${active.personalUsed ? 'taken' : ''}`}
+              disabled={!humanTurn || Boolean(active.personalUsed)}
               onClick={() => {
                 if (selected === active.personalTileId && fromPersonal) {
                   rotate(1)
@@ -561,7 +560,11 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
                 setSelected(active.personalTileId as number)
                 setFromPersonal(true)
               }}
-              title="Tuile personnelle : jouable une seule fois, à la place d’une tuile du centre"
+              title={
+                active.personalUsed
+                  ? 'Tuile personnelle : déjà jouée'
+                  : 'Tuile personnelle : jouable une seule fois, à la place d’une tuile du centre'
+              }
             >
               <span className="frame">
                 <TileGlyph
@@ -577,74 +580,102 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
                   size={66}
                 />
               </span>
-              <small>tuile perso</small>
+              <span className="pastille">perso</span>
             </button>
           )}
           {pool.length === 0 && <span className="note">Plus de tuiles au centre.</span>}
         </div>
 
-        {variants?.syncDraw && pool.length > 0 && (
+        {variants?.syncDraw && (
           <p className="note" style={{ textAlign: 'center', margin: '-4px 0 0' }}>
             Partie synchrone : la même tuile pour tout le monde, chacun la pose sur son plateau.
           </p>
         )}
 
-        {redrawPossible && humanTurn && (
-          <button className="btn small" onClick={redraw} title="Raccourci : S">
+        {variants?.lastPickRandom && (
+          <button
+            className="btn small"
+            onClick={redraw}
+            disabled={!redrawPossible || !humanTurn}
+            title="Raccourci : S"
+          >
             🎲 Refuser la tuile restante et piocher au hasard (S) — définitif
           </button>
         )}
 
-        {flipPossible && humanTurn && (
-          <button className="btn small" onClick={flipSelected} title="Raccourci : V">
+        {variants?.randomBack && (
+          <button
+            className="btn small"
+            onClick={flipSelected}
+            disabled={!flipPossible || !humanTurn}
+            title="Raccourci : V"
+          >
             ↷ Retourner cette tuile sur son verso (V) — la nouvelle face sort du sac, sans retour
           </button>
         )}
-        {state.mustTakeTileId !== undefined && humanTurn && (
-          <p className="note" style={{ textAlign: 'center', margin: '-4px 0 0' }}>
+        {variants?.randomBack && (
+          <p
+            className="note"
+            style={{
+              textAlign: 'center',
+              margin: '-4px 0 0',
+              visibility: state.mustTakeTileId !== undefined && humanTurn ? 'visible' : 'hidden',
+            }}
+          >
             Tuile retournée : c’est elle qu’il faut poser.
           </p>
         )}
 
-        {/* commandes de pose : tourner à gauche, à droite, annuler */}
-        {humanTurn && (
-          <div className="row wrap" style={{ justifyContent: 'center' }}>
+        {/*
+          Commandes de pose : tourner à gauche, à droite, annuler. Elles
+          restent TOUJOURS là, éteintes quand ce n'est pas votre tour — les
+          retirer pendant que le bot réfléchit faisait remonter le plateau de
+          quarante pixels, puis redescendre.
+        */}
+        <div className="row wrap" style={{ justifyContent: 'center' }}>
+          <button
+            className="btn icon"
+            onClick={() => rotate(-1)}
+            disabled={!humanTurn}
+            title="Rotation à gauche (Maj+R)"
+          >
+            ↺
+          </button>
+          <button
+            className="btn icon"
+            onClick={() => rotate(1)}
+            disabled={!humanTurn}
+            title="Rotation à droite (R)"
+          >
+            ↻
+          </button>
+          {variants?.mirrorTiles && (
             <button
-              className="btn icon"
-              onClick={() => rotate(-1)}
-              title="Rotation à gauche (Maj+R)"
+              className={`btn icon ${flipped ? 'primary' : ''}`}
+              onClick={flip}
+              disabled={!humanTurn}
+              title="Face miroir (F)"
             >
-              ↺
+              ⇋
             </button>
-            <button className="btn icon" onClick={() => rotate(1)} title="Rotation à droite (R)">
-              ↻
+          )}
+          {!online && (
+            <button
+              className="btn small"
+              onClick={undo}
+              disabled={!humanTurn || history.length <= 1}
+              title="Revenir au coup précédent (Échap)"
+            >
+              ↶ Annuler
             </button>
-            {variants?.mirrorTiles && (
-              <button
-                className={`btn icon ${flipped ? 'primary' : ''}`}
-                onClick={flip}
-                title="Face miroir (F)"
-              >
-                ⇋
-              </button>
-            )}
-            {!online && (
-              <button
-                className="btn small"
-                onClick={undo}
-                disabled={history.length <= 1}
-                title="Revenir au coup précédent (Échap)"
-              >
-                ↶ Annuler
-              </button>
-            )}
-          </div>
-        )}
+          )}
+        </div>
 
-        {hint && (
+        {options.showHints && (
           <div className="hint-box">
-            💡 Meilleur coup trouvé : tuile n°{hint.tileId + 1} en case {hint.cell + 1} (rotation{' '}
-            {hint.rot * 90}°) — score {hint.score} pts.
+            💡 Meilleur coup trouvé : tuile n°{hint ? hint.tileId + 1 : '—'} en case{' '}
+            {hint ? hint.cell + 1 : '—'} (rotation {hint ? hint.rot * 90 : '—'}°) — score{' '}
+            {hint ? hint.score : '—'} pts.
           </div>
         )}
 
@@ -702,17 +733,6 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
           </>
         ) : (
           <>
-            {/*
-              Reste le seul cas où le plateau affiché n'est pas le vôtre SANS
-              que vous l'ayez demandé : le bot réfléchit, et l'écran suit le
-              joueur actif. Aller voir le plateau d'un autre de son plein gré
-              ne s'annonce pas — on sait ce qu'on a touché.
-            */}
-            {viewId !== activeId && isBot(active) && pinned === null && (
-              <div className="board-caption" style={{ justifyContent: 'center' }}>
-                <span className="tag">{active.name} joue…</span>
-              </div>
-            )}
 
             <div className="board-wrap">
               <BoardView

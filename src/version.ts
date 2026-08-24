@@ -15,6 +15,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.82',
+    date: '2026-08-24',
+    changes: [
+      'Le plateau ne bouge plus du tout, d’un bout à l’autre de la partie. Le nom du joueur qui vient de prendre une tuile ne s’écrit plus dessous — il faisait grandir le centre de vingt pixels — et les commandes de rotation restent en place pendant que le bot réfléchit, au lieu de disparaître et de faire remonter tout l’écran.',
+      'Même traitement pour tout ce qui n’apparaissait que par moments : les boutons « Refuser la tuile » et « Retourner sur le verso » restent affichés, éteints tant qu’ils ne servent pas ; la tuile personnelle garde sa place une fois jouée, grisée ; l’encadré d’indice garde la sienne ; « verso » et « perso » deviennent des pastilles posées sur le coin de la tuile.',
+      'Mesuré sur une partie entière, à chaque coup : le plateau occupait jusqu’à sept positions différentes selon les variantes, il n’en occupe plus qu’une seule dans toutes les configurations essayées.',
+      'Au passage, le bouton « Retourner cette tuile sur son verso » ne sort plus de l’écran sur téléphone, et le bandeau du haut dit maintenant « pose-la sur ton plateau » une fois la tuile choisie.',
+    ],
+  },
+  {
     version: '1.81',
     date: '2026-08-24',
     changes: [

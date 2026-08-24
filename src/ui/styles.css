@@ -532,6 +532,17 @@ code {
   gap: 12px;
 }
 
+/*
+ * Les boutons de variante posés sous le centre portent une phrase entière —
+ * « ↷ Retourner cette tuile sur son verso (V)… ». `.btn` interdit le retour à
+ * la ligne : sur téléphone, le bouton sortait de l'écran des deux côtés.
+ */
+.stage > .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
 .stage {
   display: flex;
   flex-direction: column;
@@ -684,6 +695,11 @@ code {
   width: 100%;
 }
 
+.pool {
+  /* Vidé en fin de partie, le centre garderait sa hauteur d'une tuile. */
+  min-height: 100px;
+}
+
 .pool-tile {
   border: 0;
   padding: 0;
@@ -741,9 +757,26 @@ code {
   box-shadow: none;
 }
 
-.pool-tile small {
-  font-size: 11px;
+/*
+ * Ce qui se dit d'une tuile — « verso », « perso » — est POSÉ dessus, en
+ * dehors du flux. Sous elle, la moindre ligne changeait la hauteur du centre
+ * et tout le plateau descendait d'un cran.
+ */
+.pool-tile .pastille {
+  position: absolute;
+  top: -7px;
+  right: -6px;
+  z-index: 2;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--line);
   color: var(--ink-faint);
+  box-shadow: var(--shadow-soft);
 }
 
 .tile-svg {
@@ -1955,9 +1988,9 @@ button.mission-card.selected {
     0 6px 16px rgba(120, 90, 40, 0.2);
 }
 
-.pool-tile.personal small {
+.pool-tile.personal .pastille {
   color: #8b5cf6;
-  font-weight: 700;
+  border-color: #d8c2f2;
 }
 
 /* --------------------------------------------------------------- barème */
