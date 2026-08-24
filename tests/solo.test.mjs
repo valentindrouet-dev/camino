@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 const E = await import('../src/engine/index.ts')
+const D0 = await import('../src/ui/depart.ts')
 
 const withVariants = (variants) => ({ ...E.DEFAULT_RULESET, variants })
 
@@ -314,4 +315,31 @@ test('le barème solo est atteignable et ne se donne pas', () => {
   assert.ok(bronze / n > 0.5, `le bronze doit rester courant (${bronze}/${n})`)
   assert.ok(bronze / n < 0.95, `mais pas automatique (${bronze}/${n})`)
   assert.ok(or / n < 0.35, `l’or doit rester rare (${or}/${n})`)
+})
+
+// ------------------------------------------------------- première ouverture
+
+test('un lien ouvert pour la première fois propose une table jouable', () => {
+  const joueurs = D0.tableDepart()
+  assert.equal(joueurs.length, 2, 'deux joueurs')
+  assert.equal(joueurs[0].kind, 'human', 'le premier est humain')
+  assert.equal(joueurs[1].kind, 'bot-smart', 'le second est le bot Confirmé')
+  assert.notEqual(joueurs[0].boardColor, joueurs[1].boardColor, 'deux plateaux différents')
+
+  const o = D0.optionsDepart()
+  assert.equal(o.liveScore, true, 'Score coché')
+  assert.equal(o.showZones, true, 'Points par Zone coché')
+  assert.equal(o.randomFirst, true, '1er Joueur Aléatoire coché')
+  assert.equal(o.showHints, false, 'pas d’indices')
+  assert.ok(!o.showLastPlaced, 'pas de dernière tuile')
+  assert.ok(!o.manualSeed, 'pas de graine à la main')
+  assert.equal(o.useCards, false, 'pas de carte mission')
+  assert.ok(!o.personalCards)
+  // Aucune variante : le barème officiel, pose libre comprise.
+  assert.deepEqual(o.ruleset.variants ?? {}, {})
+  assert.equal(o.ruleset.requireAdjacency, true)
+  assert.equal(o.ruleset.boardSize, E.DEFAULT_RULESET.boardSize)
+
+  // Et cette configuration doit pouvoir démarrer telle quelle.
+  assert.equal(E.configError({ players: joueurs, options: o }), null)
 })

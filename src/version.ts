@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.74',
+    date: '2026-08-21',
+    changes: [
+      'Un lien ouvert pour la première fois propose désormais une table prête à jouer : deux joueurs, un humain contre le bot Confirmé, Score et Points par Zone visibles, premier joueur tiré au sort, aucune variante.',
+      'Ce qu’on règle est mémorisé et rechargé tel quel, variantes comprises. Auparavant les variantes repartaient à zéro à chaque chargement de page, et rien n’était retenu tant qu’une partie n’avait pas été lancée : régler sa table puis recharger perdait tout.',
+    ],
+  },
+  {
     version: '1.73',
     date: '2026-08-21',
     changes: [

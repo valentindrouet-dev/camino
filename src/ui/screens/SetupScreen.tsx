@@ -16,7 +16,6 @@ import type {
   PlayerConfig,
   PlayerKind,
 } from "../../engine/index.ts";
-import { saveLastConfig } from "../storage.ts";
 import { varianteVisible } from "../reglages.ts";
 import type { GroupeCatalogue, Reglages } from "../reglages.ts";
 import { MaterialSection } from "../components/MaterialSection.tsx";
@@ -111,10 +110,8 @@ export function SetupScreen({
       });
     });
 
-  const start = () => {
-    saveLastConfig(config);
-    onStart(config);
-  };
+  // La configuration est mémorisée en continu par App : rien à enregistrer ici.
+  const start = () => onStart(config);
 
   return (
     <div className="sheet">

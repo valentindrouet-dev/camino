@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { cardById, clearVariants, createGame, defaultOptions, defaultPlayers, randomSeed } from '../engine/index.ts'
+import { cardById, clearVariants, createGame, randomSeed } from '../engine/index.ts'
 import type { GameConfig, GameOptions, GameState, PlayerConfig } from '../engine/index.ts'
-import { archiveGame, loadLastConfig } from './storage.ts'
+import { archiveGame, loadLastConfig, saveLastConfig } from './storage.ts'
 import { SetupScreen } from './screens/SetupScreen.tsx'
 import { GameScreen } from './screens/GameScreen.tsx'
 import { ResultsScreen } from './screens/ResultsScreen.tsx'
@@ -12,6 +12,7 @@ import { SalonScreen } from './screens/SalonScreen.tsx'
 import { ReglagesScreen } from './screens/ReglagesScreen.tsx'
 import { ScanScreen } from './screens/ScanScreen.tsx'
 import { catalogueEffectif, chargerReglages, enregistrerReglages, signature } from './reglages.ts'
+import { optionsDepart, tableDepart } from './depart.ts'
 import type { Reglages } from './reglages.ts'
 import { TransportLocal } from '../net/local.ts'
 import { TransportSupabase } from '../net/supabase.ts'
@@ -65,23 +66,31 @@ export default function App() {
    * d'accueil : passer par les Réglages, l'Historique ou les Versions ne doit
    * pas effacer ce qu'on vient de cocher.
    *
-   * Chaque CHARGEMENT DE PAGE, en revanche, repart d'une feuille blanche côté
-   * variantes — on ne remet pas en jeu, sans le dire, un réglage exotique de
-   * la veille. Les options de partie, elles, sont un confort personnel et
-   * restent en place.
+   * Elle est mémorisée dans le navigateur et rechargée telle quelle, variantes
+   * comprises : ce qu'on coche reste coché au rechargement. Faute de mémoire —
+   * un lien qu'on ouvre pour la première fois — on démarre sur ce que décrit
+   * `depart.ts`.
    */
   const [players, setPlayers] = useState<PlayerConfig[]>(() => {
     const sauves = loadLastConfig<GameConfig>()?.players
-    return sauves?.every((p) => p.boardColor) ? sauves : defaultPlayers(2)
+    return sauves?.every((p) => p.boardColor) ? sauves : tableDepart()
   })
   const [options, setOptions] = useState<GameOptions>(() => {
-    const sauvees = loadLastConfig<GameConfig>()?.options
-    const base = clearVariants(sauvees ?? defaultOptions(randomSeed()))
+    const base = loadLastConfig<GameConfig>()?.options ?? optionsDepart()
     // Une carte retirée du jeu depuis la dernière partie ne doit pas rester
     // choisie en silence : sans ça, la partie démarrerait sans mission.
     return base.cardId && !cardById(base.cardId) ? { ...base, cardId: undefined } : base
   })
   const [showScale, setShowScale] = useState(false)
+
+  /*
+   * On enregistre à chaque changement, pas seulement au lancement d'une
+   * partie : quelqu'un qui règle sa table puis recharge la page doit la
+   * retrouver telle qu'il l'a laissée.
+   */
+  useEffect(() => {
+    saveLastConfig({ players, options })
+  }, [players, options])
 
   /*
    * Masquer une variante alors qu'elle est cochée la laisserait s'appliquer en
