@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { MouseEvent } from 'react'
 import { cardById, clearVariants, createGame, randomSeed } from '../engine/index.ts'
 import type { GameConfig, GameOptions, GameState, PlayerConfig } from '../engine/index.ts'
 import { archiveGame, loadLastConfig, saveLastConfig } from './storage.ts'
@@ -89,6 +90,14 @@ export default function App() {
    */
   const [menuOuvert, setMenuOuvert] = useState(false)
   const fermerMenu = () => setMenuOuvert(false)
+  /**
+   * Choisir une destination referme le menu — mais cocher un interrupteur,
+   * non : on vient souvent en changer deux d'affilée, et refermer à chaque
+   * fois obligerait à rouvrir entre chaque.
+   */
+  const clicDansLeMenu = (e: MouseEvent) => {
+    if (!(e.target as HTMLElement).closest('.toggle')) fermerMenu()
+  }
   useEffect(() => setMenuOuvert(false), [screen])
   // Un appui n'importe où ailleurs referme le menu — c'est ce qu'on attend
   // d'un panneau posé par-dessus la page.
@@ -363,6 +372,23 @@ export default function App() {
 
         <span className="spacer" />
 
+        {/*
+          Sur téléphone, la barre du haut débordait sur deux lignes : TOUT ce
+          qui suit — les interrupteurs de la partie comme les liens — se replie
+          derrière ce bouton. Il est masqué partout ailleurs, et
+          `.topbar-liens` vaut `display: contents` au-dessus du téléphone —
+          les boutons restent donc exactement où ils étaient.
+        */}
+        <button
+          className={`btn small ghost topbar-menu ${menuOuvert ? 'ouvert' : ''}`}
+          aria-expanded={menuOuvert}
+          aria-label="Menu"
+          title="Menu"
+          onClick={() => setMenuOuvert((v) => !v)}
+        >
+          ☰
+        </button>
+        <nav className={`topbar-liens ${menuOuvert ? 'ouvert' : ''}`} onClick={clicDansLeMenu}>
         {state && screen === 'game' && (
           <>
             <label className={`toggle ${state.options.liveScore ? 'on' : ''}`}>
@@ -405,22 +431,6 @@ export default function App() {
           </button>
         )}
 
-        {/*
-          Sur téléphone, la barre du haut débordait sur deux lignes : les liens
-          se replient derrière ce bouton. Il est masqué partout ailleurs, et
-          `.topbar-liens` vaut `display: contents` au-dessus du téléphone —
-          les boutons restent donc exactement où ils étaient.
-        */}
-        <button
-          className={`btn small ghost topbar-menu ${menuOuvert ? 'ouvert' : ''}`}
-          aria-expanded={menuOuvert}
-          aria-label="Menu"
-          title="Menu"
-          onClick={() => setMenuOuvert((v) => !v)}
-        >
-          ☰
-        </button>
-        <nav className={`topbar-liens ${menuOuvert ? 'ouvert' : ''}`} onClick={fermerMenu}>
         {screen !== 'setup' && (
           <button className="btn small ghost" onClick={goHome}>
             Accueil

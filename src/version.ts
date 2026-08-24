@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.78',
+    date: '2026-08-24',
+    changes: [
+      'En partie sur téléphone, la barre du haut ne garde plus que le titre, le chrono et le bouton ☰ : « Score visible », « Points par Zone visible », « 2 Plateaux visibles » et « Quitter la partie » sont passés dans le menu, où ils tiennent chacun leur ligne. Cocher une case n’y referme pas le menu — on en change souvent deux d’affilée.',
+      'Le bandeau « Joueur 1 — choisis une tuile au centre » disparaît sur téléphone : il répétait ce que la liste des joueurs dit déjà, et prenait quarante pixels sur le plateau.',
+    ],
+  },
+  {
     version: '1.77',
     date: '2026-08-24',
     changes: [

@@ -153,6 +153,34 @@
   .topbar-liens.ouvert .btn.icon::after {
     content: " Réglages";
   }
+
+  /*
+   * En partie, les interrupteurs (Score visible, Points par Zone…) rejoignent
+   * la liste. Ils y prennent la même largeur que les liens, avec la case à
+   * cocher en tête : une ligne de menu, pas une pastille perdue au milieu.
+   */
+  .topbar-liens.ouvert .toggle {
+    display: flex;
+    justify-content: flex-start;
+    padding: 10px 12px;
+    font-size: 14px;
+    border-radius: var(--radius-sm);
+  }
+
+  .topbar-liens.ouvert .toggle input {
+    width: 17px;
+    height: 17px;
+    flex: none;
+  }
+
+  /* Un trait pour séparer les réglages de la partie des destinations. */
+  .topbar-liens.ouvert .toggle + .btn {
+    margin-top: 4px;
+    border-top: 1px solid var(--line-soft);
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    padding-top: 12px;
+  }
 }
 
 /* ------------------------------------------------------------- les joueurs */
@@ -319,6 +347,22 @@
    * il ne réapparaît qu'avec la liste, et le titre prend toute la largeur.
    */
   .variantes-entete:not(.deplie) .variant-reset {
+    display: none;
+  }
+}
+
+/* =========================================================================
+ * TÉLÉPHONE — en partie
+ * ========================================================================= */
+
+/*
+ * Le bandeau « Joueur 1 — choisis une tuile au centre » disait à l'écran ce
+ * que l'écran montre déjà : le tour en cours se lit sur la liste des joueurs,
+ * et la consigne ne change qu'au premier coup de la toute première partie.
+ * Sur téléphone, cette ligne coûtait 40 px pris sur le plateau.
+ */
+@media (max-width: 700px) {
+  .turn-banner {
     display: none;
   }
 }
