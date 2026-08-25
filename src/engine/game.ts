@@ -23,6 +23,7 @@ import {
   WHITE_TILE_IDS,
 } from './tiles.ts'
 import type {
+  Board,
   BoardColor,
   BorderSpec,
   Color,
@@ -597,6 +598,43 @@ function rotateBoards(players: Player[]): Player[] {
  * contente d'empiler les états successifs, et un serveur peut rejouer la
  * partie à partir de la graine + la liste des coups).
  */
+/**
+ * Score total d'un joueur — zones ET missions — si son plateau était celui-ci.
+ *
+ * C'est le seul chiffre qui dise ce qu'un coup rapporte VRAIMENT. Le score des
+ * zones se lit sur le plateau ; une mission, elle, se gagne ou se perd d'un
+ * coup, et pèse souvent plus lourd que la tuile qu'on vient de poser.
+ *
+ * Les missions comparatives — le plus long chemin violet de la table — se
+ * jugent sur tous les plateaux à la fois : on reconstruit donc la table, pas
+ * seulement le joueur.
+ */
+export function totalAvecMissions(state: GameState, playerId: number, board: Board): number {
+  const shared = Boolean(state.options.ruleset.variants?.sharedBoard)
+  const players = state.players.map((p) =>
+    p.id === playerId || shared ? { ...p, board } : p,
+  )
+  const joueur = players[playerId]
+  const ruleset = rulesetForPlayer(state, playerId)
+  const zones = scoreBoard(board, ruleset, joueur)
+  const cartes = playerCardIds(state, playerId)
+  if (!cartes.length) return zones.total
+  return applyCards(
+    zones,
+    {
+      playerId,
+      board,
+      boardColor: joueur.boardColor,
+      ruleset,
+      table: cardTable(players, ruleset),
+    },
+    cartes,
+    state.cardColors,
+    state.cardAxes,
+    state.cardSeuils,
+  ).total
+}
+
 export function applyMove(state: GameState, move: Move): GameState {
   if (!isLegalMove(state, move)) return state
   const playerId = currentPlayerId(state)
@@ -647,6 +685,18 @@ export function applyMove(state: GameState, move: Move): GameState {
       ? state.pool
       : state.pool.map((p) => (p.tileId === move.tileId ? { ...p, takenBy: playerId } : p))
 
+  /*
+   * Deux deltas, et ils ne disent pas la même chose. `delta` mesure les zones
+   * — c'est lui qui remplit la cagnotte du plateau commun et nourrit les
+   * statistiques, il ne doit pas bouger. `deltaTotal` mesure ce que le joueur
+   * gagne ou perd pour de bon, missions comprises : c'est celui qu'on affiche.
+   * Sans carte en jeu, les deux se confondent et on s'épargne le calcul.
+   */
+  const avecCartes = playerCardIds(state, playerId).length > 0
+  const deltaTotal = avecCartes
+    ? totalAvecMissions(state, playerId, board) - totalAvecMissions(state, playerId, player.board)
+    : after - before
+
   const log = state.log.concat({
     round: state.round,
     playerId,
@@ -657,6 +707,7 @@ export function applyMove(state: GameState, move: Move): GameState {
     choicesAvailable: availableTiles(state).length,
     scoreAfter: shared ? (players[playerId].banked ?? 0) : after,
     delta: after - before,
+    deltaTotal,
   })
 
   let next: GameState = {

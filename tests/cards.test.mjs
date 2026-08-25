@@ -604,3 +604,77 @@ test('ceinture noire : une seule zone noire d’au moins 4 tuiles (+12)', () => 
   assert.equal(c.points, 0)
   assert.match(c.detail, /minimum 4/)
 })
+
+/*
+ * Ce qu'une pose rapporte VRAIMENT : le journal et l'aperçu annoncent
+ * `deltaTotal`, missions comprises, et non le seul mouvement des zones. Une
+ * tuile qui gagne trois points de zones peut faire tomber une mission qui en
+ * valait dix : le chiffre montré doit dire la perte.
+ */
+test('le delta d’une pose tient compte des cartes missions', () => {
+  let poses = 0
+  let differents = 0
+  let signeInverse = 0
+  let ecartMax = 0
+  for (let g = 1; g <= 12; g++) {
+    let s = E.createGame({
+      players: [
+        { name: 'A', kind: 'bot-smart' },
+        { name: 'B', kind: 'bot-greedy' },
+      ],
+      options: {
+        ...E.clearVariants(E.defaultOptions('delta-' + g)),
+        useCards: true,
+        cardCount: 2,
+      },
+    })
+    let garde = 0
+    while (s.phase === 'playing' && garde++ < 200) {
+      const pid = E.currentPlayerId(s)
+      const move = E.bestMove(s, E.currentPlayer(s).kind)
+      if (!move) break
+      const avant = E.scorePlayer(s.players[pid], s).total
+      const suivant = E.applyMove(s, move)
+      if (suivant === s) break
+      const l = suivant.log[suivant.log.length - 1]
+      const apres = E.scorePlayer(suivant.players[pid], suivant).total
+      // La vérité, c'est la différence des scores complets du poseur.
+      assert.equal(
+        l.deltaTotal,
+        apres - avant,
+        `pose ${l.tileId} en case ${l.cell} : ${l.deltaTotal} annoncé pour ${apres - avant} réels`,
+      )
+      poses++
+      if (l.deltaTotal !== l.delta) {
+        differents++
+        ecartMax = Math.max(ecartMax, Math.abs(l.deltaTotal - l.delta))
+        if (Math.sign(l.deltaTotal) !== Math.sign(l.delta)) signeInverse++
+      }
+      s = suivant
+    }
+  }
+  assert.ok(poses > 300, `assez de poses examinées (${poses})`)
+  assert.ok(differents > 0, 'les missions déplacent bien le bilan de certaines poses')
+  assert.ok(ecartMax >= 5, `l’écart peut être important (${ecartMax} points)`)
+  assert.ok(signeInverse > 0, 'un gain de zones peut être une perte une fois la mission comptée')
+})
+
+/* Sans carte en jeu, les deux deltas se confondent — et le calcul est évité. */
+test('sans carte mission, le delta affiché est celui des zones', () => {
+  let s = E.createGame({
+    players: [
+      { name: 'A', kind: 'bot-smart' },
+      { name: 'B', kind: 'bot-greedy' },
+    ],
+    options: E.clearVariants(E.defaultOptions('sans-carte')),
+  })
+  let garde = 0
+  while (s.phase === 'playing' && garde++ < 200) {
+    const move = E.bestMove(s, E.currentPlayer(s).kind)
+    if (!move) break
+    s = E.applyMove(s, move)
+    const l = s.log[s.log.length - 1]
+    assert.equal(l.deltaTotal, l.delta)
+  }
+  assert.ok(s.log.length > 20)
+})

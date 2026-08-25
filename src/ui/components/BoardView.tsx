@@ -78,6 +78,15 @@ interface Props {
    * l'animation à chaque pose.
    */
   flash?: { cell: number; delta: number; key: number } | null
+  /**
+   * Ce que vaut le plateau du point de vue du joueur — missions comprises.
+   * L'aperçu de pose s'en sert pour annoncer le gain : sans elle il ne
+   * saurait compter que les zones, et une mission gagnée ou perdue par la
+   * tuile qu'on survole passerait sous silence. Absente, on retombe sur le
+   * seul score des zones : c'est ce qu'il faut pour les vignettes, qui ne
+   * représentent le plateau de personne en particulier.
+   */
+  evaluer?: (board: Board) => number
 }
 
 export function BoardView({
@@ -94,6 +103,7 @@ export function BoardView({
   compact = false,
   forbidden,
   flash = null,
+  evaluer,
 }: Props) {
   const [hover, setHover] = useState<number | null>(null)
   const [hoverZone, setHoverZone] = useState<number | null>(null)
@@ -269,12 +279,13 @@ export function BoardView({
   const preview = useMemo(() => {
     if (!ghost || hover === null || !legalSet.has(hover)) return null
     const after = placeTile(board, hover, ghost.tileId, ghost.rot, 0, ghost.flipped)
+    const valeur = evaluer ?? ((b: Board) => scoreOf(b, ruleset))
     return {
       cell: hover,
       quads: tileQuads(ghost.tileId, ghost.rot, ghost.flipped),
-      delta: scoreOf(after, ruleset) - scoreOf(board, ruleset),
+      delta: valeur(after) - valeur(board),
     }
-  }, [ghost, hover, legalSet, board, ruleset])
+  }, [ghost, hover, legalSet, board, ruleset, evaluer])
 
   const cellXY = (i: number) => ({
     x: PAD + bw + GAP + (i % n) * PITCH,

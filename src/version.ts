@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.84',
+    date: '2026-08-25',
+    changes: [
+      'Les points annoncés à la pose d’une tuile comptent désormais les cartes missions. Jusqu’ici l’aperçu et le journal ne mesuraient que les zones : une tuile qui gagnait trois points pouvait faire tomber une mission qui en valait dix, et l’écran annonçait quand même un gain. Le chiffre montré est maintenant le bilan réel — il passe au rouge quand la pose coûte plus qu’elle ne rapporte.',
+      'Cela vaut pour toutes les missions et pour plusieurs à la fois, y compris celles qui se jugent en comparant les plateaux de la table. Mesuré sur 1 280 poses : les missions déplacent le bilan d’une pose sur douze, jusqu’à douze points d’écart, et une fois sur cinquante elles inversent carrément le signe.',
+      'Le score des parties ne change pas d’un point : seul l’affichage était en cause.',
+    ],
+  },
+  {
     version: '1.83',
     date: '2026-08-24',
     changes: [

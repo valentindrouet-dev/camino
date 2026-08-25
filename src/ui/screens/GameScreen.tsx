@@ -20,9 +20,10 @@ import {
   swapRound,
   scoreAll,
   signed,
+  totalAvecMissions,
   topMoves,
 } from '../../engine/index.ts'
-import type { GameState, Rotation } from '../../engine/index.ts'
+import type { Board, GameState, Rotation } from '../../engine/index.ts'
 import type { Action } from '../../net/salon.ts'
 import { BoardView } from '../components/BoardView.tsx'
 import { TileGlyph } from '../components/TileGlyph.tsx'
@@ -384,6 +385,18 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
   const envers = Boolean(variants?.reverseScoring)
   const signe = envers ? -1 : 1
 
+  /*
+   * Ce que vaut un plateau POUR SON JOUEUR : zones et missions ensemble.
+   * L'aperçu de pose s'en sert pour annoncer le vrai gain d'une tuile — une
+   * tuile qui rapporte cinq points de zones peut faire tomber une mission qui
+   * en valait douze, et c'est ce bilan-là qu'il faut lire avant de poser.
+   */
+  const evaluerPour = useCallback(
+    // Le barème inversé est déjà appliqué par le moteur : pas de signe ici.
+    (playerId: number) => (b: Board) => totalAvecMissions(state, playerId, b),
+    [state],
+  )
+
   /** « Tching ! » : la dernière pose sur le plateau commun, pour l'animation. */
   const flash = useMemo(() => {
     if (!variants?.sharedBoard || !state.log.length) return null
@@ -725,6 +738,7 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
                     lastPlaced={lastPlacedBy.get(p.id) ?? null}
                     onPlace={play}
                     forbidden={p.forbiddenColors}
+                    evaluer={evaluerPour(p.id)}
                   />
                 </figure>
               )
@@ -748,6 +762,7 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
                 onPlace={play}
                 forbidden={viewed.forbiddenColors}
                 flash={flash}
+                evaluer={evaluerPour(viewed.id)}
               />
             </div>
 
@@ -1001,8 +1016,16 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
                 <div key={i}>
                   <b>{state.players[l.playerId].name}</b> pose la tuile {l.tileId + 1} (case{' '}
                   {l.cell + 1}){' '}
-                  <span className={`delta ${l.delta > 0 ? 'pos' : l.delta < 0 ? 'neg' : ''}`}>
-                    {l.delta > 0 ? `+${l.delta}` : l.delta}
+                  <span
+                    className={`delta ${
+                      (l.deltaTotal ?? l.delta) > 0
+                        ? 'pos'
+                        : (l.deltaTotal ?? l.delta) < 0
+                          ? 'neg'
+                          : ''
+                    }`}
+                  >
+                    {signed(l.deltaTotal ?? l.delta)}
                   </span>
                 </div>
               ))}

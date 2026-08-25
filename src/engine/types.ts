@@ -347,7 +347,16 @@ export interface RoundLogEntry {
   /** Nombre de tuiles encore disponibles au moment du choix. */
   choicesAvailable: number
   scoreAfter: number
+  /** Ce que la pose change aux ZONES seules — c'est lui qui alimente la
+   *  cagnotte du plateau commun et les statistiques. */
   delta: number
+  /**
+   * Ce que la pose change au score RÉEL du joueur, missions comprises. Une
+   * tuile qui gagne cinq points de zones peut faire perdre une mission qui en
+   * valait douze : c'est ce chiffre-là qu'on montre au joueur. Absent des
+   * parties archivées avant qu'il n'existe — on retombe alors sur `delta`.
+   */
+  deltaTotal?: number
 }
 
 export interface GameState {
