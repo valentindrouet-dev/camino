@@ -146,13 +146,28 @@ export const REGLAGES_VIDES: Reglages = { groupesMasques: [], variantesMasquees:
  * navigateur de chacun, c'est le SEUL moyen d'agir sur la table entière : les
  * cases cochées ici, dans le code, partent avec la version publiée.
  *
- * Aujourd'hui : tout le jeu, sauf la famille des variantes écartées et trois
- * options d'affichage qui ne servent qu'au réglage — la dernière tuile, les
- * indices et la graine. Elles restent à un clic d'ici pour qui en a besoin.
+ * Sont écartées d'origine : la famille des variantes non conservées, trois
+ * options d'affichage qui ne servent qu'au réglage — dernière tuile, indices,
+ * graine — et dix variantes qui alourdissent la table sans être demandées.
+ * Aucune n'est supprimée : la page Réglages les remet toutes d'un clic.
  */
 export const REGLAGES_DEFAUT: Reglages = {
   groupesMasques: ['NON CONSERVÉES'],
-  variantesMasquees: ['optDerniere', 'optIndices', 'optGraine'],
+  variantesMasquees: [
+    'optDerniere',
+    'optIndices',
+    'optGraine',
+    'cardsPerso',
+    'freePlace',
+    'lastRandom',
+    'randomBack',
+    'personal',
+    'mirror',
+    'start',
+    'shared',
+    'multiBorders',
+    'reverse',
+  ],
 }
 
 /*
@@ -161,8 +176,8 @@ export const REGLAGES_DEFAUT: Reglages = {
  * chacun repart de REGLAGES_DEFAUT. On le change donc quand — et seulement
  * quand — le réglage d'origine doit primer sur les choix déjà faits.
  */
-const CLE_STOCKAGE = 'camino.reglages.v3'
-const CLES_ANCIENNES = ['camino.reglages.v1', 'camino.reglages.v2']
+const CLE_STOCKAGE = 'camino.reglages.v4'
+const CLES_ANCIENNES = ['camino.reglages.v1', 'camino.reglages.v2', 'camino.reglages.v3']
 
 export function chargerReglages(): Reglages {
   try {

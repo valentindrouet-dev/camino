@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { cardById, clearVariants, createGame, randomSeed } from '../engine/index.ts'
 import type { GameConfig, GameOptions, GameState, PlayerConfig } from '../engine/index.ts'
+
+/** La configuration mémorisée porte, en plus, l'état des Réglages du jour. */
+type ConfigMemorisee = GameConfig & { sigReglages?: string }
 import { archiveGame, loadLastConfig, saveLastConfig } from './storage.ts'
 import { SetupScreen } from './screens/SetupScreen.tsx'
 import { GameScreen } from './screens/GameScreen.tsx'
@@ -61,6 +64,11 @@ export default function App() {
     setReglagesEtat(r)
     enregistrerReglages(r)
   }
+  /*
+   * Signature des réglages, gardée AVEC la configuration : elle dit si ce qui
+   * a été mémorisé a été coché sous les mêmes réglages qu'aujourd'hui.
+   */
+  const sigReglages = signature(reglages)
 
   /*
    * La configuration de la prochaine partie vit ici, et non dans l'écran
@@ -77,7 +85,18 @@ export default function App() {
     return sauves?.every((p) => p.boardColor) ? sauves : tableDepart()
   })
   const [options, setOptions] = useState<GameOptions>(() => {
-    const base = loadLastConfig<GameConfig>()?.options ?? optionsDepart()
+    const sauve = loadLastConfig<ConfigMemorisee>()
+    const memorisee = sauve?.options ?? optionsDepart()
+    /*
+     * Les Réglages ont changé depuis la dernière visite — une variante cochée
+     * puis masquée s'appliquerait en silence, sans que personne puisse la
+     * décocher. On repart donc des variantes vides, exactement comme le fait
+     * déjà tout changement de réglages en cours de session.
+     */
+    const base =
+      sauve && sauve.sigReglages !== signature(reglages)
+        ? clearVariants(memorisee)
+        : memorisee
     // Une carte retirée du jeu depuis la dernière partie ne doit pas rester
     // choisie en silence : sans ça, la partie démarrerait sans mission.
     return base.cardId && !cardById(base.cardId) ? { ...base, cardId: undefined } : base
@@ -118,8 +137,8 @@ export default function App() {
    * retrouver telle qu'il l'a laissée.
    */
   useEffect(() => {
-    saveLastConfig({ players, options })
-  }, [players, options])
+    saveLastConfig({ players, options, sigReglages })
+  }, [players, options, sigReglages])
 
   /*
    * Masquer une variante alors qu'elle est cochée la laisserait s'appliquer en
@@ -127,7 +146,6 @@ export default function App() {
    * les options de partie ne bougent pas.
    */
   const groupesVariantes = useMemo(() => catalogueEffectif(reglages), [reglages])
-  const sigReglages = signature(reglages)
   const sigVue = useRef(sigReglages)
   useEffect(() => {
     if (sigVue.current === sigReglages) return

@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.83',
+    date: '2026-08-24',
+    changes: [
+      'Dix variantes quittent la page d’accueil : Missions Persos, Pose Libre, Dernière Aléatoire, Verso Aléatoire, Personnelle, Miroir, Départ, Commun, Bords Multicolores et Inversé. Aucune n’est supprimée — la page Réglages les remet toutes d’un clic, comme les trois options de partie déjà rangées là.',
+      'Ce nouveau réglage d’origine s’impose à TOUS les navigateurs, y compris ceux qui avaient déjà réglé leur table. Les variantes cochées sont remises à zéro à cette occasion : une variante masquée qui resterait cochée s’appliquerait sans que plus personne puisse la voir ni la retirer. Les joueurs et les options de partie, eux, sont conservés.',
+    ],
+  },
+  {
     version: '1.82',
     date: '2026-08-24',
     changes: [
