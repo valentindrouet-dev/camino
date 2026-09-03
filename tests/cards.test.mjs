@@ -678,3 +678,118 @@ test('sans carte mission, le delta affiché est celui des zones', () => {
   }
   assert.ok(s.log.length > 20)
 })
+
+/* ------------------------------------------------------------------------- */
+/* Décompte d'un plateau SEUL, missions comprises — c'est ce que fait le      */
+/* scanner : il n'y a pas de partie, juste un plateau lu sur une photo.       */
+/* ------------------------------------------------------------------------- */
+
+/** Un plateau réellement joué jusqu'au bout, pour servir de sujet. */
+function plateauFini(graine) {
+  let s = E.createGame({
+    players: [{ name: 'A', kind: 'bot-smart' }],
+    options: E.clearVariants(E.defaultOptions(graine)),
+  })
+  let garde = 0
+  while (s.phase === 'playing' && garde++ < 200) {
+    const m = E.bestMove(s, 'bot-smart')
+    if (!m) break
+    s = E.applyMove(s, m)
+  }
+  return s.players[0].board
+}
+
+test('scoreLibre donne le même total qu’une vraie partie, carte par carte', () => {
+  let controles = 0
+  for (const graine of ['libre-1', 'libre-2', 'libre-3']) {
+    const board = plateauFini(graine)
+    for (const c of E.CARDS) {
+      if (c.sudden) continue
+      // On monte une partie avec cette carte pour reprendre EXACTEMENT ce
+      // qu'elle a tiré : couleur, axe, seuil, couleur secrète, bannie.
+      const partie = E.createGame({
+        players: [{ name: 'A', kind: 'bot-smart' }],
+        options: {
+          ...E.clearVariants(E.defaultOptions('p' + graine)),
+          useCards: true,
+          cardId: c.id,
+        },
+      })
+      const joueur = { ...partie.players[0], board }
+      const attendu = E.scorePlayer(joueur, { ...partie, players: [joueur] }).total
+      const obtenu = E.scoreLibre(
+        board,
+        [
+          {
+            cardId: c.id,
+            color:
+              partie.cardColors?.[c.id] ??
+              joueur.secretColor ??
+              joueur.forbiddenColors?.[0],
+            axis: partie.cardAxes?.[c.id],
+            seuil: partie.cardSeuils?.[c.id],
+          },
+        ],
+        joueur.boardColor,
+      ).bilan.total
+      assert.equal(obtenu, attendu, `${c.id} sur ${graine}`)
+      controles++
+    }
+  }
+  assert.ok(controles >= 50, `assez de contrôles (${controles})`)
+})
+
+test('deux missions à la fois s’ajoutent au total', () => {
+  const board = plateauFini('libre-1')
+  const nu = E.scoreLibre(board, []).bilan.total
+  const une = E.scoreLibre(board, [{ cardId: 'exact-4' }])
+  const deux = E.scoreLibre(board, [{ cardId: 'exact-4' }, { cardId: 'corners' }])
+  assert.equal(deux.missions.length, 2)
+  assert.equal(
+    deux.bilan.total,
+    nu + deux.missions.reduce((n, m) => n + m.points, 0),
+    'le total est le plateau plus les points des deux missions',
+  )
+  assert.equal(une.missions[0].points, deux.missions[0].points, 'la première ne change pas')
+})
+
+test('les missions structurelles agissent sur le décompte, pas en points ajoutés', () => {
+  const board = plateauFini('libre-1')
+  const nu = E.scoreLibre(board, []).bilan.total
+  // « Noir positif » retourne le malus des zones noires : le total monte, mais
+  // la carte elle-même ne rapporte aucun point.
+  const noir = E.scoreLibre(board, [{ cardId: 'black-positive' }])
+  assert.equal(noir.missions[0].points, 0)
+  assert.ok(noir.missions[0].structural)
+  assert.ok(noir.bilan.total > nu, `${noir.bilan.total} > ${nu}`)
+  // « Couleur bannie » traite une couleur comme du noir : le total baisse.
+  const banni = E.scoreLibre(board, [{ cardId: 'banned-color', color: 'P' }])
+  assert.ok(banni.bilan.total < nu, `${banni.bilan.total} < ${nu}`)
+  assert.deepEqual(banni.forbidden, ['P'])
+  // Et la couleur choisie compte vraiment.
+  const autre = E.scoreLibre(board, [{ cardId: 'banned-color', color: 'R' }])
+  assert.notEqual(autre.bilan.total, banni.bilan.total)
+})
+
+test('« Bord assorti » a besoin de la couleur du plateau', () => {
+  const board = plateauFini('libre-1')
+  const nu = E.scoreLibre(board, []).bilan.total
+  // Sans couleur de cadre, la carte ne peut rien reconnaître.
+  assert.equal(E.scoreLibre(board, [{ cardId: 'matching-edge' }]).bilan.total, nu)
+  // Avec, elle compte — et le résultat dépend de la couleur.
+  const parCouleur = ['O', 'R', 'P', 'G', 'Y', 'B'].map(
+    (c) => E.scoreLibre(board, [{ cardId: 'matching-edge' }], c).bilan.total - nu,
+  )
+  assert.ok(parCouleur.some((v) => v > 0), 'au moins une couleur rapporte des points')
+  assert.ok(new Set(parCouleur).size > 1, 'le résultat dépend de la couleur du cadre')
+})
+
+test('le scanner ne propose pas les cartes qui ne comptent aucun point', () => {
+  const proposees = E.missionsScannables().map((c) => c.id)
+  assert.ok(!proposees.includes('sudden-death'), '« Mort subite » met fin à la partie, elle ne compte pas')
+  assert.equal(proposees.length, E.CARDS.length - 1)
+  // Les deux missions qui se jugent en comparant les plateaux sont signalées.
+  assert.ok(E.missionComparative('purple-longest'))
+  assert.ok(E.missionComparative('thrifty'))
+  assert.ok(!E.missionComparative('exact-4'))
+})

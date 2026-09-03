@@ -1,7 +1,26 @@
 import { useMemo, useRef, useState } from 'react'
-import { DEFAULT_RULESET, scoreBoard } from '../../engine/index.ts'
-import type { Board, Rotation } from '../../engine/index.ts'
+import {
+  BOARD_COLOR_NAMES,
+  cardById,
+  COLOR_NAMES,
+  DEFAULT_RULESET,
+  missionComparative,
+  missionDemandeBord,
+  missionDemandeCouleur,
+  missionsScannables,
+  PATH_COLORS,
+  scoreLibre,
+  signed,
+} from '../../engine/index.ts'
+import type {
+  Board,
+  BoardColor,
+  Color,
+  MissionChoisie,
+  Rotation,
+} from '../../engine/index.ts'
 import { BoardView } from '../components/BoardView.tsx'
+import { MissionCardView } from '../components/MissionCard.tsx'
 import { TileGlyph } from '../components/TileGlyph.tsx'
 import {
   COUT_DOUTEUX,
@@ -200,8 +219,52 @@ export function ScanScreen({ onBack }: Props) {
     }
   }, [cases, taille])
 
-  const bilan = useMemo(() => (plateau ? scoreBoard(plateau, DEFAULT_RULESET) : null), [plateau])
+  /*
+   * Les cartes missions du décompte. Deux emplacements au plus : c'est ce que
+   * la boîte propose. `null` veut dire « emplacement vide ».
+   */
+  const [missions, setMissions] = useState<(MissionChoisie | null)[]>([])
+  /* « Bord assorti » compte les tuiles assorties au cadre : sans sa couleur,
+     elle ne rapporte jamais rien. On ne la demande que si besoin. */
+  const [couleurPlateau, setCouleurPlateau] = useState<BoardColor>('O')
+
+  const choisies = missions.filter((m): m is MissionChoisie => m !== null)
+  const besoinDuBord = choisies.some((m) => missionDemandeBord(m.cardId))
+
+  const decompte = useMemo(
+    () => (plateau ? scoreLibre(plateau, choisies, couleurPlateau) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `choisies` est dérivé de `missions`
+    [plateau, missions, couleurPlateau],
+  )
+  const bilan = decompte?.bilan ?? null
   const aVerifier = cases ? cases.filter(douteuse).length : 0
+
+  /** Pose (ou retire) la mission d'un emplacement, réglages compris. */
+  const changerMission = (i: number, cardId: string) => {
+    setMissions((prev) => {
+      const out = [...prev]
+      const card = cardId ? cardById(cardId) : null
+      out[i] = card
+        ? {
+            cardId,
+            // Une carte à couleur ou à seuil part sur une valeur valide : un
+            // menu vide qui ne compte rien serait incompréhensible.
+            color: missionDemandeCouleur(card) ? 'P' : undefined,
+            axis: card.randomAxis ? 'col' : undefined,
+            seuil: card.seuils?.[0],
+          }
+        : null
+      return out
+    })
+  }
+
+  const reglerMission = (i: number, champ: Partial<MissionChoisie>) => {
+    setMissions((prev) => prev.map((m, k) => (k === i && m ? { ...m, ...champ } : m)))
+  }
+
+  const changerNombre = (n: number) => {
+    setMissions((prev) => Array.from({ length: n }, (_, i) => prev[i] ?? null))
+  }
 
   const corriger = (i: number, choix: { tileId: number; rot: Rotation } | null) => {
     if (!cases) return
@@ -367,12 +430,140 @@ export function ScanScreen({ onBack }: Props) {
         )}
       </div>
 
+      {/* ------------------------------------------------- les cartes missions */}
+      {cases && plateau && decompte && (
+        <div className="panel stack" style={{ marginBottom: 14 }}>
+          <h3 style={{ margin: 0, fontSize: 18 }}>Cartes missions</h3>
+          <p className="note" style={{ margin: 0 }}>
+            Indiquez les cartes que la table avait devant elle : l’application dit si elles sont
+            accomplies et ajoute leurs points au total.
+          </p>
+          <label className="field">
+            <span>Nombre de missions</span>
+            <select value={missions.length} onChange={(e) => changerNombre(Number(e.target.value))}>
+              <option value={0}>Aucune</option>
+              <option value={1}>1 mission</option>
+              <option value={2}>2 missions</option>
+            </select>
+          </label>
+
+          {missions.map((m, i) => {
+            const card = m ? cardById(m.cardId) : null
+            // Une même carte ne peut pas occuper les deux emplacements.
+            const prises = missions
+              .filter((x, k): x is MissionChoisie => x !== null && k !== i)
+              .map((x) => x.cardId)
+            return (
+              <div key={i} className="stack" style={{ gap: 8 }}>
+                <label className="field">
+                  <span>Mission {i + 1}</span>
+                  <select
+                    value={m?.cardId ?? ''}
+                    onChange={(e) => changerMission(i, e.target.value)}
+                  >
+                    <option value="">— à choisir —</option>
+                    {missionsScannables()
+                      .filter((c) => !prises.includes(c.id))
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.badge} — {c.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+
+                {card && m && (
+                  <>
+                    <div className="row wrap">
+                      {missionDemandeCouleur(card) && (
+                        <label className="field">
+                          <span>Couleur</span>
+                          <select
+                            value={m.color ?? 'P'}
+                            onChange={(e) => reglerMission(i, { color: e.target.value as Color })}
+                          >
+                            {PATH_COLORS.map((c) => (
+                              <option key={c} value={c}>
+                                {COLOR_NAMES[c]}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                      {card.randomAxis && (
+                        <label className="field">
+                          <span>Axe</span>
+                          <select
+                            value={m.axis ?? 'col'}
+                            onChange={(e) =>
+                              reglerMission(i, { axis: e.target.value as 'col' | 'row' })
+                            }
+                          >
+                            <option value="col">Colonne</option>
+                            <option value="row">Ligne</option>
+                          </select>
+                        </label>
+                      )}
+                      {card.seuils && (
+                        <label className="field">
+                          <span>Longueur</span>
+                          <select
+                            value={m.seuil ?? card.seuils[0]}
+                            onChange={(e) => reglerMission(i, { seuil: Number(e.target.value) })}
+                          >
+                            {[...card.seuils]
+                              .sort((a, b) => a - b)
+                              .map((n) => (
+                                <option key={n} value={n}>
+                                  {n} tuiles
+                                </option>
+                              ))}
+                          </select>
+                        </label>
+                      )}
+                    </div>
+                    {missionComparative(card.id) && (
+                      <p className="note" style={{ margin: 0 }}>
+                        Cette mission se juge en comparant les plateaux de la table. Sur une photo
+                        d’un seul plateau, elle est donc toujours accomplie : le résultat ne vaut
+                        qu’en solo.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )
+          })}
+
+          {besoinDuBord && (
+            <label className="field">
+              <span>Couleur du plateau</span>
+              <select
+                value={couleurPlateau}
+                onChange={(e) => setCouleurPlateau(e.target.value as BoardColor)}
+              >
+                {(Object.keys(BOARD_COLOR_NAMES) as BoardColor[]).map((c) => (
+                  <option key={c} value={c}>
+                    {BOARD_COLOR_NAMES[c]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
+
       {/* --------------------------------------------------------- le résultat */}
-      {cases && plateau && bilan && (
+      {cases && plateau && bilan && decompte && (
         <>
           <div className="scan-resultat">
             <div className="panel">
-              <BoardView board={plateau} ruleset={DEFAULT_RULESET} showZones />
+              <BoardView
+                board={plateau}
+                ruleset={decompte.ruleset}
+                showZones
+                forbidden={decompte.forbidden}
+              />
             </div>
             <div className="panel stack">
               <h3 style={{ margin: 0, fontSize: 18 }}>Décompte</h3>
@@ -385,9 +576,42 @@ export function ScanScreen({ onBack }: Props) {
                   Noir <strong>{bilan.blackPoints}</strong> ({bilan.blackZones} zone
                   {bilan.blackZones > 1 ? 's' : ''})
                 </span>
+                {/* Une mission structurelle ne rapporte aucun point : son effet
+                    est déjà dans les deux chiffres ci-dessus. Afficher
+                    « Missions 0 » à côté d'un total qui a bougé de douze points
+                    n'aurait aucun sens — on ne montre la pastille que quand
+                    elle a quelque chose à dire. */}
+                {bilan.cardPoints !== 0 && (
+                  <span className="tag">
+                    Missions <strong>{signed(bilan.cardPoints)}</strong>
+                  </span>
+                )}
               </div>
+
+              {decompte.missions.length > 0 && (
+                <div className="stack" style={{ gap: 8 }}>
+                  {decompte.missions.map((r) => (
+                    <MissionCardView
+                      key={r.card.id}
+                      card={r.card}
+                      compact
+                      points={r.points}
+                      detail={r.detail}
+                      structural={r.structural}
+                      color={r.color}
+                      axis={r.axis}
+                      seuil={r.seuil}
+                    />
+                  ))}
+                </div>
+              )}
+
               <p className="note" style={{ margin: 0 }}>
-                Barème de base, sans variante ni carte mission.
+                {decompte.missions.length === 0
+                  ? 'Barème de base, sans variante ni carte mission.'
+                  : decompte.missions.some((r) => r.structural)
+                    ? 'Barème de base et missions. Une mission marquée sans chiffre ne s’ajoute pas au total : elle change la façon de compter, son effet est déjà dans le score ci-dessus.'
+                    : 'Barème de base et missions, sans variante.'}
               </p>
               <hr className="sep" />
               <div className="row wrap">

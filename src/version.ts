@@ -15,6 +15,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.85',
+    date: '2026-09-03',
+    changes: [
+      'Le Scanner compte désormais les cartes missions. Sous le plateau lu, on indique une ou deux missions dans un menu déroulant : l’application dit si elles sont accomplies, l’explique en une ligne, et ajoute leurs points au total.',
+      'Les dix-neuf cartes qui comptent des points sont proposées — « Mort subite » ne l’est pas, elle met fin à la partie sans rien rapporter. Une carte qui demande une couleur, un axe ou une longueur les fait choisir juste en dessous, et « Bord assorti » réclame la couleur du plateau, sans laquelle elle ne reconnaîtrait rien.',
+      'Les trois cartes qui changent la façon de compter plutôt que d’ajouter des points — « Noir positif », « Couleur secrète », « Couleur bannie » — sont appliquées au décompte lui-même, et le plateau affiché s’y accorde : les zones bannies passent en rouge comme le noir.',
+      'Deux missions se jugent en comparant les plateaux de la table. Sur la photo d’un seul plateau elles sont toujours accomplies : l’application le dit au lieu de laisser croire à une réussite.',
+    ],
+  },
+  {
     version: '1.84',
     date: '2026-08-25',
     changes: [
