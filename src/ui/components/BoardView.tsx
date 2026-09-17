@@ -122,7 +122,15 @@ export function BoardView({
   const grid = useMemo(() => quadGrid(board, fx), [board, fx])
   // En vignette on n'affiche ni contour ni pastille, mais les zones restent
   // nécessaires dès qu'il y a des trèfles : c'est ce qui décide de leur couleur.
-  const banned = forbidden?.length && ruleset.variants?.forbiddenColor ? forbidden : EMPTY
+  /*
+   * Une couleur interdite ne vient pas QUE de la variante du même nom : la
+   * carte « Couleur bannie » en distribue une aussi, et le décompte l'applique
+   * dans les deux cas. Exiger la variante ici faisait diverger l'écran du
+   * score — une zone de quatre tuiles s'affichait +5 quand elle valait -2, et
+   * les pastilles annonçaient 37 points pour un score de 28. On regarde donc
+   * ce que le joueur a, pas d'où il le tient.
+   */
+  const banned = forbidden?.length ? forbidden : EMPTY
   const bannedKey = banned.join('')
   const zones = useMemo(
     () => (compact && !ruleset.variants?.clovers ? [] : computeZones(board, ruleset, banned)),

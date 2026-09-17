@@ -990,7 +990,11 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
                 </div>
               </>
             )}
-            {variants?.forbiddenColor && (
+            {/* Même règle que pour le plateau : la ligne s'affiche dès que ce
+                joueur a une couleur interdite, qu'elle vienne de la variante
+                ou de la carte « Couleur bannie ». Sans ça, la carte infligeait
+                des points négatifs que le barème ne mentionnait nulle part. */}
+            {Boolean(viewed.forbiddenColors?.length) && (
               <div className={`scoresheet-row banned ${envers ? 'pos' : 'neg'}`}>
                 <span className="k">Interdite</span>
                 <span className="eq">=</span>

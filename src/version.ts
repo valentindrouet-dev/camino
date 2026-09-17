@@ -15,6 +15,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.86',
+    date: '2026-09-17',
+    changes: [
+      'Correction d’un bug signalé par un testeur : avec la carte « Couleur bannie », les zones de cette couleur s’affichaient en positif sur le plateau alors qu’elles coûtaient bien des points. Une zone de quatre tuiles montrait +5 quand elle valait −2, et les pastilles annonçaient jusqu’à 25 points de plus que le score réel.',
+      'Le score, lui, a toujours été juste : seul l’affichage exigeait la variante « Couleur Interdite » pour colorer ces zones en rouge, alors que la carte donne exactement le même pouvoir. Le plateau regarde désormais ce que le joueur a, pas d’où il le tient.',
+      'La ligne « Interdite — −2 pts par zone » apparaît maintenant aussi dans le barème quand la couleur vient de la carte : le joueur perdait des points que rien à l’écran n’expliquait.',
+      'Le Scanner était touché de la même façon depuis la version précédente ; il est corrigé lui aussi.',
+    ],
+  },
+  {
     version: '1.85',
     date: '2026-09-03',
     changes: [

@@ -793,3 +793,59 @@ test('le scanner ne propose pas les cartes qui ne comptent aucun point', () => {
   assert.ok(E.missionComparative('thrifty'))
   assert.ok(!E.missionComparative('exact-4'))
 })
+
+/*
+ * « Couleur bannie » agit SANS la variante « Couleur Interdite » : elle inscrit
+ * sa couleur dans les couleurs interdites du joueur, et le décompte les
+ * applique. Un test de régression, parce que l'affichage, lui, exigeait la
+ * variante — les pastilles du plateau montraient une zone à +5 quand elle
+ * valait -2, et annonçaient jusqu'à 25 points de plus que le score réel.
+ */
+test('« Couleur bannie » inflige le malus sans la variante Couleur Interdite', () => {
+  let partie = E.createGame({
+    players: [{ name: 'A', kind: 'bot-smart' }],
+    options: {
+      ...E.clearVariants(E.defaultOptions('bannie-regression')),
+      useCards: true,
+      cardId: 'banned-color',
+    },
+  })
+  assert.equal(
+    Boolean(partie.options.ruleset.variants?.forbiddenColor),
+    false,
+    'la variante n’est justement PAS cochée',
+  )
+  let garde = 0
+  while (partie.phase === 'playing' && garde++ < 200) {
+    const m = E.bestMove(partie, 'bot-smart')
+    if (!m) break
+    partie = E.applyMove(partie, m)
+  }
+  const joueur = partie.players[0]
+  const couleur = partie.cardColors['banned-color']
+  const ruleset = partie.options.ruleset
+
+  assert.ok(couleur, 'la carte a tiré une couleur')
+  assert.ok(
+    joueur.forbiddenColors?.includes(couleur),
+    'la couleur bannie est inscrite chez le joueur, variante ou pas',
+  )
+
+  const zones = E.computeZones(joueur.board, ruleset, joueur.forbiddenColors)
+  // Chaque zone de la couleur bannie coûte, comme le noir.
+  const banniies = zones.filter((z) => z.color === couleur)
+  assert.ok(banniies.length > 0, 'le plateau porte au moins une zone de cette couleur')
+  for (const z of banniies) {
+    assert.equal(z.points, ruleset.blackPenalty, `une zone ${couleur} de ${z.span} tuiles coûte`)
+  }
+
+  /*
+   * L'invariant que l'écran doit respecter : la somme des pastilles de zones,
+   * calculée AVEC les couleurs interdites du joueur, est le score du plateau.
+   * Les calculer sans cette liste donnait un autre chiffre — c'était le bug.
+   */
+  const somme = zones.reduce((n, z) => n + z.points, 0)
+  assert.equal(somme, E.scoreBoard(joueur.board, ruleset, joueur).total)
+  const sansListe = E.computeZones(joueur.board, ruleset, []).reduce((n, z) => n + z.points, 0)
+  assert.notEqual(sansListe, somme, 'ignorer la liste change bien le résultat affiché')
+})
