@@ -386,3 +386,72 @@
     gap: 10px;
   }
 }
+
+/* =========================================================================
+ * TÉLÉPHONE — développement
+ * ========================================================================= */
+
+@media (max-width: 700px) {
+  /* L'avancement global passe sous le chiffre plutôt qu'à côté. */
+  .dev-global {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .dev-global-chiffre {
+    flex-direction: row;
+    justify-content: center;
+    gap: 8px;
+    align-items: baseline;
+  }
+
+  /* L'en-tête de catégorie s'empile : titre, puis barre pleine largeur. */
+  .dev-cat-entete {
+    flex-wrap: wrap;
+    padding: 12px 12px;
+  }
+
+  .dev-cat-avancement {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: auto 1fr;
+    margin-left: 42px;
+  }
+
+  .dev-cat-corps {
+    padding: 4px 12px 12px;
+  }
+
+  .dev-el.ouvert {
+    margin: 0 -12px;
+    padding: 0 12px;
+  }
+
+  .dev-el-panneau {
+    padding-left: 0;
+  }
+
+  .dev-el-panneau .field {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
+  .dev-stats-deux {
+    grid-template-columns: 1fr;
+  }
+
+  /* Les tableaux défilent dans leur panneau, jamais la page. */
+  .dev-stats .panel {
+    overflow-x: auto;
+  }
+
+  .dev-table {
+    min-width: 520px;
+  }
+
+  .dev-outils {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

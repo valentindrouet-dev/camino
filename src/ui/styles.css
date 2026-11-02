@@ -2267,3 +2267,637 @@ button.mission-card.selected {
 .solo-medaille.atteinte {
   outline: 3px solid rgba(247, 147, 29, 0.35);
 }
+
+/* =========================================================================
+ * DÉVELOPPEMENT — la liste de ce qu'il reste à valider avec les auteurs
+ * ========================================================================= */
+
+.dev .spacer {
+  flex: 1;
+}
+
+.dev-sous-titre {
+  margin: 0 0 14px;
+}
+
+/* ------------------------------------------------------ avancement global */
+
+.dev-global {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.dev-global-chiffre {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 96px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.dev-global-chiffre strong {
+  font-size: 30px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.dev-global-chiffre span {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dev-global-corps {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dev-legende .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pastille-etat {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--line);
+  flex: none;
+}
+
+.pastille-etat.valide {
+  background: var(--good);
+}
+
+.pastille-etat.en-cours {
+  background: var(--accent);
+}
+
+.pastille-etat.a-faire {
+  background: #fff;
+  box-shadow: inset 0 0 0 2px var(--ink-faint);
+}
+
+.pastille-etat.ecarte {
+  background: var(--ink-faint);
+}
+
+/*
+ * La barre : validés en vert, écartés en gris, en cours en orange pâle. Les
+ * trois teintes se lisent d'un coup d'œil et ne se confondent pas — un point
+ * écarté n'est pas un point réussi, même s'il compte comme réglé.
+ */
+.dev-barre {
+  display: flex;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  overflow: hidden;
+  min-width: 80px;
+}
+
+.dev-barre.grande {
+  height: 14px;
+}
+
+.dev-barre span {
+  display: block;
+  height: 100%;
+  transition: width 220ms ease;
+}
+
+.dev-barre .valide {
+  background: var(--good);
+}
+
+.dev-barre .ecarte {
+  background: var(--ink-faint);
+}
+
+.dev-barre .en-cours {
+  background: #f9c98a;
+}
+
+/* ------------------------------------------------------------- outils */
+
+.dev-outils {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.dev-message {
+  margin-top: 10px;
+  padding: 9px 13px;
+  border-radius: var(--radius-sm);
+  background: var(--good-soft);
+  border: 1px solid #b6e0bb;
+  color: #24632e;
+  font-size: 13px;
+}
+
+.dev-proposition {
+  margin-top: 10px;
+  border-color: #f3c27e;
+  background: var(--accent-soft);
+  font-size: 14px;
+}
+
+/* ---------------------------------------------------------- catégories */
+
+.dev-categories {
+  margin-top: 12px;
+  gap: 14px;
+}
+
+.dev-cat {
+  padding: 0;
+  overflow: hidden;
+}
+
+.dev-cat-entete {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(180deg, #fffdf6, #fdf6e6);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.dev-cat.repliee .dev-cat-entete {
+  border-bottom: 0;
+}
+
+.dev-repli {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--accent-ink);
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  margin-top: 1px;
+}
+
+.dev-repli svg {
+  transition: transform 160ms ease;
+}
+
+.dev-cat.repliee .dev-repli svg {
+  transform: rotate(-90deg);
+}
+
+.dev-cat-titre {
+  flex: 1;
+  min-width: 0;
+}
+
+.dev-cat-titre h3 {
+  margin: 2px 0 0;
+  font-size: 19px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+}
+
+.dev-cat-titre .note {
+  margin: 4px 0 0;
+}
+
+.dev-cat-avancement {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    'pct barre'
+    'pct compte';
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
+  min-width: 190px;
+  flex: none;
+}
+
+.dev-cat-avancement strong {
+  grid-area: pct;
+  font-size: 22px;
+  color: var(--accent-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.dev-cat-avancement .dev-barre {
+  grid-area: barre;
+}
+
+.dev-cat-avancement .note {
+  grid-area: compte;
+  margin: 0;
+  font-size: 12px;
+}
+
+.dev-organiser {
+  padding: 8px 16px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line-soft);
+  gap: 6px;
+}
+
+.dev-cat-corps {
+  padding: 6px 16px 14px;
+}
+
+.dev-cat.repliee .dev-cat-corps {
+  display: none;
+}
+
+.dev-champ {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px 10px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  width: 100%;
+  resize: vertical;
+}
+
+.dev-champ:focus {
+  outline: 3px solid rgba(247, 147, 29, 0.28);
+  border-color: var(--accent);
+  background: #fff;
+}
+
+/* ------------------------------------------------------ sous-catégories */
+
+.dev-sc {
+  padding: 10px 0 4px;
+  border-bottom: 1px dashed var(--line-soft);
+}
+
+.dev-sc:last-of-type {
+  border-bottom: 0;
+}
+
+.dev-sc.vide-filtre {
+  display: none;
+}
+
+.dev-sc-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dev-sc-entete h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.dev-sc-compte {
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.dev-sc .dev-organiser {
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+/* --------------------------------------------------------------- points */
+
+.dev-elements {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dev-el {
+  border-top: 1px solid var(--line-soft);
+}
+
+.dev-el:first-child {
+  border-top: 0;
+}
+
+.dev-el.masque {
+  display: none;
+}
+
+.dev-el-ligne {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 7px 0;
+}
+
+/* Le bouton d'état : un cercle qui se remplit. */
+.dev-etat {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--ink-faint);
+  background: #fff;
+  color: var(--ink-faint);
+  font-size: 17px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  margin-top: 1px;
+  transition: 120ms ease;
+}
+
+.dev-etat:hover {
+  transform: scale(1.08);
+  border-color: var(--accent);
+}
+
+.dev-etat.en-cours {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.dev-etat.valide {
+  border-color: var(--good);
+  color: #fff;
+  background: var(--good);
+}
+
+.dev-etat.ecarte {
+  border-color: var(--ink-faint);
+  color: #fff;
+  background: var(--ink-faint);
+}
+
+.dev-el-titre {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 3px 0;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.dev-el-titre .titre {
+  font-size: 14.5px;
+  font-weight: 650;
+}
+
+.dev-el.valide .dev-el-titre .titre {
+  color: var(--ink-dim);
+}
+
+.dev-el.ecarte .dev-el-titre .titre {
+  color: var(--ink-faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-faint);
+}
+
+.dev-el-titre .detail {
+  font-size: 13px;
+  color: var(--ink-dim);
+  line-height: 1.45;
+}
+
+.dev-el-titre .note-decision {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  border-radius: 8px;
+  padding: 5px 9px;
+  margin-top: 2px;
+}
+
+.dev-el-titre .meta {
+  font-size: 12px;
+  color: var(--ink-faint);
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dev-el.ouvert {
+  background: var(--panel-2);
+  margin: 0 -16px;
+  padding: 0 16px;
+  border-radius: var(--radius-sm);
+}
+
+.dev-el-panneau {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0 14px 38px;
+}
+
+.dev-ajout {
+  background: none;
+  border: 1px dashed var(--line);
+  border-radius: 9px;
+  color: var(--ink-dim);
+  font-size: 13px;
+  padding: 6px 12px;
+  margin: 6px 0 4px;
+  width: 100%;
+  text-align: left;
+}
+
+.dev-ajout:hover {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  background: var(--panel-2);
+}
+
+.dev-ajout-champ {
+  margin: 6px 0 4px;
+}
+
+/* ---------------------------------------------------------- statistiques */
+
+.dev-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dev-table th {
+  text-align: left;
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 4px 8px 6px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.dev-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: middle;
+}
+
+.dev-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.dev-table-barre {
+  min-width: 160px;
+}
+
+.dev-table-barre .dev-barre {
+  display: inline-flex;
+  width: 110px;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+.dev-stats-deux {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.dev-recents {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13.5px;
+}
+
+.dev-recents li {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dev-recents li:last-child {
+  border-bottom: 0;
+}
+
+/* -------------------------------------------------------- impression / PDF */
+
+.impression-seule,
+.ecran-cachee {
+  display: none;
+}
+
+/*
+ * Le bouton « Imprimer / PDF » passe par la boîte d'impression du navigateur,
+ * qui sait enregistrer en PDF. On lui donne une page propre : sans la barre
+ * du haut ni les boutons, toutes les catégories dépliées, tous les points
+ * visibles quel que soit le filtre, et les statistiques à la fin.
+ */
+@page {
+  margin: 14mm;
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .topbar,
+  .impression-cachee {
+    display: none !important;
+  }
+
+  /* Le papier montre toujours la liste PUIS les statistiques, quel que soit
+     l'onglet ouvert à l'écran. */
+  .impression-seule,
+  .ecran-cachee {
+    display: block !important;
+  }
+
+  .sheet.dev {
+    max-width: none;
+    padding: 0;
+  }
+
+  .panel {
+    box-shadow: none;
+    border-color: #d8d2c4;
+  }
+
+  .dev-cat {
+    break-inside: auto;
+  }
+
+  .dev-cat-entete,
+  .dev-sc-entete,
+  .dev-el-ligne,
+  .kpi {
+    break-inside: avoid;
+  }
+
+  .dev-cat.repliee .dev-cat-corps,
+  .dev-sc.vide-filtre {
+    display: block !important;
+  }
+
+  .dev-el.masque {
+    display: block !important;
+  }
+
+  .dev-el.ouvert {
+    background: none;
+  }
+
+  .dev-barre span {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .dev-etat,
+  .pastille-etat,
+  .dev-global-chiffre,
+  .dev-el-titre .note-decision {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .dev-stats {
+    break-before: page;
+  }
+}

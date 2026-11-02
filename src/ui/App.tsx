@@ -10,6 +10,16 @@ import { SetupScreen } from './screens/SetupScreen.tsx'
 import { GameScreen } from './screens/GameScreen.tsx'
 import { ResultsScreen } from './screens/ResultsScreen.tsx'
 import { LabScreen } from './screens/LabScreen.tsx'
+/*
+ * Importé en dur, et PAS à la demande, bien que l'onglet ne serve qu'aux
+ * auteurs. Un morceau chargé à part importerait React depuis `./camino.js`,
+ * alors que la page l'a chargé sous `./camino.js?b=<date>` (vite.config.ts) —
+ * le navigateur y voit deux modules, instancie deux React, et le second
+ * plante au premier hook (« Cannot read properties of null (reading
+ * 'useState') »). Le morceau réseau n'a pas ce problème : il ne touche pas à
+ * React.
+ */
+import { DevScreen } from './screens/DevScreen.tsx'
 import { HistoryScreen } from './screens/HistoryScreen.tsx'
 import { VersionsScreen } from './screens/VersionsScreen.tsx'
 import { SalonScreen } from './screens/SalonScreen.tsx'
@@ -38,9 +48,23 @@ type Screen =
   | 'salon'
   | 'reglages'
   | 'scan'
+  | 'dev'
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>('setup')
+  /*
+   * Un lien de partage de la liste Développement (`#dev=…`) ouvre l'écran
+   * directement, avec la liste à proposer. Le fragment ne quitte jamais le
+   * navigateur ; on l'efface dès qu'il a été lu.
+   */
+  const [lienDev, setLienDev] = useState<string | null>(() =>
+    location.hash.startsWith('#dev=') ? location.hash.slice(5) : null,
+  )
+  const [screen, setScreen] = useState<Screen>(() => (lienDev ? 'dev' : 'setup'))
+  const lienDevTraite = useCallback(() => {
+    setLienDev(null)
+    // `history` est ici l'historique de la partie : on vise bien celui du navigateur.
+    window.history.replaceState(null, '', location.pathname + location.search)
+  }, [])
   /*
    * Jeu en ligne. Le transport est local pour l'instant — les onglets d'un
    * même navigateur — mais l'interface de salon ne connaît que `Transport` :
@@ -469,6 +493,15 @@ export default function App() {
             Laboratoire
           </button>
         )}
+        {screen !== 'game' && screen !== 'dev' && (
+          <button
+            className="btn small ghost"
+            onClick={() => setScreen('dev')}
+            title="Tout ce qu’il reste à valider pour finir le jeu"
+          >
+            Développement
+          </button>
+        )}
         {screen !== 'game' && screen !== 'versions' && (
           <button className="btn small ghost" onClick={() => setScreen('versions')}>
             Versions
@@ -573,6 +606,10 @@ export default function App() {
       )}
 
       {screen === 'scan' && <ScanScreen onBack={goHome} />}
+
+      {screen === 'dev' && (
+        <DevScreen onBack={goHome} lienEntrant={lienDev} onLienTraite={lienDevTraite} />
+      )}
 
       {screen === 'history' && <HistoryScreen onBack={goHome} />}
 

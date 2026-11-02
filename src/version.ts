@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.87',
+    date: '2026-11-02',
+    changes: [
+      'Nouvel onglet « Développement », à côté du Laboratoire : la liste de tout ce qu’il reste à valider avec les auteurs pour finir le jeu, en quatre catégories — Mécaniques, Illustrations, Matériel, Règles — et des sous-catégories. Près de deux cents points au départ, du nombre de tuiles au texte de chaque carte, de la teinte du noir au format du livret.',
+      'Chaque point se coche (à faire, en cours, validé, écarté), s’annote d’une décision et d’un responsable, se déplace ; on ajoute des points, des sous-catégories, des catégories, on renomme et on réordonne. L’avancement se lit en pourcentage, global et par catégorie, avec une page de statistiques.',
+      'La liste se partage par un lien qui la contient entière, s’exporte et s’importe en fichier, et s’imprime en PDF sur une page propre. Elle est mémorisée dans le navigateur ; une mise à jour de l’application ajoute ses nouveaux points sans jamais rien décocher.',
+    ],
+  },
+  {
     version: '1.86',
     date: '2026-09-17',
     changes: [
