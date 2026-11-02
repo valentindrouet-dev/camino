@@ -87,7 +87,7 @@ function petite() {
             elements: [
               { id: 'e1', titre: 'un', etat: 'valide', maj: '2026-01-02' },
               { id: 'e2', titre: 'deux', etat: 'a-faire' },
-              { id: 'e3', titre: 'trois', etat: 'en-cours', qui: 'Valentin' },
+              { id: 'e3', titre: 'trois', etat: 'en-cours', qui: 'Valentin', alerte: true },
               { id: 'e4', titre: 'quatre', etat: 'ecarte', maj: '2026-01-03' },
             ],
           },
@@ -111,6 +111,10 @@ test('l’avancement compte les validés et les écartés comme réglés', () =>
   assert.equal(s.enCours, 1)
   assert.equal(s.aFaire, 2)
   assert.equal(s.pourcent, 50, '3 réglés sur 6')
+  assert.equal(s.alertes, 1, 'une alerte, hors du calcul d’avancement')
+  assert.equal(s.categories[0].alertes, 1)
+  assert.equal(s.categories[1].alertes, 0)
+  assert.equal(s.categories[0].sousCategories[0].alertes, 1)
   const c1 = s.categories[0]
   assert.equal(c1.pourcent, 40, '2 réglés sur 5')
   assert.equal(c1.sousCategories[0].pourcent, 50)
@@ -308,4 +312,48 @@ test('un fichier entier se relit aussi comme lien (ancien format)', async () => 
   const code = 'd.' + btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
   const relue = await M.depuisLien(code, origine)
   assert.deepEqual(relue, l)
+})
+
+/* ------------------------------------------------------------------------- */
+/* Alertes : ce qu'on apporte à la réunion avec les auteurs                  */
+/* ------------------------------------------------------------------------- */
+
+test('une alerte se pose et se retire sans toucher à l’état ni à sa date', () => {
+  M.reglerHorloge(() => new Date('2026-07-08T10:00:00Z'))
+  let l = petite()
+  l = M.basculerAlerte(l, 'e1')
+  let e = l.categories[0].sousCategories[0].elements[0]
+  assert.equal(e.alerte, true)
+  assert.equal(e.etat, 'valide', 'l’état est intact')
+  assert.equal(e.maj, '2026-01-02', 'la date d’état aussi')
+  assert.equal(M.statistiques(l).alertes, 2)
+  l = M.basculerAlerte(l, 'e1')
+  e = l.categories[0].sousCategories[0].elements[0]
+  assert.equal('alerte' in e, false, 'retirée, la clé disparaît')
+  assert.equal(M.statistiques(l).alertes, 1)
+  assert.equal(M.basculerAlerte(l, 'inconnu'), l)
+  M.reglerHorloge(null)
+})
+
+test('l’alerte voyage dans le lien et dans le fichier', async () => {
+  const origine = C.listeDOrigine()
+  let l = M.basculerAlerte(C.listeDOrigine(), 'mec-egalite')
+  l = M.basculerAlerte(l, 'reg-genre')
+  l = M.modifierElement(l, 'reg-genre', { etat: 'valide' })
+  const code = await M.versLien(l, origine)
+  assert.ok(code.length < 400, `${code.length} caractères`)
+  const relue = await M.depuisLien(code, origine)
+  assert.deepEqual(relue, l)
+  assert.equal(M.statistiques(relue).alertes, 2)
+  // Et retirer une alerte posée à l'origine se transmet aussi.
+  const origineAlertee = M.basculerAlerte(C.listeDOrigine(), 'mec-egalite')
+  const sans = M.basculerAlerte(origineAlertee, 'mec-egalite')
+  const code2 = await M.versLien(sans, origineAlertee)
+  const relue2 = await M.depuisLien(code2, origineAlertee)
+  assert.equal(M.statistiques(relue2).alertes, 0)
+  // Le fichier la garde ; une valeur étrangère est ignorée.
+  assert.deepEqual(M.analyser(M.serialiser(l)), l)
+  const brut = JSON.parse(M.serialiser(l))
+  brut.categories[0].sousCategories[0].elements[0].alerte = 'oui'
+  assert.equal('alerte' in M.analyser(JSON.stringify(brut)).categories[0].sousCategories[0].elements[0], false)
 })

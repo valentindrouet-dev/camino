@@ -15,6 +15,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.88',
+    date: '2026-11-02',
+    changes: [
+      'Développement : chaque point porte, à droite de sa ligne, un triangle ⚠ qui pose une alerte — un point à soulever avec les auteurs. L’alerte est indépendante de l’état : un point validé peut rester à soulever, un point à faire ne l’est pas forcément.',
+      'Le nombre d’alertes s’affiche en tête de liste, sur chaque catégorie et chaque sous-catégorie, et dans les statistiques ; un filtre « ⚠ Alertes » ne montre qu’elles. Les alertes voyagent dans le lien de partage et le fichier, et s’impriment — seules les alertes posées apparaissent sur le papier.',
+    ],
+  },
+  {
     version: '1.87',
     date: '2026-11-02',
     changes: [

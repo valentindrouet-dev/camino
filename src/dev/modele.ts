@@ -33,6 +33,12 @@ export interface Element {
   qui?: string
   /** Date du dernier changement d'état, ISO court (AAAA-MM-JJ). */
   maj?: string
+  /**
+   * Alerte : un point sur lequel il faut interpeller les auteurs. Indépendant
+   * de l'état — un point validé peut rester à soulever, un point à faire ne
+   * l'est pas forcément. Absent quand il n'y a rien à dire.
+   */
+  alerte?: boolean
 }
 
 export interface SousCategorie {
@@ -70,6 +76,8 @@ export interface Compte {
   enCours: number
   valides: number
   ecartes: number
+  /** Points marqués d'une alerte, quel que soit leur état. */
+  alertes: number
   /**
    * Avancement : la part des points RÉGLÉS — validés ou écartés. Un point
    * écarté est une décision prise, pas un oubli : il compte comme réglé, et
@@ -99,8 +107,9 @@ export interface Statistiques extends Compte {
 }
 
 function compter(elements: Element[]): Compte {
-  const c = { total: elements.length, aFaire: 0, enCours: 0, valides: 0, ecartes: 0, pourcent: 0 }
+  const c = { total: elements.length, aFaire: 0, enCours: 0, valides: 0, ecartes: 0, alertes: 0, pourcent: 0 }
   for (const e of elements) {
+    if (e.alerte) c.alertes++
     if (e.etat === 'a-faire') c.aFaire++
     else if (e.etat === 'en-cours') c.enCours++
     else if (e.etat === 'valide') c.valides++
@@ -211,6 +220,14 @@ export function etatSuivant(etat: Etat): Etat {
 
 export function basculerEtat(liste: Liste, id: string): Liste {
   return surElement(liste, id, (e) => ({ ...e, etat: etatSuivant(e.etat), maj: aujourdhui() }))
+}
+
+/** Pose ou retire l'alerte d'un point. L'état et sa date ne bougent pas. */
+export function basculerAlerte(liste: Liste, id: string): Liste {
+  return surElement(liste, id, (e) => {
+    const { alerte, ...reste } = e
+    return alerte ? reste : { ...e, alerte: true }
+  })
 }
 
 export function supprimerElement(liste: Liste, id: string): Liste {
@@ -511,6 +528,7 @@ export function valider(brut: unknown): Liste | null {
         if (chaine(e.note) && e.note) el.note = e.note
         if (chaine(e.qui) && e.qui) el.qui = e.qui
         if (chaine(e.maj) && e.maj) el.maj = e.maj
+        if (e.alerte === true) el.alerte = true
         elements.push(el)
       }
       sousCategories.push({ id: sc.id, titre: sc.titre, elements })
@@ -593,6 +611,7 @@ export function ecartDepuisOrigine(liste: Liste, origine: Liste): Ecart {
     let change = false
     if (el.titre !== o.titre) { patch.titre = el.titre; change = true }
     if (el.etat !== o.etat) { patch.etat = el.etat; change = true }
+    if (Boolean(el.alerte) !== Boolean(o.alerte)) { patch.alerte = Boolean(el.alerte); change = true }
     for (const k of ['detail', 'note', 'qui', 'maj'] as const) {
       if ((el[k] ?? '') !== (o[k] ?? '')) { patch[k] = el[k] ?? ''; change = true }
     }
@@ -626,6 +645,10 @@ export function appliquerEcart(ecart: Ecart, origine: Liste): Liste | null {
     const el: Element = { ...o }
     if (patch.titre) el.titre = patch.titre
     if (patch.etat && ETATS.includes(patch.etat)) el.etat = patch.etat
+    if ('alerte' in patch) {
+      if (patch.alerte) el.alerte = true
+      else delete el.alerte
+    }
     for (const k of ['detail', 'note', 'qui', 'maj'] as const) {
       if (!(k in patch)) continue
       const v = patch[k]

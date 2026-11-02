@@ -15,6 +15,7 @@ import {
   ajouterElement,
   ajouterSousCategorie,
   analyser,
+  basculerAlerte,
   basculerEtat,
   dateLisible,
   deplacerCategorie,
@@ -47,9 +48,9 @@ interface Props {
   onLienTraite?: () => void
 }
 
-type Filtre = 'tous' | Etat
+type Filtre = 'tous' | Etat | 'alerte'
 
-const NOM_FILTRE: Record<Filtre, string> = { tous: 'Tout', ...NOM_ETAT }
+const NOM_FILTRE: Record<Filtre, string> = { tous: 'Tout', ...NOM_ETAT, alerte: '⚠ Alertes' }
 
 /** Glyphe d'état : le même à l'écran et sur le papier. */
 const GLYPHE: Record<Etat, string> = {
@@ -162,7 +163,8 @@ export function DevScreen({ onBack, lienEntrant, onLienTraite }: Props) {
       return n
     })
 
-  const visible = (e: Element) => filtre === 'tous' || e.etat === filtre
+  const visible = (e: Element) =>
+    filtre === 'tous' ? true : filtre === 'alerte' ? Boolean(e.alerte) : e.etat === filtre
 
   // -------------------------------------------------------------- rendu
   return (
@@ -192,6 +194,9 @@ export function DevScreen({ onBack, lienEntrant, onLienTraite }: Props) {
             <span className="tag"><i className="pastille-etat en-cours" /> {stats.enCours} en cours</span>
             <span className="tag"><i className="pastille-etat a-faire" /> {stats.aFaire} à faire</span>
             <span className="tag"><i className="pastille-etat ecarte" /> {stats.ecartes} écarté{stats.ecartes > 1 ? 's' : ''}</span>
+            <span className={`tag alerte-tag ${stats.alertes ? 'on' : ''}`} title="Points à soulever avec les auteurs">
+              ⚠ {stats.alertes} alerte{stats.alertes > 1 ? 's' : ''}
+            </span>
             <span className="note">{stats.total} points en tout</span>
           </div>
         </div>
@@ -284,7 +289,7 @@ export function DevScreen({ onBack, lienEntrant, onLienTraite }: Props) {
               Afficher
             </span>
             <div className="seg">
-              {(['tous', 'a-faire', 'en-cours', 'valide', 'ecarte'] as Filtre[]).map((f) => (
+              {(['tous', 'a-faire', 'en-cours', 'valide', 'ecarte', 'alerte'] as Filtre[]).map((f) => (
                 <button key={f} className={filtre === f ? 'on' : ''} onClick={() => setFiltre(f)}>
                   {NOM_FILTRE[f]}
                 </button>
@@ -425,7 +430,14 @@ function CategorieVue(p: CategorieProps) {
           </div>
         ) : (
           <div className="dev-cat-titre">
-            <h3>{cat.titre}</h3>
+            <h3>
+              {cat.titre}
+              {stats.alertes > 0 && (
+                <span className="dev-alerte-compte" title="Alertes dans cette catégorie">
+                  ⚠ {stats.alertes}
+                </span>
+              )}
+            </h3>
             {cat.intro && <p className="note">{cat.intro}</p>}
           </div>
         )}
@@ -528,6 +540,7 @@ function SousCategorieVue(p: SousCategorieProps) {
             <span className="note dev-sc-compte">
               {stats.valides + stats.ecartes}/{stats.total}
               {stats.enCours ? ` · ${stats.enCours} en cours` : ''}
+              {stats.alertes ? <span className="dev-alerte-compte"> ⚠ {stats.alertes}</span> : null}
             </span>
           </h4>
         )}
@@ -587,7 +600,7 @@ function ElementVue({ e, masque, ouvert, setOuvert, premier, dernier, liste, app
     appliquer((l) => modifierElement(l, e.id, champ))
 
   return (
-    <li className={`dev-el ${e.etat} ${masque ? 'masque' : ''} ${ouvert ? 'ouvert' : ''}`}>
+    <li className={`dev-el ${e.etat} ${e.alerte ? 'alerte' : ''} ${masque ? 'masque' : ''} ${ouvert ? 'ouvert' : ''}`}>
       <div className="dev-el-ligne">
         <button
           className={`dev-etat ${e.etat}`}
@@ -611,6 +624,21 @@ function ElementVue({ e, masque, ouvert, setOuvert, premier, dernier, liste, app
               {e.maj && <span>{NOM_ETAT[e.etat].toLowerCase()} le {dateLisible(e.maj)}</span>}
             </span>
           )}
+        </button>
+        {/* L'alerte : à droite, hors du cycle d'état. Un point validé peut
+            rester à soulever, un point à faire ne l'est pas forcément. */}
+        <button
+          className={`dev-alerte ${e.alerte ? 'on' : ''}`}
+          onClick={() => appliquer((l) => basculerAlerte(l, e.id))}
+          aria-pressed={Boolean(e.alerte)}
+          aria-label={e.alerte ? 'Retirer l’alerte' : 'Signaler aux auteurs'}
+          title={
+            e.alerte
+              ? 'Alerte : à soulever avec les auteurs — cliquer pour la retirer'
+              : 'Signaler : un point à soulever avec les auteurs'
+          }
+        >
+          ⚠
         </button>
       </div>
 
@@ -758,13 +786,14 @@ function Stats({ liste }: { liste: Liste }) {
         <div className="kpi"><span className="k">En cours</span><span className="v">{s.enCours}</span><span className="s">points entamés</span></div>
         <div className="kpi"><span className="k">À faire</span><span className="v">{s.aFaire}</span><span className="s">{ouverts} point{ouverts > 1 ? 's' : ''} encore ouvert{ouverts > 1 ? 's' : ''}</span></div>
         <div className="kpi"><span className="k">Écartés</span><span className="v">{s.ecartes}</span><span className="s">décidés « non »</span></div>
+        <div className="kpi alerte"><span className="k">⚠ Alertes</span><span className="v">{s.alertes}</span><span className="s">à soulever avec les auteurs</span></div>
       </div>
 
       <div className="panel">
         <h3>Par catégorie</h3>
         <table className="dev-table">
           <thead>
-            <tr><th>Catégorie</th><th>Avancement</th><th>Validés</th><th>En cours</th><th>À faire</th><th>Écartés</th><th>Total</th></tr>
+            <tr><th>Catégorie</th><th>Avancement</th><th>Validés</th><th>En cours</th><th>À faire</th><th>Écartés</th><th>Total</th><th>⚠ Alertes</th></tr>
           </thead>
           <tbody>
             {s.categories.map((c) => (
@@ -772,6 +801,7 @@ function Stats({ liste }: { liste: Liste }) {
                 <td><strong>{c.titre}</strong></td>
                 <td className="dev-table-barre"><Barre compte={c} /> <span>{c.pourcent} %</span></td>
                 <td>{c.valides}</td><td>{c.enCours}</td><td>{c.aFaire}</td><td>{c.ecartes}</td><td>{c.total}</td>
+                <td className={c.alertes ? 'dev-td-alerte' : ''}>{c.alertes}</td>
               </tr>
             ))}
           </tbody>
@@ -782,7 +812,7 @@ function Stats({ liste }: { liste: Liste }) {
         <h3>Par sous-catégorie</h3>
         <table className="dev-table">
           <thead>
-            <tr><th>Catégorie</th><th>Sous-catégorie</th><th>Avancement</th><th>Réglés</th><th>Ouverts</th></tr>
+            <tr><th>Catégorie</th><th>Sous-catégorie</th><th>Avancement</th><th>Réglés</th><th>Ouverts</th><th>⚠</th></tr>
           </thead>
           <tbody>
             {s.categories.flatMap((c) =>
@@ -793,6 +823,7 @@ function Stats({ liste }: { liste: Liste }) {
                   <td className="dev-table-barre"><Barre compte={sc} /> <span>{sc.pourcent} %</span></td>
                   <td>{sc.valides + sc.ecartes}/{sc.total}</td>
                   <td>{sc.aFaire + sc.enCours}</td>
+                  <td className={sc.alertes ? 'dev-td-alerte' : ''}>{sc.alertes || ''}</td>
                 </tr>
               )),
             )}

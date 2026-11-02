@@ -2660,6 +2660,87 @@ button.mission-card.selected {
   background: var(--ink-faint);
 }
 
+/*
+ * L'alerte, à droite de la ligne : éteinte, un triangle discret qu'on
+ * remarque à peine ; allumée, un pavé rouge qui ne s'oublie pas. Elle est
+ * indépendante de l'état — c'est ce qu'on apporte à la réunion.
+ */
+.dev-alerte {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--line);
+  font-size: 15px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  margin-top: 1px;
+  /* Les couleurs seulement : une transition sur `visibility` retarderait
+     de 120 ms la disparition des triangles éteints à l'impression, et la
+     boîte d'impression capture la page sans attendre. */
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+
+.dev-alerte:hover {
+  color: var(--bad);
+  border-color: var(--bad);
+  background: var(--bad-soft);
+}
+
+.dev-alerte.on {
+  color: #fff;
+  background: var(--bad);
+  border-color: var(--bad);
+}
+
+.dev-el.alerte {
+  box-shadow: inset 3px 0 0 var(--bad);
+  padding-left: 10px;
+  margin-left: -13px;
+}
+
+.dev-el.alerte.ouvert {
+  margin-left: -16px;
+  padding-left: 13px;
+}
+
+.dev-alerte-compte {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--bad-soft);
+  color: var(--bad);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  vertical-align: middle;
+}
+
+.tag.alerte-tag.on {
+  background: var(--bad-soft);
+  border-color: #f0b8b3;
+  color: var(--bad);
+  font-weight: 700;
+}
+
+.kpi.alerte .v {
+  color: var(--bad);
+}
+
+.dev-td-alerte {
+  color: var(--bad);
+  font-weight: 700;
+}
+
 .dev-el-titre {
   flex: 1;
   min-width: 0;
@@ -2882,6 +2963,18 @@ button.mission-card.selected {
 
   .dev-el.ouvert {
     background: none;
+  }
+
+  /* Sur le papier, seules les alertes posées se voient. */
+  .dev-alerte:not(.on) {
+    visibility: hidden;
+  }
+
+  .dev-alerte.on,
+  .dev-alerte-compte,
+  .dev-el.alerte {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
   .dev-barre span {

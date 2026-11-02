@@ -428,6 +428,16 @@
     padding: 0 12px;
   }
 
+  .dev-el.alerte {
+    margin-left: -12px;
+    padding-left: 9px;
+  }
+
+  .dev-el.alerte.ouvert {
+    margin-left: -12px;
+    padding-left: 9px;
+  }
+
   .dev-el-panneau {
     padding-left: 0;
   }
