@@ -70,7 +70,15 @@ git update-ref "refs/heads/$BRANCHE" "$COMMIT"
 git tag -a "$ETIQUETTE" -m "$MESSAGE" "$COMMIT"
 
 echo "── 4/4 publication"
-git push origin "refs/heads/$BRANCHE:refs/heads/$BRANCHE" "refs/tags/$ETIQUETTE"
+# Si la poussée échoue, on efface la branche et l'étiquette locales : sinon
+# la prochaine tentative refuserait de partir (« l'étiquette existe déjà »)
+# alors que rien n'a été publié.
+if ! git push origin "refs/heads/$BRANCHE:refs/heads/$BRANCHE" "refs/tags/$ETIQUETTE"; then
+  git tag -d "$ETIQUETTE" >/dev/null
+  git update-ref -d "refs/heads/$BRANCHE"
+  echo "La poussée a échoué : rien n'a été publié, la branche et l'étiquette locales sont retirées." >&2
+  exit 1
+fi
 
 echo
 echo "Publié : $ETIQUETTE  (commit $(git rev-parse --short "$COMMIT") sur $BRANCHE)"

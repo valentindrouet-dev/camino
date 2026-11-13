@@ -1,0 +1,38 @@
+name: Publier @bbg/camino-scoring
+
+# Lancement à la main (onglet Actions → « Run workflow »), sur la branche
+# dont on veut publier le cœur. Le workflow fait exactement ce que fait
+# `npm run release:scoring` en local : tests, compilation, puis poussée du
+# résultat sur la branche `camino-scoring-dist` avec l'étiquette
+# `camino-scoring-v<version>` (la version vient de
+# packages/camino-scoring/package.json).
+#
+# Pourquoi un workflow en plus du script : le jeton du workflow a le droit
+# de créer une branche et une étiquette, ce que n'ont pas tous les postes
+# d'où l'on pousse.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: camino-scoring
+  cancel-in-progress: false
+
+jobs:
+  publier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Publier le paquet
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          npm run release:scoring
