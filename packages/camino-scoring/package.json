@@ -1,0 +1,25 @@
+{
+  "name": "@bbg/camino-scoring",
+  "version": "1.0.0",
+  "description": "Lecture d’un plateau CAMINO photographié et décompte des points, cartes missions comprises. Le cœur de l’application CAMINO, sans son interface.",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/valentindrouet-dev/camino"
+  },
+  "exports": {
+    "./vision": {
+      "types": "./dist/vision/index.d.ts",
+      "default": "./dist/vision/index.js"
+    },
+    "./decompte": {
+      "types": "./dist/engine/index.d.ts",
+      "default": "./dist/engine/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false
+}

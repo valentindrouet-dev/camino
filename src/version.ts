@@ -15,6 +15,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.89',
+    date: '2026-11-13',
+    changes: [
+      'Le cœur du Scanner — la lecture d’une photo de plateau et le décompte des points, cartes missions comprises — devient un paquet à part, « @bbg/camino-scoring », pour que l’application BBG compte les points exactement comme celle-ci. Rien ne change pour qui joue ici : c’est le même code, compilé et publié sur une branche du dépôt à chaque version.',
+    ],
+  },
+  {
     version: '1.88',
     date: '2026-11-02',
     changes: [

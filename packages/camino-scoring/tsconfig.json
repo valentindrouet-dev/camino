@@ -1,0 +1,29 @@
+{
+  "//": [
+    "Compile le cœur — src/engine et src/vision — en JavaScript et déclarations",
+    "de types, pour le paquet @bbg/camino-scoring. Les sources importent avec",
+    "l'extension .ts ; `rewriteRelativeImportExtensions` (TypeScript 5.7+) les",
+    "réécrit en .js à l'émission, ce qui donne un paquet lisible par Node, Vite",
+    "et le tsc de celui qui l'installe."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "rewriteRelativeImportExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": false,
+    "sourceMap": false,
+    "rootDir": "../../src",
+    "outDir": "./dist"
+  },
+  "include": ["../../src/engine", "../../src/vision"]
+}

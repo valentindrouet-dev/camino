@@ -12,3 +12,6 @@ dist
 !.env.example
 *.pem
 *.key
+
+# Le paquet compilé vit sur la branche camino-scoring-dist, pas ici.
+packages/camino-scoring/dist
