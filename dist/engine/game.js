@@ -1,0 +1,703 @@
+import { createBoard, createBoardRect, isFull, legalCells, placeTile } from "./board.js";
+import { activeRuleset, applyCards, cardById, cardSeuil, cardTable, CARDS, playerCardIds, rulesetForPlayer, TOUTES_LES_CARTES, } from "./cards.js";
+import { Rng } from "./rng.js";
+import { scoreBoard, scoreOf } from "./scoring.js";
+import { COLOR_TILE_IDS, BALANCED_TILE_IDS, DOUBLED_TILE_IDS, MONO_TILE_IDS, MULTI_START_TILE_IDS, TILE_COUNT, TILES, WHITE_TILE_IDS, } from "./tiles.js";
+import { DEFAULT_RULESET, PATH_COLORS } from "./types.js";
+/** Couleurs exactes des six plateaux de la boîte. */
+export const BOARD_COLOR_HEX = {
+    O: '#F7931D',
+    R: '#D1232A',
+    P: '#6850A1',
+    G: '#40AE49',
+    Y: '#FFF101',
+    B: '#0095D9',
+};
+export const BOARD_COLOR_NAMES = {
+    O: 'Orange',
+    R: 'Rouge',
+    P: 'Violet',
+    G: 'Vert',
+    Y: 'Jaune',
+    B: 'Bleu',
+};
+/** Ordre d'attribution par défaut des plateaux. */
+export const DEFAULT_BOARD_ORDER = ['O', 'B', 'G', 'R', 'P', 'Y'];
+/** Première couleur de plateau encore libre. */
+export function freeBoardColor(taken) {
+    return DEFAULT_BOARD_ORDER.find((c) => !taken.includes(c)) ?? DEFAULT_BOARD_ORDER[0];
+}
+export function defaultPlayers(count) {
+    return Array.from({ length: count }, (_, i) => ({
+        name: `Joueur ${i + 1}`,
+        kind: 'human',
+        boardColor: DEFAULT_BOARD_ORDER[i % DEFAULT_BOARD_ORDER.length],
+    }));
+}
+export function defaultOptions(seed) {
+    return {
+        ruleset: { ...DEFAULT_RULESET },
+        liveScore: true,
+        showZones: true,
+        showHints: false,
+        useCards: false,
+        seed,
+    };
+}
+/**
+ * Options débarrassées de tout ce qui relève des variantes : les variantes
+ * elles-mêmes, les cartes missions, la pose libre et le barème perso — ces
+ * trois derniers vivant dans le même panneau. Ce qui relève de l'affichage
+ * et du confort (score visible, indices, dernière tuile, 1er joueur
+ * aléatoire, graine) est conservé tel quel.
+ */
+export function clearVariants(options) {
+    return {
+        ...options,
+        useCards: false,
+        cardCount: 1,
+        cardId: undefined,
+        personalCards: false,
+        // DEFAULT_RULESET ne porte aucune variante : le barème repart officiel,
+        // pose libre comprise.
+        ruleset: { ...DEFAULT_RULESET },
+    };
+}
+/** Nombre de tuiles révélées au centre à chaque tour. */
+export function tilesPerRound(ruleset, playerCount) {
+    // Partie synchrone : une seule tuile, la même pour tout le monde.
+    if (ruleset.variants?.syncDraw)
+        return 1;
+    const extra = ruleset.variants?.extraTile ? 1 : 0;
+    if (ruleset.tilesPerRound > 0)
+        return ruleset.tilesPerRound + extra;
+    // Règle officielle : autant de tuiles que de joueurs.
+    // En solo on en propose 2 pour qu'il reste un choix à faire.
+    return (playerCount === 1 ? 2 : playerCount) + extra;
+}
+/**
+ * Dimensions du plateau partagé (variante Plateau commun) : 16 cases par
+ * joueur, disposées en PAYSAGE — le plateau ne dépasse jamais 8 tuiles de
+ * haut et s'allonge vers la droite. 8×4 à deux, 8×6 à trois, 8×8 à quatre,
+ * puis 10×8 et 12×8. Chaque joueur apporte exactement ses 16 tuiles et le
+ * plateau finit plein.
+ */
+export function sharedBoardDims(playerCount) {
+    // Solo : le plateau habituel, il n'y a personne avec qui partager.
+    if (playerCount <= 1)
+        return { w: 4, h: 4 };
+    const h = Math.min(8, 2 * playerCount);
+    return { w: (16 * playerCount) / h, h };
+}
+/**
+ * Nombre de manches d'une partie : une par case du plateau, moins la tuile de
+ * départ déjà posée (variante). En Plateau commun, chaque manche remplit une
+ * case PAR JOUEUR : on joue tant qu'il reste une case pour chacun.
+ */
+export function roundsFor(ruleset, playerCount = 0) {
+    const start = ruleset.variants?.startTile ? 1 : 0;
+    if (ruleset.variants?.sharedBoard && playerCount > 0) {
+        const { w, h } = sharedBoardDims(playerCount);
+        return Math.floor((w * h - start) / playerCount);
+    }
+    return ruleset.boardSize * ruleset.boardSize - start;
+}
+/** Manche où les cartes Rotation sont retournées (variante Échange de plateaux). */
+export function swapRound(ruleset) {
+    return Math.floor(roundsFor(ruleset) / 2);
+}
+/** Nombre de tuiles nécessaires pour aller au bout de la partie. */
+export function tilesNeeded(ruleset, playerCount) {
+    const reserve = ruleset.variants?.personalTile ? playerCount : 0;
+    // Chaque manche consomme une tuile par joueur — une seule en Partie
+    // synchrone ; celles qui restent au centre repartent au sac. Il faut
+    // simplement de quoi garnir la dernière manche.
+    const perRound = ruleset.variants?.syncDraw ? 1 : playerCount === 1 ? 1 : playerCount;
+    return (roundsFor(ruleset, playerCount) * perRound +
+        (tilesPerRound(ruleset, playerCount) - perRound) +
+        reserve);
+}
+/** Taille du sac selon les variantes actives. */
+export function bagSize(ruleset) {
+    let n = TILE_COUNT;
+    if (ruleset.variants?.monoTiles)
+        n += MONO_TILE_IDS.length;
+    if (ruleset.variants?.whiteTiles)
+        n += WHITE_TILE_IDS.length;
+    return n;
+}
+export function configError(config) {
+    const n = config.players.length;
+    if (n < 1 || n > 6)
+        return 'Il faut entre 1 et 6 joueurs.';
+    const colors = config.players.map((p) => p.boardColor);
+    if (new Set(colors).size !== colors.length) {
+        return 'Deux joueurs ne peuvent pas prendre le même plateau : choisissez des couleurs différentes.';
+    }
+    const v = config.options.ruleset.variants;
+    const bordures = [v?.coloredBorders, v?.quadBorders, v?.multiBorders].filter(Boolean).length;
+    if (bordures > 1) {
+        return 'Bords Colorés, Bords 4 Couleurs et Bords Multicolores se disputent le même contour : n’en gardez qu’un.';
+    }
+    if (config.options.personalCards && config.options.useCards) {
+        return 'Cartes missions persos et cartes de la table ne peuvent pas être activées en même temps.';
+    }
+    if (v?.sharedBoard && bordures > 0) {
+        return 'Le Plateau commun n’a pas de contour : décochez la variante de bords.';
+    }
+    if (v?.syncDraw && (v?.extraTile || v?.lastPickRandom || v?.randomBack)) {
+        return 'La Partie synchrone révèle une seule tuile, la même pour tous : Tuile supplémentaire, Dernier choix aléatoire et Verso aléatoire n’ont plus de sens avec elle.';
+    }
+    const needed = tilesNeeded(config.options.ruleset, n);
+    const available = bagSize(config.options.ruleset);
+    if (needed > available) {
+        return `Il faudrait ${needed} tuiles pour cette configuration, le sac n'en contient que ${available}. Réduisez le nombre de joueurs ou ajoutez des tuiles de variante.`;
+    }
+    return null;
+}
+/**
+ * Bordure multicolore d'un plateau : 8 carrés par côté, coins blancs, jamais
+ * deux carrés identiques adjacents. Fixe par couleur de plateau — ce sont des
+ * plateaux imprimés, identiques d'une partie à l'autre.
+ */
+export function multiBorderFor(boardColor, size = 4) {
+    const rng = new Rng(`camino-bordure-${boardColor}`);
+    const per = size * 2;
+    const squares = [[], [], [], []];
+    const PALETTE = ['Y', 'O', 'R', 'G', 'B', 'P'];
+    for (let side = 0; side < 4; side++) {
+        for (let k = 0; k < per; k++) {
+            // voisin précédent sur le même côté ; aux jonctions, les coins blancs isolent
+            const prev = k > 0 ? squares[side][k - 1] : null;
+            let c;
+            do {
+                c = PALETTE[rng.int(PALETTE.length)];
+            } while (c === prev);
+            squares[side].push(c);
+        }
+    }
+    return { kind: 'multi', squares };
+}
+/**
+ * Bordure à quatre couleurs : un côté, une couleur.
+ *
+ * Les six plateaux de la boîte se partagent les six couleurs à parts strictement
+ * égales — chaque couleur apparaît sur quatre côtés au total, jamais deux fois
+ * sur le même plateau. Un plateau ne porte JAMAIS sa propre couleur : c'est ce
+ * qui donne son intérêt à la variante, personne ne peut s'appuyer sur la
+ * couleur qu'il a déjà sous la main.
+ *
+ * La règle tient en une phrase : les quatre couleurs qui suivent la vôtre dans
+ * l'ordre Jaune, Orange, Rouge, Vert, Bleu, Violet.
+ */
+export function quadBorderFor(boardColor) {
+    const roue = ['Y', 'O', 'R', 'G', 'B', 'P'];
+    const i = roue.indexOf(boardColor);
+    const suivante = (k) => roue[(i + k) % roue.length];
+    return { kind: 'quad', sides: [suivante(1), suivante(2), suivante(3), suivante(4)] };
+}
+/** Bordure du plateau d'un joueur selon les variantes actives. */
+export function bordersFor(ruleset, boardColor) {
+    if (ruleset.variants?.coloredBorders)
+        return { kind: 'uniform', color: boardColor };
+    if (ruleset.variants?.quadBorders)
+        return quadBorderFor(boardColor);
+    if (ruleset.variants?.multiBorders)
+        return multiBorderFor(boardColor, ruleset.boardSize);
+    return undefined;
+}
+export function createGame(config) {
+    const rng = new Rng(config.options.seed);
+    const ruleset = config.options.ruleset;
+    // Plateau commun : un seul grand plateau, sa taille suit le nombre de joueurs.
+    const shared = Boolean(ruleset.variants?.sharedBoard);
+    const size = ruleset.boardSize;
+    const players = config.players.map((p, i) => ({
+        id: i,
+        name: p.name.trim() || `Joueur ${i + 1}`,
+        kind: p.kind,
+        boardColor: p.boardColor,
+        color: BOARD_COLOR_HEX[p.boardColor],
+        board: { ...createBoard(size), borders: bordersFor(ruleset, p.boardColor) },
+    }));
+    // Plateau commun : tout le monde regarde — et remplit — le même plateau,
+    // rectangulaire et en paysage : 16 cases par joueur.
+    if (shared) {
+        const dims = sharedBoardDims(players.length);
+        const commun = createBoardRect(dims.w, dims.h);
+        for (const p of players)
+            p.board = commun;
+    }
+    // Cartes missions : une ou plusieurs pour la table, ou une par joueur.
+    let cardId;
+    let cardIds;
+    if (config.options.personalCards) {
+        const deck = rng.shuffle(CARDS.map((c) => c.id));
+        players.forEach((p, i) => {
+            p.cardId = deck[i % deck.length];
+        });
+    }
+    else if (config.options.useCards) {
+        const count = Math.max(1, Math.min(config.options.cardCount ?? 1, CARDS.length));
+        const rest = rng.shuffle(CARDS.map((c) => c.id).filter((id) => id !== config.options.cardId));
+        cardIds = [...(config.options.cardId ? [config.options.cardId] : []), ...rest].slice(0, count);
+        cardId = cardIds[0];
+    }
+    // Couleur imposée aux cartes qui en dépendent (plus grand chemin, chemins
+    // d'une couleur, couleur bannie) : tirée en début de partie, la même pour
+    // toute la table. Elle est tirée AVANT la distribution des couleurs des
+    // joueurs, qui peut en dépendre.
+    // On tire pour le catalogue COMPLET, cartes retirées comprises : une carte
+    // mise de côté reste jouable si on l'impose par son identifiant.
+    const cardColors = {};
+    for (const card of TOUTES_LES_CARTES) {
+        if (card.colorized)
+            cardColors[card.id] = PATH_COLORS[rng.int(PATH_COLORS.length)];
+    }
+    // Axe (colonne ou ligne) des cartes qui en dépendent — même principe.
+    const cardAxes = {};
+    for (const card of TOUTES_LES_CARTES) {
+        if (card.randomAxis)
+            cardAxes[card.id] = rng.int(2) === 0 ? 'col' : 'row';
+    }
+    // Seuils : ceux-là ne sont pas tirés, ils sont CHOISIS à la mise en place.
+    // À défaut, la première valeur proposée par la carte.
+    const cardSeuils = {};
+    for (const card of TOUTES_LES_CARTES) {
+        if (card.seuils)
+            cardSeuils[card.id] = cardSeuil(card, config.options.cardSeuils?.[card.id]);
+    }
+    /** Cartes en jeu pour un joueur : celles de la table, ou la sienne. */
+    const cartesDe = (p) => config.options.personalCards ? (p.cardId ? [p.cardId] : []) : (cardIds ?? []);
+    // Tuile de départ : une tuile monochrome à la couleur du plateau, posée au
+    // centre. La même case pour tout le monde, tirée avec la graine.
+    if (ruleset.variants?.startTile) {
+        const w = players[0].board.size;
+        const h = players[0].board.cells.length / w;
+        const mids = (n) => (n % 2 === 1 ? [(n - 1) / 2] : [n / 2 - 1, n / 2]);
+        const centres = mids(h).flatMap((r) => mids(w).map((c) => r * w + c));
+        const cell = centres[rng.int(centres.length)];
+        // Multicolore : une seule tuile à quatre couleurs, la même pour tous, pour
+        // que personne ne démarre avec un avantage. Monochrome : la couleur du
+        // plateau de chacun.
+        const multi = ruleset.variants.startTileMulti || shared
+            ? MULTI_START_TILE_IDS[rng.int(MULTI_START_TILE_IDS.length)]
+            : null;
+        if (shared) {
+            // une seule tuile de départ, neutre : la multicolore, la même pour tous
+            const commun = { ...players[0].board, cells: players[0].board.cells.slice() };
+            commun.cells[cell] = { tileId: multi, rot: 0, round: -1 };
+            for (const p of players)
+                p.board = commun;
+        }
+        else {
+            for (const p of players) {
+                p.board = {
+                    ...p.board,
+                    cells: p.board.cells.slice(),
+                };
+                p.board.cells[cell] = {
+                    tileId: multi ?? COLOR_TILE_IDS[p.boardColor],
+                    rot: 0,
+                    round: -1,
+                };
+            }
+        }
+    }
+    // Couleurs interdites : une (ou deux) par joueur, matérialisées par des
+    // tuiles monochromes qu'on ne joue pas. Les points de ses chemins de ces
+    // couleurs lui sont infligés en négatif.
+    if (ruleset.variants?.forbiddenColor) {
+        const count = Math.max(1, Math.min(ruleset.variants.forbiddenColorCount ?? 1, 2));
+        for (const p of players) {
+            p.forbiddenColors = rng.shuffle([...PATH_COLORS]).slice(0, count);
+        }
+    }
+    // La carte « Couleur bannie » a le même pouvoir, mais la couleur est la même
+    // pour toute la table : on l'ajoute simplement aux couleurs interdites.
+    const bannie = cardColors['banned-color'];
+    if (bannie) {
+        for (const p of players) {
+            if (!cartesDe(p).includes('banned-color'))
+                continue;
+            p.forbiddenColors = [...new Set([...(p.forbiddenColors ?? []), bannie])];
+        }
+    }
+    // Couleur secrète : une par joueur, tirée sans doublon tant que possible —
+    // et jamais une couleur qui lui est déjà interdite.
+    const secretPour = (concernes) => {
+        const deck = rng.shuffle([...PATH_COLORS]);
+        concernes.forEach((p, i) => {
+            const banned = p.forbiddenColors ?? [];
+            const start = i % deck.length;
+            let pick = deck[start];
+            for (let k = 0; k < deck.length && banned.includes(pick); k++) {
+                pick = deck[(start + k + 1) % deck.length];
+            }
+            p.secretColor = pick;
+        });
+    };
+    if (ruleset.variants?.secretColor)
+        secretPour(players);
+    // Même pouvoir par la carte « Couleur secrète » : chacun tire la sienne.
+    const avecCarteSecrete = players.filter((p) => cartesDe(p).includes('secret-color'));
+    if (avecCarteSecrete.length)
+        secretPour(avecCarteSecrete);
+    let ids = Array.from({ length: TILE_COUNT }, (_, i) => i);
+    // Couleurs équilibrées : on retire les douze doubles et on met les douze
+    // tuiles uniques à leur place. Le sac garde exactement la même taille.
+    if (ruleset.variants?.balancedColors) {
+        const retirees = new Set(DOUBLED_TILE_IDS);
+        ids = ids.filter((id) => !retirees.has(id)).concat(BALANCED_TILE_IDS);
+    }
+    if (ruleset.variants?.monoTiles)
+        ids.push(...MONO_TILE_IDS);
+    if (ruleset.variants?.whiteTiles)
+        ids.push(...WHITE_TILE_IDS);
+    const bag = rng.shuffle(ids);
+    // Tuile personnelle : une tuile sans noir tirée du sac pour chaque joueur.
+    if (ruleset.variants?.personalTile) {
+        for (const p of players) {
+            const idx = bag.findIndex((id) => !TILES[id].quads.includes('K'));
+            if (idx >= 0) {
+                p.personalTileId = bag.splice(idx, 1)[0];
+                p.personalUsed = false;
+            }
+        }
+    }
+    const state = {
+        phase: 'playing',
+        options: config.options,
+        cardId,
+        cardIds,
+        cardColors,
+        cardAxes,
+        cardSeuils,
+        swapCard: ruleset.variants?.boardSwap
+            ? rng.int(2) === 0
+                ? 'rotate'
+                : 'stay'
+            : undefined,
+        players,
+        bag,
+        pool: [],
+        round: 0,
+        totalRounds: roundsFor(ruleset, players.length),
+        // Premier porteur du sac : le joueur 1, ou un joueur au hasard (option).
+        // Le tirage est fait en dernier pour ne pas décaler le mélange du sac.
+        bagHolder: config.options.randomFirst ? rng.int(players.length) : 0,
+        turnIndex: 0,
+        log: [],
+        scoreHistory: players.map(() => []),
+    };
+    return drawPool(state);
+}
+function drawPool(state) {
+    const count = tilesPerRound(state.options.ruleset, state.players.length);
+    // Les tuiles restées au centre (tuile supplémentaire non prise, ou tuile
+    // personnelle jouée à la place) sont REMÉLANGÉES dans le sac. Pas en Partie
+    // synchrone : la tuile commune a été jouée par tout le monde.
+    const leftovers = state.options.ruleset.variants?.syncDraw
+        ? []
+        : state.pool.filter((p) => p.takenBy === null).map((p) => p.tileId);
+    const bag = leftovers.length
+        ? new Rng(`${state.options.seed}-melange-${state.round}`).shuffle([...leftovers, ...state.bag])
+        : state.bag;
+    const pool = [];
+    for (let i = 0; i < count && bag.length; i++) {
+        pool.push({ tileId: bag.pop(), takenBy: null });
+    }
+    return { ...state, bag, pool, redrawUsed: false };
+}
+export function currentPlayerId(state) {
+    return (state.bagHolder + state.turnIndex) % state.players.length;
+}
+export function currentPlayer(state) {
+    return state.players[currentPlayerId(state)];
+}
+export function availableTiles(state) {
+    return state.pool.filter((p) => p.takenBy === null);
+}
+/** Cases jouables par le joueur courant. */
+export function currentLegalCells(state) {
+    const player = currentPlayer(state);
+    return legalCells(player.board, state.options.ruleset.requireAdjacency);
+}
+export function isLegalMove(state, move) {
+    if (state.phase !== 'playing')
+        return false;
+    const player = currentPlayer(state);
+    const variants = state.options.ruleset.variants;
+    if (move.flipped && !variants?.mirrorTiles)
+        return false;
+    // Verso aléatoire : après avoir retourné une tuile, on doit la prendre.
+    if (state.mustTakeTileId !== undefined && move.tileId !== state.mustTakeTileId)
+        return false;
+    if (move.personal) {
+        if (!variants?.personalTile)
+            return false;
+        if (player.personalTileId !== move.tileId || player.personalUsed)
+            return false;
+    }
+    else {
+        const pool = state.pool.find((p) => p.tileId === move.tileId && p.takenBy === null);
+        if (!pool)
+            return false;
+    }
+    if (player.board.cells[move.cell] !== null)
+        return false;
+    return currentLegalCells(state).includes(move.cell);
+}
+/**
+ * Variante « Dernier choix aléatoire » : le dernier joueur du tour peut
+ * échanger la tuile restante contre une pioche au hasard — une seule fois,
+ * sans retour possible.
+ */
+export function canRedrawLastTile(state) {
+    return Boolean(state.phase === 'playing' &&
+        state.options.ruleset.variants?.lastPickRandom &&
+        state.mustTakeTileId === undefined &&
+        !state.redrawUsed &&
+        state.turnIndex === state.players.length - 1 &&
+        availableTiles(state).length === 1 &&
+        state.bag.length > 0);
+}
+export function redrawLastTile(state) {
+    if (!canRedrawLastTile(state))
+        return state;
+    const remaining = availableTiles(state)[0];
+    const bag = state.bag.slice();
+    const drawn = bag.pop();
+    // la tuile refusée part au fond du sac : impossible d'y revenir
+    bag.unshift(remaining.tileId);
+    const pool = state.pool.map((p) => p.tileId === remaining.tileId ? { tileId: drawn, takenBy: null } : p);
+    return { ...state, bag, pool, redrawUsed: true };
+}
+/**
+ * Variante Verso aléatoire : à son tour, un joueur peut retourner une tuile du
+ * centre encore libre. Sa nouvelle face est tirée du sac — l'ancienne
+ * disparaît, c'est la même tuile physique — et il doit la prendre : on ne
+ * revient jamais en arrière. Une tuile ne se retourne qu'une fois.
+ */
+export function canFlipTile(state, tileId) {
+    const v = state.options.ruleset.variants;
+    if (!v?.randomBack || state.phase !== 'playing')
+        return false;
+    if (state.mustTakeTileId !== undefined)
+        return false;
+    const pool = state.pool.find((p) => p.tileId === tileId);
+    if (!pool || pool.takenBy !== null || pool.flipped)
+        return false;
+    // L'ancienne face ne revient pas au sac : il faut garder de quoi finir la
+    // partie. On exige une tuile d'avance sur les manches restantes.
+    const perRound = tilesPerRound(state.options.ruleset, state.players.length);
+    const futures = Math.max(0, state.totalRounds - state.round - 1) * perRound;
+    return state.bag.length >= futures + 1;
+}
+export function flipTile(state, tileId) {
+    if (!canFlipTile(state, tileId))
+        return state;
+    const rng = new Rng(`${state.options.seed}-verso-${state.round}-${state.turnIndex}`);
+    const bag = state.bag.slice();
+    const drawn = bag.splice(rng.int(bag.length), 1)[0];
+    const pool = state.pool.map((p) => p.tileId === tileId ? { tileId: drawn, takenBy: null, flipped: true } : p);
+    return { ...state, bag, pool, mustTakeTileId: drawn };
+}
+/**
+ * Prochain porteur du sac. Sens horaire par défaut ; avec la variante Sac
+ * antihoraire il revient au dernier servi, c'est-à-dire au voisin de droite.
+ */
+function nextBagHolder(state) {
+    const n = state.players.length;
+    const step = state.options.ruleset.variants?.bagCounterClockwise ? -1 : 1;
+    return (state.bagHolder + step + n) % n;
+}
+/**
+ * Variante Échange de plateaux : à mi-partie on retourne les deux cartes. Si
+ * c'est « Rotation ! », chaque joueur passe son plateau à son voisin de gauche.
+ */
+function rotateBoards(players) {
+    const n = players.length;
+    return players.map((p, i) => ({ ...p, board: players[(i - 1 + n) % n].board }));
+}
+/**
+ * Applique un coup : le joueur courant prend une tuile du centre et la pose.
+ * Retourne un NOUVEL état (les états sont immuables : l'annulation côté UI se
+ * contente d'empiler les états successifs, et un serveur peut rejouer la
+ * partie à partir de la graine + la liste des coups).
+ */
+/**
+ * Score total d'un joueur — zones ET missions — si son plateau était celui-ci.
+ *
+ * C'est le seul chiffre qui dise ce qu'un coup rapporte VRAIMENT. Le score des
+ * zones se lit sur le plateau ; une mission, elle, se gagne ou se perd d'un
+ * coup, et pèse souvent plus lourd que la tuile qu'on vient de poser.
+ *
+ * Les missions comparatives — le plus long chemin violet de la table — se
+ * jugent sur tous les plateaux à la fois : on reconstruit donc la table, pas
+ * seulement le joueur.
+ */
+export function totalAvecMissions(state, playerId, board) {
+    const shared = Boolean(state.options.ruleset.variants?.sharedBoard);
+    const players = state.players.map((p) => p.id === playerId || shared ? { ...p, board } : p);
+    const joueur = players[playerId];
+    const ruleset = rulesetForPlayer(state, playerId);
+    const zones = scoreBoard(board, ruleset, joueur);
+    const cartes = playerCardIds(state, playerId);
+    if (!cartes.length)
+        return zones.total;
+    return applyCards(zones, {
+        playerId,
+        board,
+        boardColor: joueur.boardColor,
+        ruleset,
+        table: cardTable(players, ruleset),
+    }, cartes, state.cardColors, state.cardAxes, state.cardSeuils).total;
+}
+export function applyMove(state, move) {
+    if (!isLegalMove(state, move))
+        return state;
+    const playerId = currentPlayerId(state);
+    const player = state.players[playerId];
+    // Barème en vigueur : la carte « zones noires positives » en fait partie.
+    const ruleset = activeRuleset(state);
+    const variants = state.options.ruleset.variants;
+    const shared = Boolean(variants?.sharedBoard);
+    const sync = Boolean(variants?.syncDraw);
+    // Plateau commun : « tching ! » — le delta se mesure sur le PLATEAU entier,
+    // à travers la couleur secrète et les couleurs interdites du poseur, mais
+    // sans sa cagnotte (c'est elle qu'on alimente).
+    const lens = shared
+        ? { secretColor: player.secretColor, forbiddenColors: player.forbiddenColors }
+        : player;
+    const before = scoreOf(player.board, ruleset, lens);
+    // En Plateau commun, chaque manche pose un rang de plus : le numéro de tour
+    // doit rester unique par tuile pour l'ordre de pose (teintures, cristaux…).
+    const roundStamp = shared ? state.round * state.players.length + state.turnIndex : state.round;
+    const board = placeTile(player.board, move.cell, move.tileId, move.rot, roundStamp, move.flipped, shared ? playerId : undefined);
+    const after = scoreOf(board, ruleset, lens);
+    // Plateau commun : tout le monde regarde le même plateau, il change pour
+    // tous — et le poseur encaisse son delta immédiatement.
+    const players = state.players.map((q, i) => {
+        if (i === playerId) {
+            const banked = shared ? { banked: (q.banked ?? 0) + (after - before) } : {};
+            return move.personal
+                ? { ...q, board, personalUsed: true, ...banked }
+                : { ...q, board, ...banked };
+        }
+        return shared ? { ...q, board } : q;
+    });
+    // Partie synchrone : la tuile commune reste disponible pour les suivants.
+    const pool = move.personal || sync
+        ? state.pool
+        : state.pool.map((p) => (p.tileId === move.tileId ? { ...p, takenBy: playerId } : p));
+    /*
+     * Deux deltas, et ils ne disent pas la même chose. `delta` mesure les zones
+     * — c'est lui qui remplit la cagnotte du plateau commun et nourrit les
+     * statistiques, il ne doit pas bouger. `deltaTotal` mesure ce que le joueur
+     * gagne ou perd pour de bon, missions comprises : c'est celui qu'on affiche.
+     * Sans carte en jeu, les deux se confondent et on s'épargne le calcul.
+     */
+    const avecCartes = playerCardIds(state, playerId).length > 0;
+    const deltaTotal = avecCartes
+        ? totalAvecMissions(state, playerId, board) - totalAvecMissions(state, playerId, player.board)
+        : after - before;
+    const log = state.log.concat({
+        round: state.round,
+        playerId,
+        tileId: move.tileId,
+        rot: move.rot,
+        cell: move.cell,
+        pickOrder: state.turnIndex,
+        choicesAvailable: availableTiles(state).length,
+        scoreAfter: shared ? (players[playerId].banked ?? 0) : after,
+        delta: after - before,
+        deltaTotal,
+    });
+    let next = {
+        ...state,
+        players,
+        pool,
+        log,
+        turnIndex: state.turnIndex + 1,
+        mustTakeTileId: undefined,
+    };
+    // Mort subite : la carte arrête la partie à l'instant où sa condition est
+    // remplie, sans attendre la fin du tour ni le décompte.
+    const vainqueur = mortSubite(next, playerId);
+    if (vainqueur !== null) {
+        return { ...next, phase: 'finished', suddenWinner: vainqueur, pool: [] };
+    }
+    // Fin du tour : tous les joueurs ont choisi une tuile.
+    if (next.turnIndex >= next.players.length) {
+        // La courbe doit raconter la même histoire que le classement final :
+        // on y met le score complet, carte mission comprise.
+        const totals = roundTotals(next, ruleset);
+        const scoreHistory = next.scoreHistory.map((h, i) => h.concat(totals[i]));
+        const round = next.round + 1;
+        const finished = round >= next.totalRounds || next.players.every((p) => isFull(p.board));
+        const swap = next.options.ruleset.variants?.boardSwap &&
+            next.swapCard === 'rotate' &&
+            round === swapRound(next.options.ruleset) &&
+            next.players.length > 1;
+        next = {
+            ...next,
+            players: swap ? rotateBoards(next.players) : next.players,
+            scoreHistory,
+            round,
+            turnIndex: 0,
+            bagHolder: nextBagHolder(next),
+            phase: finished ? 'finished' : 'playing',
+        };
+        if (!finished)
+            next = drawPool(next);
+        else
+            next = { ...next, pool: [] };
+    }
+    return next;
+}
+/**
+ * Mort subite : ce joueur vient-il de remplir la condition d'une carte qui
+ * met fin à la partie ? Rend son identifiant, ou `null`.
+ *
+ * On ne regarde que celui qui vient de jouer : les autres plateaux n'ont pas
+ * bougé, et une condition déjà remplie aurait déjà arrêté la partie.
+ */
+function mortSubite(state, playerId) {
+    const cartes = playerCardIds(state, playerId).map(cardById);
+    if (!cartes.some((c) => c?.sudden))
+        return null;
+    const player = state.players[playerId];
+    const ruleset = rulesetForPlayer(state, playerId);
+    const breakdown = scoreBoard(player.board, ruleset, player);
+    for (const carte of cartes) {
+        if (!carte?.sudden || !carte.atteint)
+            continue;
+        const atteint = carte.atteint({
+            playerId,
+            board: player.board,
+            boardColor: player.boardColor,
+            breakdown,
+            ruleset,
+            table: cardTable(state.players, ruleset),
+            seuil: state.cardSeuils?.[carte.id],
+        });
+        if (atteint)
+            return playerId;
+    }
+    return null;
+}
+/** Score complet de chaque joueur à cet instant, cartes missions comprises. */
+function roundTotals(state, baseRuleset) {
+    if (!state.options.useCards && !state.options.personalCards) {
+        return state.players.map((p) => scoreOf(p.board, baseRuleset, p));
+    }
+    return state.players.map((p) => {
+        const ruleset = rulesetForPlayer(state, p.id);
+        const table = cardTable(state.players, ruleset);
+        return applyCards(scoreBoard(p.board, ruleset, p), { playerId: p.id, board: p.board, boardColor: p.boardColor, ruleset, table }, playerCardIds(state, p.id), state.cardColors, state.cardAxes, state.cardSeuils).total;
+    });
+}
+export function isBot(player) {
+    return player.kind !== 'human';
+}
