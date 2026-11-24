@@ -2418,6 +2418,92 @@ button.mission-card.selected {
   font-size: 14px;
 }
 
+/* --- la synchronisation : un point de couleur et un mot ------------------ */
+.dev-synchro-ligne {
+  margin-top: 10px;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+}
+.dev-synchro {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+.dev-synchro-point {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #b9b9b9;
+  flex: none;
+}
+.dev-synchro.a-jour .dev-synchro-point {
+  background: var(--good);
+}
+.dev-synchro.envoi .dev-synchro-point,
+.dev-synchro.connexion .dev-synchro-point {
+  background: #e0a400;
+  animation: dev-pulse 1s ease-in-out infinite;
+}
+.dev-synchro.hors-ligne .dev-synchro-point {
+  background: var(--bad);
+}
+.dev-synchro.hors-ligne,
+.dev-synchro.non-configure {
+  color: var(--ink);
+}
+@keyframes dev-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.dev-auteur {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-dim);
+}
+.dev-auteur input {
+  width: 120px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  font: inherit;
+  color: var(--ink);
+}
+
+/* --- le journal ---------------------------------------------------------- */
+.dev-journal {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+.dev-journal li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  border-top: 1px solid var(--line-soft);
+  font-size: 14px;
+}
+.dev-journal .quand {
+  color: var(--ink-dim);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  min-width: 118px;
+}
+.dev-journal .texte {
+  flex: 1;
+  min-width: 200px;
+}
+.dev-journal .btn {
+  margin-left: auto;
+}
+
 /* ---------------------------------------------------------- catégories */
 
 .dev-categories {

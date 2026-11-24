@@ -26,8 +26,12 @@ const ANNONCE_MS = 4000
 
 let client: Client | null = null
 
-/** Charge le client une seule fois, et seulement si on en a besoin. */
-async function getClient(): Promise<Client> {
+/**
+ * Charge le client une seule fois, et seulement si on en a besoin. Les salons
+ * s'en servent pour la diffusion ; la liste de développement partagée, pour
+ * sa table et sa diffusion.
+ */
+export async function clientSupabase(): Promise<Client> {
   if (client) return client
   const { createClient } = await import('@supabase/supabase-js')
   client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -83,7 +87,7 @@ export class TransportSupabase implements Transport {
 
     this.majEtat('connexion')
     void (async () => {
-      const c = await getClient()
+      const c = await clientSupabase()
       if (!vivant) return
       this.hall = c.channel(HALL, { config: { broadcast: { self: false } } })
       this.hall.on('broadcast', { event: 'hall' }, ({ payload }) => {
@@ -130,7 +134,7 @@ export class TransportSupabase implements Transport {
   // ---------------------------------------------------------------- salons
   private async brancher(salonId: string) {
     this.quitterCanal()
-    const c = await getClient()
+    const c = await clientSupabase()
     const canal = c.channel(`camino-salon-${salonId}`, {
       config: { broadcast: { self: false } },
     })

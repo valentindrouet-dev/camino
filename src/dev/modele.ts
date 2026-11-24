@@ -168,6 +168,16 @@ function aujourdhui(): string {
   return horloge().toISOString().slice(0, 10)
 }
 
+/** La date du jour, ISO court — celle qu'on écrit dans `maj` quand un état change. */
+export function dateDuJour(): string {
+  return aujourdhui()
+}
+
+/** L'instant présent, ISO complet — l'horodatage d'une opération. */
+export function maintenant(): string {
+  return horloge().toISOString()
+}
+
 function touchee(liste: Liste, categories: Categorie[]): Liste {
   return { ...liste, modifie: horloge().toISOString(), categories }
 }
@@ -206,8 +216,16 @@ export function modifierElement(
   patch: Partial<Omit<Element, 'id'>>,
 ): Liste {
   return surElement(liste, id, (e) => {
+    // Un changement d'état date le point — sauf si le correctif apporte déjà
+    // sa date : une opération rejouée sur un autre appareil, un autre jour,
+    // doit donner exactement le même point.
     const changeEtat = patch.etat !== undefined && patch.etat !== e.etat
-    return { ...e, ...patch, ...(changeEtat ? { maj: aujourdhui() } : {}) }
+    const el: Element = { ...e, ...patch, ...(changeEtat && patch.maj === undefined ? { maj: aujourdhui() } : {}) }
+    // Un champ vidé disparaît plutôt que de rester vide : la liste reste
+    // identique qu'on l'ait relue d'un fichier ou construite à la main.
+    for (const k of ['detail', 'note', 'qui', 'maj'] as const) if (!el[k]) delete el[k]
+    if (!el.alerte) delete el.alerte
+    return el
   })
 }
 
@@ -244,13 +262,24 @@ export function ajouterElement(
   if (!propre) return liste
   const element: Element = { id: nouvelId(), titre: propre, etat: 'a-faire' }
   if (detail?.trim()) element.detail = detail.trim()
+  return insererElement(liste, sousCategorieId, element)
+}
+
+/**
+ * Pose un point déjà construit — identifiant compris — en fin de sous-catégorie.
+ * C'est la forme qu'une opération rejouée emploie : l'identifiant a été tiré
+ * une fois, sur l'appareil qui a ajouté le point, et voyage avec lui. Un point
+ * dont l'identifiant existe déjà n'est pas ajouté deux fois.
+ */
+export function insererElement(liste: Liste, sousCategorieId: string, element: Element): Liste {
+  if (indexElements(liste).has(element.id)) return liste
   let trouve = false
   const categories = liste.categories.map((cat) => ({
     ...cat,
     sousCategories: cat.sousCategories.map((sc) => {
       if (sc.id !== sousCategorieId) return sc
       trouve = true
-      return { ...sc, elements: [...sc.elements, element] }
+      return { ...sc, elements: [...sc.elements, { ...element }] }
     }),
   }))
   return trouve ? touchee(liste, categories) : liste
@@ -307,15 +336,21 @@ export function transfererElement(liste: Liste, id: string, versSousCategorieId:
 }
 
 export function ajouterSousCategorie(liste: Liste, categorieId: string, titre: string): Liste {
+  return insererSousCategorie(liste, categorieId, nouvelId('sc'), titre)
+}
+
+/** Même chose avec un identifiant déjà tiré — la forme d'une opération rejouée. */
+export function insererSousCategorie(liste: Liste, categorieId: string, id: string, titre: string): Liste {
   const propre = titre.trim()
   if (!propre) return liste
+  if (liste.categories.some((c) => c.sousCategories.some((sc) => sc.id === id))) return liste
   let trouve = false
   const categories = liste.categories.map((cat) => {
     if (cat.id !== categorieId) return cat
     trouve = true
     return {
       ...cat,
-      sousCategories: [...cat.sousCategories, { id: nouvelId('sc'), titre: propre, elements: [] }],
+      sousCategories: [...cat.sousCategories, { id, titre: propre, elements: [] }],
     }
   })
   return trouve ? touchee(liste, categories) : liste
@@ -364,9 +399,15 @@ export function deplacerSousCategorie(liste: Liste, id: string, delta: -1 | 1): 
 }
 
 export function ajouterCategorie(liste: Liste, titre: string, intro?: string): Liste {
+  return insererCategorie(liste, nouvelId('cat'), titre, intro)
+}
+
+/** Même chose avec un identifiant déjà tiré — la forme d'une opération rejouée. */
+export function insererCategorie(liste: Liste, id: string, titre: string, intro?: string): Liste {
   const propre = titre.trim()
   if (!propre) return liste
-  const cat: Categorie = { id: nouvelId('cat'), titre: propre, sousCategories: [] }
+  if (liste.categories.some((c) => c.id === id)) return liste
+  const cat: Categorie = { id, titre: propre, sousCategories: [] }
   if (intro?.trim()) cat.intro = intro.trim()
   return touchee(liste, [...liste.categories, cat])
 }
@@ -497,6 +538,21 @@ function chaine(v: unknown): v is string {
   return typeof v === 'string'
 }
 
+/** Relit un point venu d'ailleurs — fichier, lien, serveur — ; `null` s'il est mal formé. */
+export function elementDepuis(x: unknown): Element | null {
+  if (!x || typeof x !== 'object') return null
+  const e = x as Record<string, unknown>
+  if (!chaine(e.id) || !e.id || !chaine(e.titre)) return null
+  if (!chaine(e.etat) || !ETATS.includes(e.etat as Etat)) return null
+  const el: Element = { id: e.id, titre: e.titre, etat: e.etat as Etat }
+  if (chaine(e.detail) && e.detail) el.detail = e.detail
+  if (chaine(e.note) && e.note) el.note = e.note
+  if (chaine(e.qui) && e.qui) el.qui = e.qui
+  if (chaine(e.maj) && e.maj) el.maj = e.maj
+  if (e.alerte === true) el.alerte = true
+  return el
+}
+
 export function valider(brut: unknown): Liste | null {
   if (!brut || typeof brut !== 'object') return null
   const l = brut as Record<string, unknown>
@@ -519,16 +575,8 @@ export function valider(brut: unknown): Liste | null {
       if (!unique(sc.id) || !chaine(sc.titre) || !Array.isArray(sc.elements)) return null
       const elements: Element[] = []
       for (const x of sc.elements as unknown[]) {
-        if (!x || typeof x !== 'object') return null
-        const e = x as Record<string, unknown>
-        if (!unique(e.id) || !chaine(e.titre)) return null
-        if (!chaine(e.etat) || !ETATS.includes(e.etat as Etat)) return null
-        const el: Element = { id: e.id, titre: e.titre, etat: e.etat as Etat }
-        if (chaine(e.detail) && e.detail) el.detail = e.detail
-        if (chaine(e.note) && e.note) el.note = e.note
-        if (chaine(e.qui) && e.qui) el.qui = e.qui
-        if (chaine(e.maj) && e.maj) el.maj = e.maj
-        if (e.alerte === true) el.alerte = true
+        const el = elementDepuis(x)
+        if (!el || !unique(el.id)) return null
         elements.push(el)
       }
       sousCategories.push({ id: sc.id, titre: sc.titre, elements })

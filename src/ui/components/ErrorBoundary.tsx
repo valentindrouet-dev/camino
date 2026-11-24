@@ -35,7 +35,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <p className="note">
             Rien n’est perdu côté code : rechargez la page. Si le problème revient, remettez les
             données locales à zéro — cela n’efface que les réglages et l’historique enregistrés dans
-            ce navigateur.
+            ce navigateur. La liste de développement n’y est jamais touchée.
           </p>
           <pre
             style={{
@@ -57,8 +57,16 @@ export class ErrorBoundary extends Component<Props, State> {
             <button
               className="btn"
               onClick={() => {
+                // Tout, SAUF la liste de développement : sa copie locale, et
+                // surtout les modifications pas encore envoyées au serveur,
+                // sont peut-être les seules qui existent.
                 try {
-                  localStorage.clear()
+                  const cles: string[] = []
+                  for (let i = 0; i < localStorage.length; i++) {
+                    const c = localStorage.key(i)
+                    if (c && !c.startsWith('camino.developpement')) cles.push(c)
+                  }
+                  for (const c of cles) localStorage.removeItem(c)
                 } catch {
                   /* rien à faire */
                 }

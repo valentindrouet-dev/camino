@@ -1,52 +1,44 @@
 /**
- * Où vit la liste de développement : dans le navigateur de chacun.
+ * Où vit la liste de développement.
  *
- * C'est la même mémoire que les réglages et la configuration de table — ce
- * qu'on coche ici reste ici. Pour la partager, on passe par un lien ou un
- * fichier (voir `modele.ts`) : la liste voyage entière, et celui qui la reçoit
- * décide de remplacer la sienne.
- *
- * Si un jour la liste devait vivre sur un service partagé, c'est ce fichier
- * qu'on remplacerait — rien d'autre ne sait où elle est rangée.
+ * Depuis la version 1.90, elle vit sur le serveur, partagée entre tous les
+ * appareils (voir `synchro.ts`) ; la mémoire du navigateur ne sert plus que
+ * de cache et de file d'attente. Ce fichier fournit cette mémoire, et
+ * construit la synchronisation avec le bon serveur : celui du projet
+ * Supabase quand le jeu en ligne est configuré, aucun sinon — la liste reste
+ * alors sur l'appareil, comme avant.
  */
-import { analyser, fusionnerNouveautes, serialiser } from './modele.ts'
-import type { Liste } from './modele.ts'
-import { listeDOrigine } from './contenu.ts'
+import { enLigneDisponible } from '../net/config.ts'
+import { ServeurSupabase } from './serveur.ts'
+import { Synchro } from './synchro.ts'
+import type { Memoire } from './synchro.ts'
 
-const CLE = 'camino.developpement.v1'
-
-/**
- * La liste à afficher : celle qu'on a mémorisée, complétée des points que la
- * mise à jour de l'application a pu apporter depuis — ou la liste d'origine
- * pour qui l'ouvre pour la première fois. Dit aussi combien de points sont
- * nouveaux, pour le signaler.
- */
-export function chargerListe(): { liste: Liste; nouveaux: number } {
-  let memorisee: Liste | null = null
-  try {
-    const brut = localStorage.getItem(CLE)
-    if (brut) memorisee = analyser(brut)
-  } catch {
-    /* navigation privée, quota : on repart de l'origine */
-  }
-  if (!memorisee) return { liste: listeDOrigine(), nouveaux: 0 }
-  const { liste, ajoutes } = fusionnerNouveautes(memorisee, listeDOrigine())
-  if (ajoutes) enregistrerListe(liste)
-  return { liste, nouveaux: ajoutes }
+/** La mémoire du navigateur, qui peut manquer (navigation privée, quota). */
+export const memoireNavigateur: Memoire = {
+  lire(cle) {
+    try {
+      return localStorage.getItem(cle)
+    } catch {
+      return null
+    }
+  },
+  ecrire(cle, valeur) {
+    try {
+      localStorage.setItem(cle, valeur)
+    } catch {
+      /* tant pis : la liste reste en mémoire le temps de la session */
+    }
+  },
+  effacer(cle) {
+    try {
+      localStorage.removeItem(cle)
+    } catch {
+      /* sans importance */
+    }
+  },
 }
 
-export function enregistrerListe(liste: Liste): void {
-  try {
-    localStorage.setItem(CLE, serialiser(liste))
-  } catch {
-    /* tant pis : la liste reste en mémoire le temps de la session */
-  }
-}
-
-export function effacerListe(): void {
-  try {
-    localStorage.removeItem(CLE)
-  } catch {
-    /* sans importance */
-  }
+/** La synchronisation de cet appareil, prête à démarrer. */
+export function creerSynchro(): Synchro {
+  return new Synchro(enLigneDisponible() ? new ServeurSupabase() : null, memoireNavigateur)
 }

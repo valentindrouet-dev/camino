@@ -464,4 +464,11 @@
     flex-direction: column;
     align-items: stretch;
   }
+  .dev-journal .quand {
+    min-width: 0;
+    width: 100%;
+  }
+  .dev-journal .btn {
+    margin-left: 0;
+  }
 }

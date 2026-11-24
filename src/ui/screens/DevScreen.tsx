@@ -2,43 +2,37 @@
  * Développement : la liste de tout ce qu'il reste à valider avec les auteurs
  * pour finir le jeu — mécaniques, illustrations, matériel, règles.
  *
- * L'écran est une liste qu'on coche, qu'on annote et qu'on réorganise. Il
- * compte l'avancement par catégorie, s'imprime en PDF, s'exporte en fichier et
- * se partage par un lien qui porte la liste entière. Toute la logique est dans
- * `src/dev/` ; ici, seulement ce qui s'affiche et ce qu'on touche.
+ * L'écran est une liste qu'on coche, qu'on annote et qu'on réorganise. Elle
+ * est PARTAGÉE : ce que l'un fait, tous le voient, et rien ne se perd — chaque
+ * geste est une opération envoyée au serveur, le journal dit qui a fait quoi,
+ * et l'on peut revenir à l'état d'avant n'importe quelle action. L'écran
+ * compte l'avancement par catégorie, s'imprime en PDF, s'exporte en fichier.
+ * Toute la logique est dans `src/dev/` ; ici, seulement ce qui s'affiche et
+ * ce qu'on touche.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { listeDOrigine } from '../../dev/contenu.ts'
 import {
-  ajouterCategorie,
-  ajouterElement,
-  ajouterSousCategorie,
   analyser,
-  basculerAlerte,
-  basculerEtat,
+  dateDuJour,
   dateLisible,
-  deplacerCategorie,
-  deplacerElement,
-  deplacerSousCategorie,
-  depuisLien,
   ETATS,
+  etatSuivant,
   fusionnerNouveautes,
-  modifierElement,
   NOM_ETAT,
-  renommerCategorie,
-  renommerSousCategorie,
+  nouvelId,
   serialiser,
   statistiques,
-  supprimerCategorie,
-  supprimerElement,
-  supprimerSousCategorie,
   toutesLesSousCategories,
-  transfererElement,
+  depuisLien,
   versLien,
 } from '../../dev/modele.ts'
 import type { Categorie, Compte, Element, Etat, Liste, SousCategorie } from '../../dev/modele.ts'
-import { chargerListe, effacerListe, enregistrerListe } from '../../dev/stockage.ts'
+import { decrire, quandLisible } from '../../dev/operations.ts'
+import type { Motif, Operation } from '../../dev/operations.ts'
+import { creerSynchro } from '../../dev/stockage.ts'
+import type { Entree, EtatSynchro, Mode } from '../../dev/synchro.ts'
 
 interface Props {
   onBack: () => void
@@ -60,34 +54,82 @@ const GLYPHE: Record<Etat, string> = {
   ecarte: '⊘',
 }
 
+type Agir = (op: Operation) => void
+
+// ---------------------------------------------------------------------------
+// La synchronisation, vue de React
+// ---------------------------------------------------------------------------
+
+/**
+ * Une synchronisation par écran ouvert. Elle se réveille quand on revient sur
+ * l'onglet ou que le réseau revient, envoie ce qui attend avant que la page
+ * ne se cache, et se remet à jour toutes les minutes au cas où une
+ * notification se serait perdue.
+ */
+function useSynchro() {
+  const [synchro] = useState(creerSynchro)
+  const [etat, setEtat] = useState<EtatSynchro>(() => synchro.etat())
+  useEffect(() => {
+    const off = synchro.abonner(setEtat)
+    synchro.demarrer()
+    setEtat(synchro.etat())
+    const reveil = () => synchro.reveiller()
+    const visibilite = () => {
+      if (document.visibilityState === 'visible') synchro.reveiller()
+      else synchro.envoyerMaintenant()
+    }
+    const depart = () => synchro.envoyerMaintenant()
+    window.addEventListener('focus', reveil)
+    window.addEventListener('online', reveil)
+    document.addEventListener('visibilitychange', visibilite)
+    window.addEventListener('pagehide', depart)
+    const tic = window.setInterval(() => {
+      if (document.visibilityState === 'visible') synchro.rattraper()
+    }, 60_000)
+    return () => {
+      off()
+      synchro.arreter()
+      window.removeEventListener('focus', reveil)
+      window.removeEventListener('online', reveil)
+      document.removeEventListener('visibilitychange', visibilite)
+      window.removeEventListener('pagehide', depart)
+      window.clearInterval(tic)
+    }
+  }, [synchro])
+  return { synchro, etat }
+}
+
+const TEXTE_MODE: Record<Mode, string> = {
+  local: 'Liste de cet appareil (jeu en ligne non configuré)',
+  connexion: 'Connexion à la liste partagée…',
+  'a-jour': 'Liste partagée · à jour',
+  envoi: 'Enregistrement…',
+  'hors-ligne': 'Hors ligne',
+  'non-configure': 'Sauvegarde partagée non activée',
+}
+
 export function DevScreen({ onBack, lienEntrant, onLienTraite }: Props) {
-  const [charge] = useState(chargerListe)
-  const [liste, setListe] = useState<Liste>(charge.liste)
-  const [nouveaux, setNouveaux] = useState(charge.nouveaux)
-  const [vue, setVue] = useState<'liste' | 'stats'>('liste')
+  const { synchro, etat } = useSynchro()
+  const liste = etat.liste
+  const [auteur, setAuteur] = useState(synchro.auteur)
+  const [vue, setVue] = useState<'liste' | 'stats' | 'journal'>('liste')
   const [filtre, setFiltre] = useState<Filtre>('tous')
   const [organiser, setOrganiser] = useState(false)
   const [replies, setReplies] = useState<Set<string>>(new Set())
   const [ouvert, setOuvert] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [propose, setPropose] = useState<Liste | null>(null)
+  const [propose, setPropose] = useState<{ liste: Liste; motif: Motif } | null>(null)
+  const [procedure, setProcedure] = useState(false)
   const fichierRef = useRef<HTMLInputElement>(null)
 
-  // Chaque changement est mémorisé : recharger la page rend la liste intacte.
-  const appliquer = useCallback((f: (l: Liste) => Liste) => {
-    setListe((l) => {
-      const maj = f(l)
-      if (maj !== l) enregistrerListe(maj)
-      return maj
-    })
-  }, [])
+  const agir = useCallback<Agir>((op) => synchro.agir(op), [synchro])
 
   const stats = useMemo(() => statistiques(liste), [liste])
 
   // Un message s'efface tout seul.
   useEffect(() => {
     if (!message) return
-    const t = window.setTimeout(() => setMessage(null), 4000)
+    const t = window.setTimeout(() => setMessage(null), 5000)
     return () => window.clearTimeout(t)
   }, [message])
 
@@ -97,7 +139,7 @@ export function DevScreen({ onBack, lienEntrant, onLienTraite }: Props) {
     let vivant = true
     void depuisLien(lienEntrant, listeDOrigine()).then((l) => {
       if (!vivant) return
-      if (l) setPropose(l)
+      if (l) setPropose({ liste: l, motif: 'lien' })
       else setMessage('Ce lien ne contient pas de liste lisible.')
       onLienTraite?.()
     })
@@ -120,8 +162,8 @@ export function DevScreen({ onBack, lienEntrant, onLienTraite }: Props) {
     }
   }
 
-  const exporter = () => {
-    const blob = new Blob([serialiser(liste)], { type: 'application/json' })
+  const exporter = (quoi: Liste = liste) => {
+    const blob = new Blob([serialiser(quoi)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = `camino-developpement-${new Date().toISOString().slice(0, 10)}.json`
@@ -135,24 +177,46 @@ export function DevScreen({ onBack, lienEntrant, onLienTraite }: Props) {
     if (!f) return
     f.text().then((texte) => {
       const l = analyser(texte)
-      if (l) setPropose(fusionnerNouveautes(l, listeDOrigine()).liste)
+      if (l) setPropose({ liste: fusionnerNouveautes(l, listeDOrigine()).liste, motif: 'fichier' })
       else setMessage('Ce fichier n’est pas une liste de développement.')
     })
   }
 
+  const partagee = synchro.partage
+
   const accepterProposee = () => {
     if (!propose) return
-    appliquer(() => propose)
+    agir({ k: 'remplacer', liste: propose.liste, motif: propose.motif })
     setPropose(null)
-    setNouveaux(0)
-    setMessage('Liste remplacée.')
+    synchro.nouveautesVues()
+    setMessage(partagee ? 'Liste remplacée, pour tout le monde. Le journal permet de revenir en arrière.' : 'Liste remplacée.')
   }
 
   const retablir = () => {
-    if (!window.confirm('Revenir à la liste d’origine ? Tout ce qui a été coché, écrit, ajouté ou déplacé sera perdu. Exportez d’abord si vous voulez le garder.')) return
-    effacerListe()
-    appliquer(() => listeDOrigine())
+    const texte = partagee
+      ? 'Revenir à la liste d’origine POUR TOUT LE MONDE ? Tout ce qui a été coché, écrit, ajouté ou déplacé disparaîtra de l’écran de chacun. Le journal garde l’historique : on pourra revenir en arrière.'
+      : 'Revenir à la liste d’origine ? Tout ce qui a été coché, écrit, ajouté ou déplacé sera perdu. Exportez d’abord si vous voulez le garder.'
+    if (!window.confirm(texte)) return
+    agir({ k: 'remplacer', liste: listeDOrigine(), motif: 'origine' })
     setMessage('Liste d’origine rétablie.')
+  }
+
+  const revenirAvant = (entree: Entree) => {
+    if (
+      !window.confirm(
+        `Revenir à la liste telle qu’elle était juste avant « ${entree.auteur || 'quelqu’un'} ${decrire(entree.op)} » ? Tout ce qui a été fait depuis sera défait, pour tout le monde. Ce retour s’ajoute au journal : on pourra l’annuler aussi.`,
+      )
+    )
+      return
+    void synchro.revenirAvant(entree.id).then((l) => {
+      setMessage(l ? 'Liste rétablie à cet état.' : 'Impossible de retrouver cet état.')
+      if (l) setVue('liste')
+    })
+  }
+
+  const nommer = (v: string) => {
+    setAuteur(v)
+    synchro.nommer(v)
   }
 
   const basculerRepli = (id: string) =>
@@ -166,6 +230,12 @@ export function DevScreen({ onBack, lienEntrant, onLienTraite }: Props) {
   const visible = (e: Element) =>
     filtre === 'tous' ? true : filtre === 'alerte' ? Boolean(e.alerte) : e.etat === filtre
 
+  const titreMode = etat.detail && (etat.mode === 'hors-ligne' || etat.mode === 'non-configure') ? etat.detail : undefined
+  const texteMode =
+    etat.mode === 'hors-ligne' && etat.enAttente
+      ? `Hors ligne · ${etat.enAttente} modification${etat.enAttente > 1 ? 's' : ''} en attente, envoyée${etat.enAttente > 1 ? 's' : ''} au retour du réseau`
+      : TEXTE_MODE[etat.mode]
+
   // -------------------------------------------------------------- rendu
   return (
     <div className="sheet dev">
@@ -178,7 +248,8 @@ export function DevScreen({ onBack, lienEntrant, onLienTraite }: Props) {
       <p className="note dev-sous-titre">
         Tout ce qu’il reste à valider avec les auteurs pour finir le jeu. Un point se coche
         (à faire → en cours → validé), s’annote, se déplace ; les catégories se réorganisent.
-        Mis à jour le {dateLisible(liste.modifie)}.
+        {partagee ? ' La liste est la même pour tous : ce que l’un fait, tous le voient. ' : ' '}
+        Mise à jour le {dateLisible(liste.modifie)}.
       </p>
 
       {/* ------------------------------------------------- avancement global */}
@@ -202,28 +273,86 @@ export function DevScreen({ onBack, lienEntrant, onLienTraite }: Props) {
         </div>
       </div>
 
-      {nouveaux > 0 && (
+      {/* ------------------------------------------------- synchronisation */}
+      <div className="row wrap dev-synchro-ligne impression-cachee">
+        <span className={`dev-synchro ${etat.mode}`} title={titreMode} data-mode={etat.mode}>
+          <i className="dev-synchro-point" aria-hidden />
+          <span>{texteMode}</span>
+        </span>
+        {etat.mode === 'non-configure' && (
+          <button className="btn small" onClick={() => setProcedure((v) => !v)}>
+            {procedure ? 'Masquer' : 'Comment l’activer'}
+          </button>
+        )}
+        <span className="spacer" />
+        {partagee && (
+          <label className="dev-auteur">
+            <span>Je suis</span>
+            <input
+              type="text"
+              value={auteur}
+              placeholder="prénom"
+              onChange={(ev) => nommer(ev.target.value)}
+              aria-label="Votre prénom, pour le journal"
+            />
+          </label>
+        )}
+      </div>
+
+      {etat.mode === 'non-configure' && procedure && (
+        <div className="panel dev-proposition impression-cachee">
+          <strong>Activer la sauvegarde partagée.</strong> La liste reste pour l’instant dans ce
+          navigateur, qui peut l’oublier (Safari efface la mémoire d’un site après sept jours sans visite).
+          Pour qu’elle vive sur le serveur et soit la même pour tous : dans le projet Supabase, ouvrir
+          <b> SQL Editor</b>, coller le contenu du fichier <code>supabase/developpement.sql</code> du dépôt
+          et l’exécuter, puis recharger cette page. La liste de cet appareil devient alors celle de tous.
+          Le détail est dans <code>docs/developpement-partage-supabase.md</code>.
+          {etat.detail && <p className="note" style={{ margin: '6px 0 0' }}>Le serveur dit : {etat.detail}</p>}
+        </div>
+      )}
+
+      {etat.nouveaux > 0 && (
         <div className="hint-box impression-cachee" style={{ marginTop: 10 }}>
-          La mise à jour de l’application a ajouté {nouveaux} point{nouveaux > 1 ? 's' : ''} à votre
+          La mise à jour de l’application a ajouté {etat.nouveaux} point{etat.nouveaux > 1 ? 's' : ''} à la
           liste — rien n’a été retiré ni décoché.{' '}
-          <button className="btn small" onClick={() => setNouveaux(0)}>
+          <button className="btn small" onClick={() => synchro.nouveautesVues()}>
             Compris
           </button>
+        </div>
+      )}
+
+      {etat.proposition && (
+        <div className="panel dev-proposition impression-cachee" data-proposition="appareil">
+          <strong>Cet appareil gardait une liste à lui.</strong>{' '}
+          Modifiée le {dateLisible(etat.proposition.modifie)},{' '}
+          {statistiques(etat.proposition).pourcent} % réglés, {statistiques(etat.proposition).total} points —
+          elle ne dit pas la même chose que la liste partagée. Que fait-on ?
+          <div className="row wrap" style={{ marginTop: 8 }}>
+            <button className="btn small primary" onClick={() => synchro.accepterProposition()}>
+              Elle remplace la liste partagée
+            </button>
+            <button className="btn small" onClick={() => exporter(etat.proposition!)}>
+              L’exporter
+            </button>
+            <button className="btn small ghost" onClick={() => synchro.refuserProposition()}>
+              Garder la partagée, l’oublier
+            </button>
+          </div>
         </div>
       )}
 
       {propose && (
         <div className="panel dev-proposition impression-cachee">
           <strong>Une liste vous est proposée.</strong>{' '}
-          « {propose.titre} », modifiée le {dateLisible(propose.modifie)},{' '}
-          {statistiques(propose).pourcent} % réglés, {statistiques(propose).total} points.
-          Elle remplacera la vôtre.
+          « {propose.liste.titre} », modifiée le {dateLisible(propose.liste.modifie)},{' '}
+          {statistiques(propose.liste).pourcent} % réglés, {statistiques(propose.liste).total} points.
+          Elle remplacera {partagee ? 'la liste partagée, pour tout le monde' : 'la vôtre'}.
           <div className="row wrap" style={{ marginTop: 8 }}>
             <button className="btn small primary" onClick={accepterProposee}>
-              Remplacer ma liste
+              {partagee ? 'Remplacer la liste partagée' : 'Remplacer ma liste'}
             </button>
-            <button className="btn small" onClick={exporter}>
-              Exporter la mienne d’abord
+            <button className="btn small" onClick={() => exporter()}>
+              Exporter l’actuelle d’abord
             </button>
             <button className="btn small ghost" onClick={() => setPropose(null)}>
               Ignorer
@@ -243,6 +372,11 @@ export function DevScreen({ onBack, lienEntrant, onLienTraite }: Props) {
           <button className={vue === 'stats' ? 'on' : ''} onClick={() => setVue('stats')}>
             Statistiques
           </button>
+          {partagee && (
+            <button className={vue === 'journal' ? 'on' : ''} onClick={() => setVue('journal')}>
+              Journal
+            </button>
+          )}
         </div>
         <div className="row wrap dev-boutons">
           <button className="btn small" onClick={() => void partager()} title="Copie un lien qui contient toute la liste">
@@ -251,7 +385,7 @@ export function DevScreen({ onBack, lienEntrant, onLienTraite }: Props) {
           <button className="btn small" onClick={() => window.print()} title="Imprimer, ou enregistrer en PDF">
             🖨 Imprimer / PDF
           </button>
-          <button className="btn small" onClick={exporter}>
+          <button className="btn small" onClick={() => exporter()}>
             ⬇ Exporter
           </button>
           <button className="btn small" onClick={() => fichierRef.current?.click()}>
@@ -283,7 +417,13 @@ export function DevScreen({ onBack, lienEntrant, onLienTraite }: Props) {
         </div>
       )}
 
-      <div className={vue === 'stats' ? 'ecran-cachee' : ''}>
+      {vue === 'journal' && (
+        <div className="impression-cachee">
+          <Journal entrees={etat.journal} charger={() => synchro.chargerJournal()} revenir={revenirAvant} />
+        </div>
+      )}
+
+      <div className={vue !== 'liste' ? 'ecran-cachee' : ''}>
           <div className="row wrap impression-cachee" style={{ margin: '12px 0 6px', alignItems: 'center' }}>
             <span className="note" style={{ margin: 0 }}>
               Afficher
@@ -323,14 +463,18 @@ export function DevScreen({ onBack, lienEntrant, onLienTraite }: Props) {
                 visible={visible}
                 filtreActif={filtre !== 'tous'}
                 liste={liste}
-                appliquer={appliquer}
+                agir={agir}
                 onRepli={() => basculerRepli(cat.id)}
               />
             ))}
           </div>
 
           {organiser && (
-            <AjoutCategorie onAjouter={(titre, intro) => appliquer((l) => ajouterCategorie(l, titre, intro))} />
+            <AjoutCategorie
+              onAjouter={(titre, intro) =>
+                agir({ k: 'cat-ajouter', id: nouvelId('cat'), titre: titre.trim(), ...(intro.trim() ? { intro: intro.trim() } : {}) })
+              }
+            />
           )}
       </div>
 
@@ -382,18 +526,18 @@ interface CategorieProps {
   visible: (e: Element) => boolean
   filtreActif: boolean
   liste: Liste
-  appliquer: (f: (l: Liste) => Liste) => void
+  agir: Agir
   onRepli: () => void
 }
 
 function CategorieVue(p: CategorieProps) {
-  const { cat, stats, repliee, organiser, appliquer } = p
+  const { cat, stats, repliee, organiser, agir } = p
   const [edition, setEdition] = useState(false)
   const [titre, setTitre] = useState(cat.titre)
   const [intro, setIntro] = useState(cat.intro ?? '')
 
   const valider = () => {
-    appliquer((l) => renommerCategorie(l, cat.id, titre, intro))
+    if (titre.trim()) agir({ k: 'cat-renommer', id: cat.id, titre: titre.trim(), intro: intro.trim() })
     setEdition(false)
   }
   const supprimer = () => {
@@ -403,7 +547,7 @@ function CategorieVue(p: CategorieProps) {
       !window.confirm(`Supprimer la catégorie « ${cat.titre} » et ses ${n} points ?`)
     )
       return
-    appliquer((l) => supprimerCategorie(l, cat.id))
+    agir({ k: 'cat-supprimer', id: cat.id, titre: cat.titre })
   }
 
   return (
@@ -453,8 +597,8 @@ function CategorieVue(p: CategorieProps) {
       {organiser && !edition && (
         <div className="row wrap dev-organiser impression-cachee">
           <button className="btn small" onClick={() => setEdition(true)}>Renommer</button>
-          <button className="btn small" onClick={() => appliquer((l) => deplacerCategorie(l, cat.id, -1))} disabled={p.premiere} aria-label="Monter la catégorie">↑</button>
-          <button className="btn small" onClick={() => appliquer((l) => deplacerCategorie(l, cat.id, 1))} disabled={p.derniere} aria-label="Descendre la catégorie">↓</button>
+          <button className="btn small" onClick={() => agir({ k: 'cat-deplacer', id: cat.id, delta: -1, titre: cat.titre })} disabled={p.premiere} aria-label="Monter la catégorie">↑</button>
+          <button className="btn small" onClick={() => agir({ k: 'cat-deplacer', id: cat.id, delta: 1, titre: cat.titre })} disabled={p.derniere} aria-label="Descendre la catégorie">↓</button>
           <button className="btn small ghost" onClick={supprimer}>Supprimer</button>
         </div>
       )}
@@ -473,14 +617,14 @@ function CategorieVue(p: CategorieProps) {
             visible={p.visible}
             filtreActif={p.filtreActif}
             liste={p.liste}
-            appliquer={appliquer}
+            agir={agir}
           />
         ))}
         {organiser && (
           <AjoutLigne
             libelle="+ Ajouter une sous-catégorie"
             placeholder="Titre de la sous-catégorie"
-            onAjouter={(t) => appliquer((l) => ajouterSousCategorie(l, cat.id, t))}
+            onAjouter={(t) => agir({ k: 'sc-ajouter', cat: cat.id, id: nouvelId('sc'), titre: t.trim() })}
           />
         )}
       </div>
@@ -503,11 +647,11 @@ interface SousCategorieProps {
   visible: (e: Element) => boolean
   filtreActif: boolean
   liste: Liste
-  appliquer: (f: (l: Liste) => Liste) => void
+  agir: Agir
 }
 
 function SousCategorieVue(p: SousCategorieProps) {
-  const { sc, stats, organiser, appliquer } = p
+  const { sc, stats, organiser, agir } = p
   const [edition, setEdition] = useState(false)
   const [titre, setTitre] = useState(sc.titre)
   const visibles = sc.elements.filter(p.visible)
@@ -518,7 +662,7 @@ function SousCategorieVue(p: SousCategorieProps) {
       !window.confirm(`Supprimer « ${sc.titre} » et ses ${sc.elements.length} points ?`)
     )
       return
-    appliquer((l) => supprimerSousCategorie(l, sc.id))
+    agir({ k: 'sc-supprimer', id: sc.id, titre: sc.titre })
   }
 
   // Sous un filtre, une sous-catégorie vide n'a rien à montrer : on l'escamote
@@ -531,7 +675,15 @@ function SousCategorieVue(p: SousCategorieProps) {
         {edition ? (
           <div className="row wrap" style={{ flex: 1 }}>
             <input className="dev-champ" value={titre} onChange={(e) => setTitre(e.target.value)} aria-label="Titre de la sous-catégorie" style={{ flex: 1 }} />
-            <button className="btn small primary" onClick={() => { appliquer((l) => renommerSousCategorie(l, sc.id, titre)); setEdition(false) }}>Enregistrer</button>
+            <button
+              className="btn small primary"
+              onClick={() => {
+                if (titre.trim()) agir({ k: 'sc-renommer', id: sc.id, titre: titre.trim() })
+                setEdition(false)
+              }}
+            >
+              Enregistrer
+            </button>
             <button className="btn small ghost" onClick={() => setEdition(false)}>Annuler</button>
           </div>
         ) : (
@@ -547,8 +699,8 @@ function SousCategorieVue(p: SousCategorieProps) {
         {organiser && !edition && (
           <div className="row dev-organiser impression-cachee">
             <button className="btn small" onClick={() => setEdition(true)}>Renommer</button>
-            <button className="btn small" onClick={() => appliquer((l) => deplacerSousCategorie(l, sc.id, -1))} disabled={p.premiere} aria-label="Monter">↑</button>
-            <button className="btn small" onClick={() => appliquer((l) => deplacerSousCategorie(l, sc.id, 1))} disabled={p.derniere} aria-label="Descendre">↓</button>
+            <button className="btn small" onClick={() => agir({ k: 'sc-deplacer', id: sc.id, delta: -1, titre: sc.titre })} disabled={p.premiere} aria-label="Monter">↑</button>
+            <button className="btn small" onClick={() => agir({ k: 'sc-deplacer', id: sc.id, delta: 1, titre: sc.titre })} disabled={p.derniere} aria-label="Descendre">↓</button>
             <button className="btn small ghost" onClick={supprimer}>Supprimer</button>
           </div>
         )}
@@ -565,7 +717,7 @@ function SousCategorieVue(p: SousCategorieProps) {
             premier={i === 0}
             dernier={i === sc.elements.length - 1}
             liste={p.liste}
-            appliquer={appliquer}
+            agir={agir}
           />
         ))}
       </ol>
@@ -573,7 +725,7 @@ function SousCategorieVue(p: SousCategorieProps) {
       <AjoutLigne
         libelle="+ Ajouter un point"
         placeholder="Ce qu’il y a à valider"
-        onAjouter={(t) => appliquer((l) => ajouterElement(l, sc.id, t))}
+        onAjouter={(t) => agir({ k: 'el-ajouter', sc: sc.id, element: { id: nouvelId(), titre: t.trim(), etat: 'a-faire' } })}
       />
     </div>
   )
@@ -591,20 +743,22 @@ interface ElementProps {
   premier: boolean
   dernier: boolean
   liste: Liste
-  appliquer: (f: (l: Liste) => Liste) => void
+  agir: Agir
 }
 
-function ElementVue({ e, masque, ouvert, setOuvert, premier, dernier, liste, appliquer }: ElementProps) {
+function ElementVue({ e, masque, ouvert, setOuvert, premier, dernier, liste, agir }: ElementProps) {
   const destinations = useMemo(() => toutesLesSousCategories(liste), [liste])
-  const patch = (champ: Partial<Omit<Element, 'id'>>) =>
-    appliquer((l) => modifierElement(l, e.id, champ))
+  // Un champ vidé voyage vide (''), jamais absent : c'est ainsi qu'un
+  // effacement arrive jusqu'aux autres appareils.
+  const patch = (champ: Partial<Omit<Element, 'id'>>) => agir({ k: 'el-modifier', id: e.id, patch: champ, titre: e.titre })
+  const changerEtat = (etat: Etat) => patch({ etat, maj: dateDuJour() })
 
   return (
     <li className={`dev-el ${e.etat} ${e.alerte ? 'alerte' : ''} ${masque ? 'masque' : ''} ${ouvert ? 'ouvert' : ''}`}>
       <div className="dev-el-ligne">
         <button
           className={`dev-etat ${e.etat}`}
-          onClick={() => appliquer((l) => basculerEtat(l, e.id))}
+          onClick={() => changerEtat(etatSuivant(e.etat))}
           title={`${NOM_ETAT[e.etat]} — cliquer pour passer à l’état suivant`}
           aria-label={`État : ${NOM_ETAT[e.etat]}`}
         >
@@ -629,7 +783,7 @@ function ElementVue({ e, masque, ouvert, setOuvert, premier, dernier, liste, app
             rester à soulever, un point à faire ne l'est pas forcément. */}
         <button
           className={`dev-alerte ${e.alerte ? 'on' : ''}`}
-          onClick={() => appliquer((l) => basculerAlerte(l, e.id))}
+          onClick={() => patch({ alerte: !e.alerte })}
           aria-pressed={Boolean(e.alerte)}
           aria-label={e.alerte ? 'Retirer l’alerte' : 'Signaler aux auteurs'}
           title={
@@ -646,20 +800,20 @@ function ElementVue({ e, masque, ouvert, setOuvert, premier, dernier, liste, app
         <div className="dev-el-panneau impression-cachee">
           <label className="field">
             <span>Titre</span>
-            <input type="text" value={e.titre} onChange={(ev) => patch({ titre: ev.target.value })} />
+            <input type="text" value={e.titre} onChange={(ev) => { if (ev.target.value.trim()) patch({ titre: ev.target.value }) }} />
           </label>
           <label className="field">
             <span>Détail — ce qu’il y a à décider</span>
-            <textarea className="dev-champ" rows={3} value={e.detail ?? ''} onChange={(ev) => patch({ detail: ev.target.value || undefined })} />
+            <textarea className="dev-champ" rows={3} value={e.detail ?? ''} onChange={(ev) => patch({ detail: ev.target.value })} />
           </label>
           <label className="field">
             <span>Décision, remarques</span>
-            <textarea className="dev-champ" rows={3} value={e.note ?? ''} onChange={(ev) => patch({ note: ev.target.value || undefined })} placeholder="Ce qui a été décidé, par qui, pourquoi." />
+            <textarea className="dev-champ" rows={3} value={e.note ?? ''} onChange={(ev) => patch({ note: ev.target.value })} placeholder="Ce qui a été décidé, par qui, pourquoi." />
           </label>
           <div className="row wrap">
             <label className="field" style={{ width: 160 }}>
               <span>État</span>
-              <select value={e.etat} onChange={(ev) => patch({ etat: ev.target.value as Etat })}>
+              <select value={e.etat} onChange={(ev) => changerEtat(ev.target.value as Etat)}>
                 {ETATS.map((x) => (
                   <option key={x} value={x}>
                     {GLYPHE[x]} {NOM_ETAT[x]}
@@ -669,14 +823,14 @@ function ElementVue({ e, masque, ouvert, setOuvert, premier, dernier, liste, app
             </label>
             <label className="field" style={{ width: 180 }}>
               <span>Qui s’en charge</span>
-              <input type="text" value={e.qui ?? ''} onChange={(ev) => patch({ qui: ev.target.value || undefined })} placeholder="Prénom" />
+              <input type="text" value={e.qui ?? ''} onChange={(ev) => patch({ qui: ev.target.value })} placeholder="Prénom" />
             </label>
             <label className="field" style={{ flex: 1, minWidth: 200 }}>
               <span>Déplacer vers</span>
               <select
                 value=""
                 onChange={(ev) => {
-                  if (ev.target.value) appliquer((l) => transfererElement(l, e.id, ev.target.value))
+                  if (ev.target.value) agir({ k: 'el-transferer', id: e.id, vers: ev.target.value, titre: e.titre })
                 }}
               >
                 <option value="">— une autre sous-catégorie —</option>
@@ -689,14 +843,14 @@ function ElementVue({ e, masque, ouvert, setOuvert, premier, dernier, liste, app
             </label>
           </div>
           <div className="row wrap">
-            <button className="btn small" onClick={() => appliquer((l) => deplacerElement(l, e.id, -1))} disabled={premier} aria-label="Monter le point">↑ Monter</button>
-            <button className="btn small" onClick={() => appliquer((l) => deplacerElement(l, e.id, 1))} disabled={dernier} aria-label="Descendre le point">↓ Descendre</button>
+            <button className="btn small" onClick={() => agir({ k: 'el-deplacer', id: e.id, delta: -1, titre: e.titre })} disabled={premier} aria-label="Monter le point">↑ Monter</button>
+            <button className="btn small" onClick={() => agir({ k: 'el-deplacer', id: e.id, delta: 1, titre: e.titre })} disabled={dernier} aria-label="Descendre le point">↓ Descendre</button>
             <span className="spacer" />
             <button
               className="btn small ghost"
               onClick={() => {
                 if (window.confirm(`Supprimer « ${e.titre} » ?`)) {
-                  appliquer((l) => supprimerElement(l, e.id))
+                  agir({ k: 'el-supprimer', id: e.id, titre: e.titre })
                   setOuvert(null)
                 }
               }}
@@ -767,6 +921,49 @@ function AjoutCategorie({ onAjouter }: { onAjouter: (titre: string, intro: strin
           Ajouter la catégorie
         </button>
       </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Journal : qui a fait quoi, quand — et revenir en arrière.
+// ---------------------------------------------------------------------------
+
+function Journal({ entrees, charger, revenir }: { entrees: Entree[]; charger: () => Promise<void>; revenir: (e: Entree) => void }) {
+  const [chargement, setChargement] = useState(true)
+  useEffect(() => {
+    let vivant = true
+    void charger().finally(() => {
+      if (vivant) setChargement(false)
+    })
+    return () => {
+      vivant = false
+    }
+  }, [charger])
+  return (
+    <div className="panel dev-journal-panneau" style={{ marginTop: 12 }}>
+      <h3>Journal</h3>
+      <p className="note">
+        Chaque geste, du plus récent au plus ancien. « Revenir à l’état d’avant » rétablit la liste telle
+        qu’elle était juste avant ce geste — pour tout le monde, et ce retour se note aussi : rien ne se perd.
+      </p>
+      {entrees.length === 0 ? (
+        <p className="note">{chargement ? 'Chargement…' : 'Aucune modification enregistrée pour l’instant.'}</p>
+      ) : (
+        <ul className="dev-journal">
+          {entrees.map((e) => (
+            <li key={e.id}>
+              <span className="quand">{quandLisible(e.quand)}</span>
+              <span className="texte">
+                <b>{e.auteur || 'Quelqu’un'}</b> {decrire(e.op)}
+              </span>
+              <button className="btn small ghost" onClick={() => revenir(e)} title="Rétablir la liste telle qu’elle était juste avant">
+                Revenir à l’état d’avant
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

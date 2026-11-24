@@ -15,6 +15,18 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.90',
+    date: '2026-11-24',
+    changes: [
+      'Développement : la liste ne vit plus dans le navigateur de chacun — où Safari pouvait l’effacer après sept jours sans visite — mais sur le serveur, partagée entre tous les appareils et tous les auteurs. Chaque geste (cocher, annoter, ajouter, déplacer…) est enregistré aussitôt ; ce que l’un fait, les autres le voient en direct.',
+      'Rien ne se perd plus : le serveur n’efface jamais rien. Un onglet « Journal » dit qui a fait quoi, quand, et permet de revenir à la liste telle qu’elle était juste avant n’importe quelle action — pour tout le monde, et ce retour se note aussi. Un champ « Je suis » donne son prénom au journal.',
+      'Hors ligne, on continue de travailler : les modifications attendent dans l’appareil et partent au retour du réseau. Un point de couleur en tête de liste dit où l’on en est (à jour, enregistrement, hors ligne).',
+      'La sauvegarde partagée demande une table dans le projet Supabase (fichier supabase/developpement.sql, procédure dans docs/developpement-partage-supabase.md). Tant qu’elle n’est pas créée, la liste reste sur l’appareil comme avant et l’écran le dit ; dès qu’elle l’est, la liste de l’appareil devient celle de tous. Un appareil qui gardait une liste différente la voit proposée, jamais écrasée.',
+      'L’écran « Aïe, l’interface a planté » : son bouton « Repartir de zéro » effaçait toute la mémoire du navigateur, liste de développement comprise, alors qu’il annonçait n’effacer que les réglages et l’historique. Il épargne désormais la liste et ses modifications pas encore envoyées.',
+      'Laboratoire : le champ s’appelle « Graine de campagne » et l’explication le dit clairement — chaque partie d’une campagne a sa propre pioche (graine#0, graine#1…), 1 000 parties font 1 000 tirages différents. C’était déjà le cas ; seul le texte laissait croire le contraire.',
+    ],
+  },
+  {
     version: '1.89',
     date: '2026-11-13',
     changes: [

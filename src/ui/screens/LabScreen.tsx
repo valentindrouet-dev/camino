@@ -224,8 +224,12 @@ function SimPanel({ groupesVariantes }: { groupesVariantes?: GroupeCatalogue[] }
                 ))}
               </select>
             </label>
-            <label className="field" style={{ width: 160 }}>
-              <span>Graine</span>
+            <label
+              className="field"
+              style={{ width: 160 }}
+              title="Graine de la campagne. Chaque partie en tire la sienne (graine#0, graine#1…) : tuiles, cartes et bots changent d’une partie à l’autre."
+            >
+              <span>Graine de campagne</span>
               <input type="text" value={seed} onChange={(e) => setSeed(e.target.value)} />
             </label>
           </div>
@@ -300,8 +304,10 @@ function SimPanel({ groupesVariantes }: { groupesVariantes?: GroupeCatalogue[] }
             </div>
           )}
           <p className="note">
-            Les bots jouent exactement la configuration ci-dessous, variantes comprises. Modifie,
-            relance, compare : la graine rend chaque campagne reproductible.
+            Les bots jouent exactement la configuration ci-dessous, variantes comprises. Chaque
+            partie a sa propre pioche : la graine de campagne en dérive une par partie (graine#0,
+            graine#1…), si bien que 1 000 parties font 1 000 tirages différents — et que relancer la
+            même campagne rejoue exactement les mêmes. Modifie, relance, compare.
           </p>
         </div>
 
