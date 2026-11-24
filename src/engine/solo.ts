@@ -17,7 +17,7 @@
  * chose se recouvrent en partie — d'où le tassement appliqué à la fin.
  */
 
-import { CARDS } from './cards.ts'
+import { cardById, CARDS } from './cards.ts'
 import type { GameOptions, Variants } from './types.ts'
 
 export interface ObjectifsSolo {
@@ -141,7 +141,12 @@ export function objectifsSolo(options: GameOptions): ObjectifsSolo {
     const n = options.personalCards ? 1 : Math.max(1, options.cardCount ?? 1)
     if (options.cardId) {
       // Carte imposée : son écart propre, puis des tirages au hasard.
-      cartes = CARTES[options.cardId] ?? CARTES_AU_HASARD[1]
+      // Une carte de Dév v2 reprend, faute de mieux, l'écart de la carte de la
+      // boîte dont elle dérive.
+      cartes =
+        CARTES[options.cardId] ??
+        CARTES[cardById(options.cardId)?.base ?? ''] ??
+        CARTES_AU_HASARD[1]
       for (let i = 1; i < n; i++) cartes += CARTE_SUPPLEMENTAIRE
     } else {
       cartes = CARTES_AU_HASARD[Math.min(n, 2)]

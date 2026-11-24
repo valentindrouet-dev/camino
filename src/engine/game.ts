@@ -5,7 +5,8 @@ import {
   cardById,
   cardSeuil,
   cardTable,
-  CARDS,
+  CARTES_V2,
+  paquetDeCartes,
   playerCardIds,
   rulesetForPlayer,
   TOUTES_LES_CARTES,
@@ -284,19 +285,32 @@ export function createGame(config: GameConfig): GameState {
   }
 
   // Cartes missions : une ou plusieurs pour la table, ou une par joueur.
+  // Le paquet est celui de la boîte, ou celui de Dév v2 quand la variante est
+  // cochée. Une carte imposée qui n'appartient pas au paquet en jeu — une carte
+  // de la boîte alors que Dév v2 est cochée, ou l'inverse — est ignorée.
+  const devV2 = Boolean(ruleset.variants?.devV2)
+  const paquet = paquetDeCartes(ruleset)
+  // Sans la variante, rien ne change : une carte retirée imposée par son
+  // identifiant reste jouable, comme avant. Seules les cartes v2 sont écartées.
+  const demandee = config.options.cardId
+  const imposee = devV2
+    ? paquet.some((c) => c.id === demandee)
+      ? demandee
+      : undefined
+    : demandee && !demandee.startsWith('v2-')
+      ? demandee
+      : undefined
   let cardId: string | undefined
   let cardIds: string[] | undefined
   if (config.options.personalCards) {
-    const deck = rng.shuffle(CARDS.map((c) => c.id))
+    const deck = rng.shuffle(paquet.map((c) => c.id))
     players.forEach((p, i) => {
       p.cardId = deck[i % deck.length]
     })
   } else if (config.options.useCards) {
-    const count = Math.max(1, Math.min(config.options.cardCount ?? 1, CARDS.length))
-    const rest = rng.shuffle(
-      CARDS.map((c) => c.id).filter((id) => id !== config.options.cardId),
-    )
-    cardIds = [...(config.options.cardId ? [config.options.cardId] : []), ...rest].slice(0, count)
+    const count = Math.max(1, Math.min(config.options.cardCount ?? 1, paquet.length))
+    const rest = rng.shuffle(paquet.map((c) => c.id).filter((id) => id !== imposee))
+    cardIds = [...(imposee ? [imposee] : []), ...rest].slice(0, count)
     cardId = cardIds[0]
   }
 
@@ -320,6 +334,25 @@ export function createGame(config: GameConfig): GameState {
   const cardSeuils: Record<string, number> = {}
   for (const card of TOUTES_LES_CARTES) {
     if (card.seuils) cardSeuils[card.id] = cardSeuil(card, config.options.cardSeuils?.[card.id])
+  }
+
+  // Dév v2 : ses cartes à couleur tirent la leur à part, avec leur propre
+  // générateur — les tirages des parties sans la variante ne bougent donc pas
+  // d'un iota. Et comme on pioche une tuile monochrome par carte, deux cartes
+  // en jeu ne visent jamais la même couleur.
+  if (devV2) {
+    const pioche = new Rng(`${config.options.seed}-dev-v2-couleurs`).shuffle([...PATH_COLORS])
+    const enJeu = new Set(cardIds ?? [])
+    const aColorer = [
+      ...CARTES_V2.filter((c) => c.colorized && enJeu.has(c.id)),
+      ...CARTES_V2.filter((c) => c.colorized && !enJeu.has(c.id)),
+    ]
+    aColorer.forEach((c, i) => {
+      cardColors[c.id] = pioche[i % pioche.length]
+    })
+    for (const card of CARTES_V2) {
+      if (card.seuils) cardSeuils[card.id] = cardSeuil(card, config.options.cardSeuils?.[card.id])
+    }
   }
 
   /** Cartes en jeu pour un joueur : celles de la table, ou la sienne. */
@@ -373,10 +406,12 @@ export function createGame(config: GameConfig): GameState {
 
   // La carte « Couleur bannie » a le même pouvoir, mais la couleur est la même
   // pour toute la table : on l'ajoute simplement aux couleurs interdites.
-  const bannie = cardColors['banned-color']
+  // Dév v2 l'appelle « Couleur Interdite » ; c'est la même mise en place.
+  const idBannie = devV2 ? 'v2-banned-color' : 'banned-color'
+  const bannie = cardColors[idBannie]
   if (bannie) {
     for (const p of players) {
-      if (!cartesDe(p).includes('banned-color')) continue
+      if (!cartesDe(p).includes(idBannie)) continue
       p.forbiddenColors = [...new Set([...(p.forbiddenColors ?? []), bannie])]
     }
   }
@@ -397,13 +432,15 @@ export function createGame(config: GameConfig): GameState {
   }
   if (ruleset.variants?.secretColor) secretPour(players)
   // Même pouvoir par la carte « Couleur secrète » : chacun tire la sienne.
-  const avecCarteSecrete = players.filter((p) => cartesDe(p).includes('secret-color'))
+  const idSecrete = devV2 ? 'v2-secret-color' : 'secret-color'
+  const avecCarteSecrete = players.filter((p) => cartesDe(p).includes(idSecrete))
   if (avecCarteSecrete.length) secretPour(avecCarteSecrete)
 
   let ids = Array.from({ length: TILE_COUNT }, (_, i) => i)
   // Couleurs équilibrées : on retire les douze doubles et on met les douze
   // tuiles uniques à leur place. Le sac garde exactement la même taille.
-  if (ruleset.variants?.balancedColors) {
+  // Dév v2 les adopte : c'est la décision prise pour la boîte.
+  if (ruleset.variants?.balancedColors || devV2) {
     const retirees = new Set(DOUBLED_TILE_IDS)
     ids = ids.filter((id) => !retirees.has(id)).concat(BALANCED_TILE_IDS)
   }

@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.91',
+    date: '2026-11-24',
+    changes: [
+      'Nouvelle variante « Dév v2 », dans une famille « Développement » en tête des variantes : la boîte telle que la liste de développement la propose, d’un seul geste. Tuiles : les Couleurs Équilibrées remplacent les douze doubles. Cartes missions : un paquet v2 aux noms de la liste — Chemins de 4, 5 et 6 Tuiles à +4, +5 et +6, Plus Grand Chemin à +8 (égalité +4), 2 Chemins d’une même Couleur à +10, Le Plus de Zones Noires, Mort Subite à 9 ou 10 tuiles, Par les angles et Encerclement retirées, et 4 Couleurs du Plateau quand les Bords 4 Couleurs sont en jeu.',
+      'Avec Dév v2, la Couleur Interdite ne forme plus de chemins et ne compte pour aucune autre carte : ni Plus Grand Chemin, ni Mort Subite, ni Bord de Couleur Identique ; elle coûte 2 points même quand le noir devient positif. Deux cartes à couleur tirée ne visent jamais la même couleur, comme quand on pioche les tuiles monochromes.',
+      'Décochée, la variante n’existe pas : les cartes v2 vivent à part, et 264 parties rejouées dans onze réglages différents donnent exactement les mêmes tirages et les mêmes scores qu’avant.',
+    ],
+  },
+  {
     version: '1.90',
     date: '2026-11-24',
     changes: [

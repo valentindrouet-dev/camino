@@ -93,6 +93,10 @@ export interface MissionCard {
    */
   sudden?: boolean
   atteint?(ctx: CardContext): boolean
+  /** Carte de Dév v2 : identifiant de la carte de la boîte dont elle dérive. */
+  base?: string
+  /** N'entre dans le paquet que si la variante Bords 4 Couleurs est active. */
+  bordsQuatreCouleurs?: boolean
   evaluate(ctx: CardContext): CardResult
 }
 
@@ -884,12 +888,261 @@ export function cardsOutlook(
 /** Les cartes réellement en jeu. */
 export const CARDS: MissionCard[] = TOUTES_LES_CARTES.filter((c) => !RETIREES.has(c.id))
 
+// ---------------------------------------------------------------------------
+// Dév v2 — le paquet issu de la liste de développement
+// ---------------------------------------------------------------------------
+//
+// Ces cartes ne vivent PAS dans `TOUTES_LES_CARTES` : la mise en place d'une
+// partie tire une couleur pour chaque carte de ce catalogue, dans l'ordre, à
+// partir de la graine. Y ajouter des cartes décalerait tous les tirages — une
+// même graine ne redonnerait plus la même partie. Le paquet v2 a donc sa
+// propre liste et son propre tirage, qui n'existent que variante cochée.
+//
+// Ce qui change, d'après les décisions de la liste « Mécaniques » :
+//  - Chemins de 4 / 5 / 6 Tuiles : +4 / +5 / +6, chemins d'exactement 4, 5, 6 ;
+//  - Plus Grand Chemin : +8, égalité +4 ;
+//  - 2 Chemins d'une même Couleur : 2 chemins au lieu de 3, +10 ;
+//  - Le Plus de Zones Noires : le bonus va à celui qui en a le PLUS ;
+//  - Couleur Interdite : elle ne forme plus de chemins et ne compte pour
+//    aucune autre carte — ni Plus Grand Chemin, ni Mort Subite, ni Bord de
+//    Couleur Identique — et coûte 2 points même quand le noir devient positif ;
+//  - Mort Subite : chemin de 9 ou 10 tuiles ;
+//  - Par les angles et Encerclement sont retirées ;
+//  - 4 Couleurs du Plateau, nouvelle, seulement avec les Bords 4 Couleurs ;
+//  - les autres changent de nom, pas de règle.
+
+function carteDeBase(id: string): MissionCard {
+  const c = TOUTES_LES_CARTES.find((x) => x.id === id)
+  if (!c) throw new Error(`Carte de base inconnue : ${id}`)
+  return c
+}
+
+/** Une carte v2 reprend une carte de la boîte, sous un autre nom ou un autre barème. */
+function v2(id: string, surcharge: Partial<MissionCard> & { name: string }): MissionCard {
+  return { ...carteDeBase(id), ...surcharge, id: `v2-${id}`, base: id }
+}
+
+/** Couleurs interdites du joueur : elles ne forment pas de chemins (Dév v2). */
+function interdites(ctx: CardContext): Color[] {
+  return ctx.breakdown.forbidden ?? []
+}
+
+function cheminsExacts(ctx: CardContext, n: number): number {
+  return paths(ctx).filter((z) => z.span === n).length
+}
+
+/** Le plus long chemin d'une couleur, couleur interdite exclue. */
+function plusLongDeCouleur(zones: Zone[], couleur: Color, minSpan: number): number {
+  return zones
+    .filter((z) => z.color === couleur && z.span >= minSpan)
+    .reduce((m, z) => Math.max(m, z.span), 0)
+}
+
+export const CARTES_V2: MissionCard[] = [
+  v2('exact-4', {
+    name: 'Chemins de 4 Tuiles',
+    badge: '+4',
+    text: '+4 points pour chaque chemin composé d’exactement 4 tuiles.',
+    evaluate(ctx) {
+      const n = cheminsExacts(ctx, 4)
+      return { points: n * 4, detail: plural(n, 'chemin') + ' de 4 tuiles' }
+    },
+  }),
+  v2('exact-5', {
+    name: 'Chemins de 5 Tuiles',
+    badge: '+5',
+    text: '+5 points pour chaque chemin composé d’exactement 5 tuiles.',
+    evaluate(ctx) {
+      const n = cheminsExacts(ctx, 5)
+      return { points: n * 5, detail: plural(n, 'chemin') + ' de 5 tuiles' }
+    },
+  }),
+  v2('long-6', {
+    name: 'Chemins de 6 Tuiles',
+    badge: '+6',
+    text: '+6 points pour chaque chemin composé d’exactement 6 tuiles.',
+    evaluate(ctx) {
+      const n = cheminsExacts(ctx, 6)
+      return { points: n * 6, detail: plural(n, 'chemin') + ' de 6 tuiles' }
+    },
+  }),
+  v2('five-colors', { name: 'Cinq Couleurs' }),
+  v2('six-colors', { name: 'Six Couleurs' }),
+  v2('black-positive', { name: 'Zones Noires Positives' }),
+  v2('clean-edge', { name: 'Zones Noires Intérieures' }),
+  v2('symmetry', { name: '2 Chemins de même longueur' }),
+  v2('purple-longest', {
+    name: 'Plus Grand Chemin',
+    badge: '+8',
+    text: '+8 points pour le plus grand chemin {couleur}. Si égalité, +4 points par joueur.',
+    outlook(ctx) {
+      return 0.8 * (carteDeBase('purple-longest').outlook?.(ctx) ?? 0)
+    },
+    evaluate(ctx) {
+      const cible = ctx.color ?? 'P'
+      const nom = COLOR_NAMES[cible].toLowerCase()
+      if (interdites(ctx).includes(cible)) return { points: 0, detail: `${nom} : couleur interdite` }
+      const mine = plusLongDeCouleur(ctx.breakdown.zones, cible, ctx.ruleset.minSpan)
+      if (mine === 0) return { points: 0, detail: `aucun chemin ${nom}` }
+      const all = ctx.table.map((t) => plusLongDeCouleur(t.zones, cible, ctx.ruleset.minSpan))
+      const best = Math.max(...all)
+      if (mine < best) return { points: 0, detail: `${nom} de ${mine} tuiles, battu par ${best}` }
+      const exaequo = all.filter((v) => v === best).length
+      return {
+        points: exaequo > 1 ? 4 : 8,
+        detail:
+          exaequo > 1
+            ? `à égalité (${best} tuiles) avec ${exaequo - 1} autre${exaequo > 2 ? 's' : ''}`
+            : `plus grand ${nom} (${best} tuiles)`,
+      }
+    },
+  }),
+  v2('squares', { name: 'Les Carrés' }),
+  v2('orange-paths', { name: 'Chemins de cette Couleur' }),
+  v2('crossing', { name: 'Bords Opposés' }),
+  v2('specialist', {
+    name: '2 Chemins d’une même Couleur',
+    badge: '+10',
+    text: '+10 points si une même couleur vous donne 2 chemins qui marquent ou plus.',
+    outlook(ctx) {
+      const parCouleur = new Map<Color, number>()
+      for (const z of ctx.breakdown.zones) {
+        if (z.color === BLACK) continue
+        const poids = z.scoring ? 1 : z.span >= ctx.ruleset.minSpan - 1 ? 0.5 : 0
+        if (poids) parCouleur.set(z.color, (parCouleur.get(z.color) ?? 0) + poids)
+      }
+      return 10 * Math.min(1, Math.max(0, ...parCouleur.values()) / 2)
+    },
+    evaluate(ctx) {
+      const parCouleur = new Map<Color, number>()
+      for (const z of paths(ctx)) parCouleur.set(z.color, (parCouleur.get(z.color) ?? 0) + 1)
+      const best = Math.max(0, ...parCouleur.values())
+      return best >= 2
+        ? { points: 10, detail: `${best} chemins d’une même couleur` }
+        : { points: 0, detail: best ? 'un seul chemin par couleur' : 'aucun chemin qui marque' }
+    },
+  }),
+  v2('matching-edge', {
+    name: 'Bord de Couleur Identique',
+    text: '+2 points par tuile qui touche au moins un bord de votre plateau avec une couleur identique.',
+    evaluate(ctx) {
+      const w = ctx.board.size
+      const h = ctx.board.cells.length / w
+      const grille = quadGrid(ctx.board, gridEffects(ctx.ruleset))
+      const defaut = ctx.boardColor as Color | undefined
+      const exclues = interdites(ctx)
+      const assorti = (quart: number): boolean => {
+        const couleurDuQuart = grille.cells[quart]
+        // Une couleur interdite ne compte pour aucune carte.
+        if (couleurDuQuart && exclues.includes(couleurDuQuart as Color)) return false
+        const bords = borderNeighbours(ctx.board, quart)
+        if (bords.length) return bords.some((b) => b.color === couleurDuQuart)
+        return !!defaut && couleurDuQuart === defaut
+      }
+      let n = 0
+      for (let i = 0; i < ctx.board.cells.length; i++) {
+        if (!ctx.board.cells[i]) continue
+        const col = i % w
+        const ligne = Math.floor(i / w)
+        const contreLeBord: number[] = []
+        if (ligne === 0) contreLeBord.push(0, 1)
+        if (ligne === h - 1) contreLeBord.push(2, 3)
+        if (col === 0) contreLeBord.push(0, 3)
+        if (col === w - 1) contreLeBord.push(1, 2)
+        if (!contreLeBord.length) continue
+        const quarts = quadIndicesOf(w, i)
+        if (contreLeBord.some((q) => assorti(quarts[q]))) n++
+      }
+      return { points: n * 2, detail: plural(n, 'tuile assortie', 'tuiles assorties') }
+    },
+  }),
+  v2('secret-color', {
+    name: 'Couleur Secrète',
+    text: 'Chaque joueur pioche une couleur secrète : son plus long chemin de cette couleur compte double.',
+  }),
+  v2('banned-color', {
+    name: 'Couleur Interdite',
+    text:
+      '−2 points par zone {couleur} sur votre plateau, quelle que soit sa taille. Cette couleur ' +
+      'ne forme plus de chemins et ne compte pour aucune autre carte Mission.',
+  }),
+  v2('thrifty', {
+    name: 'Le Plus de Zones Noires',
+    text: '+10 points si vous avez le plus de zones noires de la table. Si égalité, +5 points par joueur.',
+    outlook(ctx) {
+      const mine = blackZones(ctx.breakdown.zones)
+      const best = Math.max(...ctx.table.map((t) => blackZones(t.zones)))
+      return 10 * Math.max(0, 1 - Math.max(0, best - mine) / 2)
+    },
+    evaluate(ctx) {
+      const mine = blackZones(ctx.breakdown.zones)
+      const all = ctx.table.map((t) => blackZones(t.zones))
+      const best = Math.max(...all)
+      if (best === 0) return { points: 0, detail: 'aucune zone noire à la table' }
+      if (mine < best) return { points: 0, detail: `${mine} zones noires, le plus en a ${best}` }
+      const exaequo = all.filter((v) => v === best).length
+      return {
+        points: exaequo > 1 ? 5 : 10,
+        detail:
+          exaequo > 1
+            ? `à égalité (${best}) avec ${exaequo - 1} autre${exaequo > 2 ? 's' : ''}`
+            : `le plus de zones noires (${best})`,
+      }
+    },
+  }),
+  v2('sudden-death', {
+    name: 'Mort Subite',
+    seuils: [9, 10],
+    atteint(ctx) {
+      const seuil = cardSeuil(this as MissionCard, ctx.seuil)
+      const exclues = interdites(ctx)
+      return ctx.breakdown.zones.some(
+        (z) => z.color !== BLACK && !exclues.includes(z.color) && z.span >= seuil,
+      )
+    },
+  }),
+  {
+    id: 'v2-border-colors',
+    name: '4 Couleurs du Plateau',
+    badge: '+8',
+    ciel: true,
+    bordsQuatreCouleurs: true,
+    text: '+8 points si vous marquez des points dans les 4 couleurs des bords de votre plateau.',
+    outlook(ctx) {
+      const b = ctx.board.borders
+      if (b?.kind !== 'quad') return 0
+      const marquees = new Set(paths(ctx).map((z) => z.color))
+      return (8 * b.sides.filter((c) => marquees.has(c)).length) / 4
+    },
+    evaluate(ctx) {
+      const b = ctx.board.borders
+      if (b?.kind !== 'quad') return { points: 0, detail: 'sans les Bords 4 Couleurs' }
+      const marquees = new Set(paths(ctx).map((z) => z.color))
+      const n = b.sides.filter((c) => marquees.has(c)).length
+      return n === 4
+        ? { points: 8, detail: 'les 4 couleurs des bords marquent' }
+        : { points: 0, detail: `${n} couleur${n > 1 ? 's' : ''} des bords sur 4` }
+    },
+  },
+]
+
+/**
+ * Le paquet de cartes d'une partie : celui de la boîte, ou celui de Dév v2 —
+ * avec sa carte des Bords 4 Couleurs seulement quand ces bords sont en jeu.
+ */
+export function paquetDeCartes(ruleset?: Ruleset): MissionCard[] {
+  if (!ruleset?.variants?.devV2) return CARDS
+  return CARTES_V2.filter((c) => !c.bordsQuatreCouleurs || ruleset.variants?.quadBorders)
+}
+
 /**
  * On cherche dans le catalogue complet : une partie archivée avec une carte
- * depuis retirée doit continuer de s'afficher correctement.
+ * depuis retirée doit continuer de s'afficher correctement. Les cartes de
+ * Dév v2 se trouvent aussi.
  */
 export function cardById(id: string | undefined): MissionCard | undefined {
-  return id ? TOUTES_LES_CARTES.find((c) => c.id === id) : undefined
+  if (!id) return undefined
+  return TOUTES_LES_CARTES.find((c) => c.id === id) ?? CARTES_V2.find((c) => c.id === id)
 }
 
 /**
@@ -901,6 +1154,12 @@ export function cardById(id: string | undefined): MissionCard | undefined {
  * direct, la courbe et le décompte final racontent tous la même chose.
  */
 export function effectiveRuleset(ruleset: Ruleset, cardId?: string): Ruleset {
+  // Dév v2 : le noir devient positif, mais la couleur interdite reste un
+  // malus — elle « ne compte pour aucune autre carte ».
+  if (cardId === 'v2-black-positive') {
+    const malus = -Math.abs(ruleset.blackPenalty)
+    return { ...ruleset, blackPenalty: Math.abs(ruleset.blackPenalty), forbiddenPenalty: malus }
+  }
   if (cardId !== 'black-positive') return ruleset
   return { ...ruleset, blackPenalty: Math.abs(ruleset.blackPenalty) }
 }

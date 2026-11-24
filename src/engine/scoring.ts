@@ -222,8 +222,9 @@ export function computeZones(
         // Une couleur interdite ne « marque » pas : elle se compte comme une
         // zone noire, et ne fait donc pas fleurir les trèfles.
         scoring: !banni && gain > 0,
-        // Couleur interdite : la zone se compte comme une zone noire.
-        points: flip(sign, banni ? ruleset.blackPenalty : gain),
+        // Couleur interdite : la zone se compte comme une zone noire — sauf
+        // si une carte a séparé les deux valeurs (Dév v2).
+        points: flip(sign, banni ? (ruleset.forbiddenPenalty ?? ruleset.blackPenalty) : gain),
       })
     }
   }

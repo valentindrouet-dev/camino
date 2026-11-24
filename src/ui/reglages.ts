@@ -39,6 +39,12 @@ export const CATALOGUE: GroupeCatalogue[] = [
     ],
   },
   {
+    // Les propositions de la liste de développement, d'un seul geste : elles
+    // ne s'appliquent que si la case est cochée.
+    titre: 'DÉVELOPPEMENT',
+    variantes: [{ cle: 'devV2', label: 'Dév v2' }],
+  },
+  {
     titre: 'CARTES MISSIONS',
     variantes: [
       { cle: 'cards', label: 'Cartes missions' },

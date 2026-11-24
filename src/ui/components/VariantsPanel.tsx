@@ -1,6 +1,7 @@
 import type React from "react";
 import { createContext, Fragment, useContext, useState } from "react";
-import { CARDS, clearVariants, DEFAULT_RULESET } from "../../engine/index.ts";
+import { cardById, clearVariants, DEFAULT_RULESET, paquetDeCartes } from "../../engine/index.ts";
+import { DESCRIPTION_DEV_V2 } from "../variantInfo.ts";
 import type {
   GameOptions,
   Ruleset,
@@ -83,6 +84,23 @@ export function VariantsPanel({
    * atterrit, et dans quel ordre.
    */
   const INTERRUPTEURS: Record<string, React.ReactNode> = {
+    devV2: (
+          <VariantToggle
+            cle="devV2"
+            label="Dév v2"
+            on={!!variants.devV2}
+            onChange={(v) =>
+              setOptions((o) => {
+                const ruleset = { ...o.ruleset, variants: { ...o.ruleset.variants, devV2: v } };
+                // Une carte imposée qui n'existe pas dans le nouveau paquet
+                // repasse en « tirée au hasard ».
+                const garde = paquetDeCartes(ruleset).some((c) => c.id === o.cardId);
+                return { ...o, ruleset, ...(garde ? {} : { cardId: undefined }) };
+              })
+            }
+            description={DESCRIPTION_DEV_V2}
+          />
+    ),
     cards: (
           <VariantToggle
             cle="cards"
@@ -529,7 +547,7 @@ export function VariantsPanel({
             }
           >
             <option value="">Tirée au hasard</option>
-            {CARDS.map((c) => (
+            {paquetDeCartes(options.ruleset).map((c) => (
               <option key={c.id} value={c.id}>
                 {c.badge} — {c.name}
               </option>
@@ -538,7 +556,7 @@ export function VariantsPanel({
           {options.cardId && (
             <div style={{ marginTop: 8 }}>
               <MissionCardView
-                card={CARDS.find((c) => c.id === options.cardId)!}
+                card={cardById(options.cardId)!}
                 compact
                 seuil={options.cardSeuils?.[options.cardId]}
               />
@@ -551,13 +569,13 @@ export function VariantsPanel({
           décision de mise en place, pas un tirage. */}
       {options.useCards &&
         options.cardId &&
-        CARDS.find((c) => c.id === options.cardId)?.seuils && (
+        cardById(options.cardId)?.seuils && (
           <label className="field">
-            <span>{CARDS.find((c) => c.id === options.cardId)!.name} — longueur du chemin</span>
+            <span>{cardById(options.cardId)!.name} — longueur du chemin</span>
             <select
               value={
                 options.cardSeuils?.[options.cardId] ??
-                CARDS.find((c) => c.id === options.cardId)!.seuils![0]
+                cardById(options.cardId)!.seuils![0]
               }
               onChange={(e) =>
                 setOptions((o) => ({
@@ -566,7 +584,7 @@ export function VariantsPanel({
                 }))
               }
             >
-              {[...CARDS.find((c) => c.id === options.cardId)!.seuils!]
+              {[...cardById(options.cardId)!.seuils!]
                 .sort((a, b) => a - b)
                 .map((n) => (
                   <option key={n} value={n}>

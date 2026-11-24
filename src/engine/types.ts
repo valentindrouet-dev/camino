@@ -149,6 +149,13 @@ export interface Variants {
    * plateaux de la boîte se partagent les six couleurs à parts égales.
    */
   quadBorders?: boolean
+  /**
+   * Dév v2 : la boîte telle que la liste de développement la propose — les
+   * Couleurs Équilibrées à la place des douze doubles, et le paquet de cartes
+   * missions v2 (barèmes revus, deux cartes retirées, une carte des Bords 4
+   * Couleurs). Décochée, rien de tout cela n'existe.
+   */
+  devV2?: boolean
   /** +12 tuiles monochromes dans le sac (2 par couleur). */
   /**
    * Couleurs équilibrées : les douze tuiles en double de la boîte cèdent la
@@ -231,6 +238,13 @@ export interface Ruleset {
   minSpan: number
   /** Malus par zone noire (valeur négative). */
   blackPenalty: number
+  /**
+   * Valeur d'une zone de couleur interdite, quand elle ne suit pas celle du
+   * noir. Absent : elle vaut `blackPenalty`. Seule la carte « Zones Noires
+   * Positives » de Dév v2 la pose : le noir devient positif, la couleur
+   * interdite reste un malus.
+   */
+  forbiddenPenalty?: number
   /** Côté du plateau (4 = plateau officiel 4x4, donc 16 tours). */
   boardSize: number
   /** Nombre de tuiles révélées au centre de la table à chaque tour. */

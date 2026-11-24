@@ -5,6 +5,13 @@ export interface VariantInfo {
   description: string
 }
 
+/** Ce que fait Dév v2 — le même texte sur l'accueil et en cours de partie. */
+export const DESCRIPTION_DEV_V2 =
+  'La boîte selon la liste de développement. Tuiles : les Couleurs Équilibrées remplacent les douze doubles. ' +
+  'Cartes missions : Chemins de 4, 5 et 6 Tuiles à +4, +5, +6 ; Plus Grand Chemin à +8 ; ' +
+  '2 Chemins d’une même Couleur ; Le Plus de Zones Noires ; la Couleur Interdite ne compte pour aucune autre carte ; ' +
+  'Mort Subite à 9 ou 10 tuiles ; Par les angles et Encerclement retirées ; 4 Couleurs du Plateau avec les Bords 4 Couleurs.'
+
 /**
  * Variantes actives d'une partie, avec leur description — pour le rappel dans
  * la colonne de droite en cours de jeu. Les textes sont ceux de l'écran de
@@ -17,6 +24,7 @@ export function activeVariantInfos(options: GameOptions): VariantInfo[] {
   const add = (cond: boolean | undefined, label: string, description: string) => {
     if (cond) out.push({ label, description })
   }
+  add(v.devV2, 'Dév v2', DESCRIPTION_DEV_V2)
   add(
     options.useCards && (options.cardCount ?? 1) <= 1,
     'Cartes missions',
