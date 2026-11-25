@@ -65,7 +65,7 @@ test('sans Dév v2, une carte retirée imposée reste jouable et une carte v2 im
 /* Le paquet v2                                                              */
 /* ------------------------------------------------------------------------- */
 
-test('le paquet v2 : 18 cartes, sans Par les angles ni Encerclement', () => {
+test('le paquet v2 : 18 cartes, sans Par les angles ni Enfermement', () => {
   const p = E.paquetDeCartes({ ...E.DEFAULT_RULESET, variants: V2 })
   assert.equal(p.length, 18)
   assert.ok(p.every((c) => c.id.startsWith('v2-')))

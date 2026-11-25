@@ -855,7 +855,7 @@ export function GameScreen({ history, onHistory, onFinish, online }: Props) {
         {/* Couleur secrète — par la variante ou par la carte mission */}
         {viewed.secretColor && (
           <div className="panel">
-            <h3>Couleur secrète de {viewed.name}</h3>
+            <h3>Couleur Secrète de {viewed.name}</h3>
             <div className="row" style={{ gap: 12 }}>
               <ColorTile tileId={COLOR_TILE_IDS[viewed.secretColor]} size={54} />
               <div>

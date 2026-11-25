@@ -34,7 +34,7 @@ d.missions           // une ligne par carte : { card, points, detail, structural
 ```
 
 Le troisième argument est la couleur du cadre du plateau (`'O' 'R' 'P' 'G'
-'Y' 'B'`) : la carte « Bord assorti » en a besoin, sans elle elle ne compte
+'Y' 'B'`) : la carte « Bord de Couleur Identique » en a besoin, sans elle elle ne compte
 rien. `missionsScannables()` donne les cartes qu’on peut juger sur une photo.
 
 #### Les huit lignes d’une feuille de score
@@ -42,8 +42,8 @@ rien. `missionsScannables()` donne les cartes qu’on peut juger sur une photo.
 Jaune, Orange, Rouge, Vert, Bleu, Violet, Noir, Missions — dont la somme est le
 total. Trois cartes ne rapportent pas de points mais changent la façon de
 compter ; leur effet est **déjà** dans les lignes de couleur et de noir :
-« Noir positif » rend le noir positif, « Couleur bannie » rend sa couleur
-négative, « Couleur secrète » double un chemin — ce dernier bonus est compté à
+« Zones Noires Positives » rend le noir positif, « Couleur Interdite » rend sa couleur
+négative, « Couleur Secrète » double un chemin — ce dernier bonus est compté à
 part (`secretPoints`) et se rend à la ligne de sa couleur.
 
 ```ts

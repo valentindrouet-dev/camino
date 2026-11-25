@@ -138,7 +138,7 @@ export function ScoreDetail({ breakdown, dense = false }: Props) {
       )}
 
       {!dense && breakdown.secretPoints !== 0 && (
-        <div className="score-line" title="Couleur secrète : meilleur chemin doublé">
+        <div className="score-line" title="Couleur Secrète : meilleur chemin doublé">
           <span className="swatch mission" style={{ background: '#8E6BB5' }}>
             ?
           </span>

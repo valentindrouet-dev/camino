@@ -346,7 +346,7 @@ export function aggregate(records: SimGameRecord[], seats: number, durationMs = 
     { key: 'stars', label: 'Étoiles', value: starSum / div, color: '#FFD23F' },
     { key: 'clovers', label: 'Trèfles', value: cloverSum / div, color: '#2F8F3C' },
     { key: 'crystals', label: 'Cristaux', value: crystalSum / div, color: '#9FE8FF' },
-    { key: 'secret', label: 'Couleur secrète', value: secretSum / div, color: '#8E6BB5' },
+    { key: 'secret', label: 'Couleur Secrète', value: secretSum / div, color: '#8E6BB5' },
     { key: 'cards', label: 'Cartes missions', value: cardSum / div, color: '#F9B515' },
     { key: 'base', label: 'Points de départ', value: baseSum / div, color: '#C9B8A0' },
   ].filter((x) => Math.abs(x.value) > 0.001)

@@ -15,6 +15,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.92',
+    date: '2026-11-25',
+    changes: [
+      'Les cartes missions portent partout les noms de la liste de développement : Chemins de 4 Tuiles, Chemin de 5 Tuiles, Chemin de 6+ Tuiles, Cinq Couleurs, Six couleurs, Zones Noires Positives, Zones Noires Intérieures, 2 Chemins de même longueur, Plus Grand Chemin, Les Carrés, Chemins de cette Couleur, Bords opposés, 2 Chemins d’une même Couleur, Bord de Couleur Identique, Couleur Secrète, Couleur Interdite, Le Moins de Zones Noires, Mort subite, Par les angles, Enfermement. Seuls les noms changent : règles et barèmes de la boîte restent ceux d’avant.',
+    ],
+  },
+  {
     version: '1.91',
     date: '2026-11-24',
     changes: [

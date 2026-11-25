@@ -277,7 +277,7 @@ function enclosesSomething(zone: Zone, board: Board): boolean {
 export const TOUTES_LES_CARTES: MissionCard[] = [
   {
     id: 'exact-4',
-    name: 'Chemins de 4',
+    name: 'Chemins de 4 Tuiles',
     badge: '+5',
     text: '+5 points pour chaque chemin composé d’exactement 4 tuiles.',
     evaluate(ctx) {
@@ -287,7 +287,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
   },
   {
     id: 'exact-5',
-    name: 'Chemins de 5',
+    name: 'Chemin de 5 Tuiles',
     badge: '+8',
     text: '+8 points pour chaque chemin composé d’exactement 5 tuiles.',
     evaluate(ctx) {
@@ -297,7 +297,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
   },
   {
     id: 'long-6',
-    name: 'Longs chemins',
+    name: 'Chemin de 6+ Tuiles',
     badge: '+10',
     text: '+10 points pour chaque chemin composé d’au moins 6 tuiles.',
     evaluate(ctx) {
@@ -307,7 +307,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
   },
   {
     id: 'black-positive',
-    name: 'Noir positif',
+    name: 'Zones Noires Positives',
     badge: '+2',
     text: 'Les zones noires deviennent positives. +2 points pour chaque zone noire !',
     evaluate(ctx) {
@@ -340,7 +340,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
   },
   {
     id: 'five-colors',
-    name: 'Cinq couleurs',
+    name: 'Cinq Couleurs',
     badge: '+12',
     text: '+12 points si vous marquez des points dans 5 couleurs.',
     outlook: (ctx) => 12 * couvertureCouleurs(ctx, 5),
@@ -354,7 +354,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
   },
   {
     id: 'squares',
-    name: 'Les carrés',
+    name: 'Les Carrés',
     badge: '+6',
     text: '+6 points par carré composé d’au moins 2 tuiles.',
     evaluate(ctx) {
@@ -364,7 +364,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
   },
   {
     id: 'purple-longest',
-    name: 'Plus grand chemin d’une couleur',
+    name: 'Plus Grand Chemin',
     badge: '+10',
     colorized: true,
     text: '+10 points pour le plus grand chemin {couleur}. Si égalité, +5 points par joueur.',
@@ -404,7 +404,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
   },
   {
     id: 'orange-paths',
-    name: 'Chemins d’une couleur',
+    name: 'Chemins de cette Couleur',
     badge: '+8',
     colorized: true,
     text: '+8 points pour chaque chemin {couleur}.',
@@ -441,7 +441,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
   },
   {
     id: 'enclose',
-    name: 'Encerclement',
+    name: 'Enfermement',
     badge: '+10',
     text: '+10 points pour chaque chemin qui enferme une couleur ou du noir. Sans l’aide des bords.',
     evaluate(ctx) {
@@ -492,7 +492,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
   },
   {
     id: 'specialist',
-    name: 'Spécialiste',
+    name: '2 Chemins d’une même Couleur',
     badge: '+12',
     extra: true,
     text: '+12 points si une même couleur vous donne 3 chemins qui marquent ou plus.',
@@ -518,7 +518,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
   },
   {
     id: 'symmetry',
-    name: 'Symétrie',
+    name: '2 Chemins de même longueur',
     badge: '+10',
     extra: true,
     text: '+10 points si vos deux plus longs chemins font exactement la même longueur.',
@@ -567,7 +567,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
   },
   {
     id: 'thrifty',
-    name: 'Économe',
+    name: 'Le Moins de Zones Noires',
     badge: '+10',
     extra: true,
     text: '+10 points si vous avez le moins de zones noires de la table. Si égalité, +5 points par joueur.',
@@ -593,7 +593,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
   },
   {
     id: 'clean-edge',
-    name: 'Frontière nette',
+    name: 'Zones Noires Intérieures',
     badge: '+6',
     extra: true,
     text: '+6 points si aucune de vos zones noires ne touche le bord du plateau.',
@@ -725,7 +725,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
   // ------------------------------------------------------------- série ciel
   {
     id: 'matching-edge',
-    name: 'Bord assorti',
+    name: 'Bord de Couleur Identique',
     badge: '+2',
     ciel: true,
     text:
@@ -807,7 +807,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
   },
   {
     id: 'banned-color',
-    name: 'Couleur bannie',
+    name: 'Couleur Interdite',
     badge: '−2',
     ciel: true,
     colorized: true,
@@ -829,7 +829,7 @@ export const TOUTES_LES_CARTES: MissionCard[] = [
   },
   {
     id: 'secret-color',
-    name: 'Couleur secrète',
+    name: 'Couleur Secrète',
     badge: '×2',
     ciel: true,
     colorParJoueur: true,
@@ -949,7 +949,7 @@ export const CARTES_V2: MissionCard[] = [
     },
   }),
   v2('exact-5', {
-    name: 'Chemins de 5 Tuiles',
+    name: 'Chemin de 5 Tuiles',
     badge: '+5',
     text: '+5 points pour chaque chemin composé d’exactement 5 tuiles.',
     evaluate(ctx) {
@@ -958,7 +958,7 @@ export const CARTES_V2: MissionCard[] = [
     },
   }),
   v2('long-6', {
-    name: 'Chemins de 6 Tuiles',
+    name: 'Chemin de 6+ Tuiles',
     badge: '+6',
     text: '+6 points pour chaque chemin composé d’exactement 6 tuiles.',
     evaluate(ctx) {
@@ -967,7 +967,7 @@ export const CARTES_V2: MissionCard[] = [
     },
   }),
   v2('five-colors', { name: 'Cinq Couleurs' }),
-  v2('six-colors', { name: 'Six Couleurs' }),
+  v2('six-colors', { name: 'Six couleurs' }),
   v2('black-positive', { name: 'Zones Noires Positives' }),
   v2('clean-edge', { name: 'Zones Noires Intérieures' }),
   v2('symmetry', { name: '2 Chemins de même longueur' }),
@@ -999,7 +999,7 @@ export const CARTES_V2: MissionCard[] = [
   }),
   v2('squares', { name: 'Les Carrés' }),
   v2('orange-paths', { name: 'Chemins de cette Couleur' }),
-  v2('crossing', { name: 'Bords Opposés' }),
+  v2('crossing', { name: 'Bords opposés' }),
   v2('specialist', {
     name: '2 Chemins d’une même Couleur',
     badge: '+10',
@@ -1091,7 +1091,7 @@ export const CARTES_V2: MissionCard[] = [
     },
   }),
   v2('sudden-death', {
-    name: 'Mort Subite',
+    name: 'Mort subite',
     seuils: [9, 10],
     atteint(ctx) {
       const seuil = cardSeuil(this as MissionCard, ctx.seuil)
